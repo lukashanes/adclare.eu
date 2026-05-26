@@ -14,6 +14,30 @@ enum AdStatus {
   REVIEW
 }
 
+enum UserRole {
+  SUPER_ADMIN
+  PARTY_ADMIN
+  CENTRAL_REVIEWER
+  LOCAL_ADMIN
+  CAMPAIGN_MANAGER
+  CANDIDATE
+  DESIGNER
+  READONLY_AUDITOR
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   slug      String   @unique
@@ -26,6 +50,8 @@ model Tenant {
   organizationUnits OrganizationUnit[]
   ads               Ad[]
   auditLogs         AuditLog[]
+  memberships       TenantMembership[]
+  invitations       Invitation[]
 
   @@map("tenants")
 }
@@ -62,10 +88,70 @@ model OrganizationUnit {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ads    Ad[]
+  memberships TenantMembership[]
+  invitations Invitation[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
   @@map("organization_units")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships TenantMembership[]
+  invitations Invitation[] @relation("InvitationInviter")
+
+  @@map("users")
+}
+
+model TenantMembership {
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String
+  orgUnitId String?
+  role      UserRole
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgUnit OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, role])
+  @@index([tenantId, status])
+  @@index([orgUnitId])
+  @@map("tenant_memberships")
+}
+
+model Invitation {
+  id              String           @id @default(cuid())
+  tenantId        String
+  orgUnitId       String?
+  email           String
+  role            UserRole
+  status          InvitationStatus @default(PENDING)
+  token           String           @unique
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  invitedByUserId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orgUnit   OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  invitedBy User?             @relation("InvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, email])
+  @@index([orgUnitId])
+  @@map("invitations")
 }
 
 model Ad {

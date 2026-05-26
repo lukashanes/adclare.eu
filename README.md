@@ -25,6 +25,7 @@ Adclare gives a paying political party or organization one workflow to:
 - Cloudflare-inspired visual direction: clear typography, white surface, dark product UI, orange accent.
 - Product dashboard preview with compliance statuses, deadlines, approval queue and billing state.
 - Password-protected database-backed admin preview at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
+- Database-backed members and invitation flow with secure invite links and public invite acceptance pages.
 - Sections for workflow, modules, pricing, security and operator footer.
 
 ## Planned SaaS Stack
@@ -102,10 +103,10 @@ See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for DNS, firewall a
 
 ## Next Product Steps
 
-1. Replace the temporary admin password with real user accounts, magic-link login, roles and 2FA.
+1. Replace the temporary admin password with real account login, magic links and 2FA.
 2. Add real signup and Stripe checkout/request-invoice flow.
 3. Add tenant onboarding: organization details, billing mode, custom naming for branches.
 4. Add authenticated app shell: ads, campaigns, branches, users, approvals and QR generation.
 5. Add Cloudflare Turnstile to public forms.
-6. Add email templates for invites, deadlines, approvals and billing.
+6. Add transactional email sending for invites, deadlines, approvals and billing.
 7. Define database schema for tenants, organization units, ads, notices, approvals, billing and audit logs.

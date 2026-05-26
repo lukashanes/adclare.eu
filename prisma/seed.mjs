@@ -1,4 +1,4 @@
-import { PrismaClient, AdStatus } from "@prisma/client";
+import { PrismaClient, AdStatus, MembershipStatus, UserRole } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
@@ -189,6 +189,35 @@ async function main() {
     });
     unitBySlug.set(slug, unit);
   }
+
+  const adminUser = await prisma.user.upsert({
+    where: { email: "admin@demo-strana.cz" },
+    update: { name: "Admin demo strany" },
+    create: {
+      email: "admin@demo-strana.cz",
+      name: "Admin demo strany",
+    },
+  });
+
+  await prisma.tenantMembership.upsert({
+    where: {
+      tenantId_userId: {
+        tenantId: tenant.id,
+        userId: adminUser.id,
+      },
+    },
+    update: {
+      role: UserRole.PARTY_ADMIN,
+      status: MembershipStatus.ACTIVE,
+      orgUnitId: null,
+    },
+    create: {
+      tenantId: tenant.id,
+      userId: adminUser.id,
+      role: UserRole.PARTY_ADMIN,
+      status: MembershipStatus.ACTIVE,
+    },
+  });
 
   for (const ad of ads) {
     const unit = unitBySlug.get(ad.unitSlug);

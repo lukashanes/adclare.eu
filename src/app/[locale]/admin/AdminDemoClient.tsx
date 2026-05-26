@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleAlert,
+  Copy,
   CreditCard,
   Database,
   Download,
@@ -27,7 +28,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import type { AdRecord, AdminAdsPayload, EditableAdInput, Locale, Status } from "@/lib/admin-demo-types";
+import type { AdRecord, AdminAdsPayload, AdminUsersPayload, EditableAdInput, InviteInput, Locale, Status } from "@/lib/admin-demo-types";
 
 type AdminSection = "ads" | "branches" | "users" | "billing" | "audit";
 type DetailPanel = "data" | "qr" | "approval" | "audit";
@@ -193,6 +194,29 @@ const content = {
       targeting: "Cílení",
     },
     completeNote: "Po doplnění se změna uloží do databáze, reklama přejde do kontroly a QR výstupy se odblokují.",
+    usersPanel: {
+      members: "Aktivní přístupy",
+      invitations: "Pozvánky",
+      email: "E-mail",
+      role: "Role",
+      branch: "Pobočka / rozsah",
+      allParty: "Celá strana",
+      create: "Vytvořit pozvánku",
+      creating: "Vytvářím",
+      emptyInvites: "Zatím nejsou žádné pozvánky.",
+      copy: "Zkopírovat odkaz",
+      copied: "Odkaz zkopírován",
+      note: "E-mailové odeslání přijde po napojení transakčního poskytovatele. Teď se vytvoří bezpečný odkaz pro pozvánku.",
+      roles: {
+        PARTY_ADMIN: "Admin strany",
+        CENTRAL_REVIEWER: "Centrální kontrolor",
+        LOCAL_ADMIN: "Admin pobočky",
+        CAMPAIGN_MANAGER: "Manažer kampaně",
+        CANDIDATE: "Kandidát",
+        DESIGNER: "Grafik",
+        READONLY_AUDITOR: "Auditor",
+      },
+    },
   },
   en: {
     back: "Back to website",
@@ -304,8 +328,41 @@ const content = {
       targeting: "Targeting",
     },
     completeNote: "After completion, the change is saved to the database, the ad moves to review and QR outputs unlock.",
+    usersPanel: {
+      members: "Active access",
+      invitations: "Invitations",
+      email: "Email",
+      role: "Role",
+      branch: "Branch / scope",
+      allParty: "Whole party",
+      create: "Create invitation",
+      creating: "Creating",
+      emptyInvites: "No invitations yet.",
+      copy: "Copy link",
+      copied: "Link copied",
+      note: "Email sending comes after a transactional provider is connected. For now, this creates a secure invitation link.",
+      roles: {
+        PARTY_ADMIN: "Party admin",
+        CENTRAL_REVIEWER: "Central reviewer",
+        LOCAL_ADMIN: "Local admin",
+        CAMPAIGN_MANAGER: "Campaign manager",
+        CANDIDATE: "Candidate",
+        DESIGNER: "Designer",
+        READONLY_AUDITOR: "Auditor",
+      },
+    },
   },
 } as const;
+
+const inviteRoleKeys = [
+  "PARTY_ADMIN",
+  "CENTRAL_REVIEWER",
+  "LOCAL_ADMIN",
+  "CAMPAIGN_MANAGER",
+  "CANDIDATE",
+  "DESIGNER",
+  "READONLY_AUDITOR",
+] as const;
 
 export function AdminDemoClient({ locale }: { locale: Locale }) {
   const t = content[locale];
@@ -322,6 +379,15 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
   const [exportReady, setExportReady] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
   const [form, setForm] = useState<EditableAdInput>(() => blankForm(locale));
+  const [usersPayload, setUsersPayload] = useState<AdminUsersPayload | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [inviteSaving, setInviteSaving] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteForm, setInviteForm] = useState<InviteInput>({
+    email: "",
+    role: "LOCAL_ADMIN",
+    branchId: "",
+  });
 
   const selectedAd = ads.find((ad) => ad.id === selectedId) ?? ads[0];
   const headerTitle = activeSection === "ads" ? t.tableTitle : t.sections[activeSection];
@@ -394,6 +460,51 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       cancelled = true;
     };
   }, [locale, t.dbError]);
+
+  useEffect(() => {
+    if (activeSection !== "users") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadUsers() {
+      setUsersLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch(`/api/admin/demo/users?locale=${locale}`, { cache: "no-store" });
+
+        if (!response.ok) {
+          throw new Error(`Users API failed with ${response.status}`);
+        }
+
+        const payload = (await response.json()) as AdminUsersPayload;
+
+        if (!cancelled) {
+          setUsersPayload(payload);
+          setInviteForm((current) => ({
+            ...current,
+            branchId: current.branchId || payload.branches[0]?.id || "",
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setError(t.saveError);
+        }
+      } finally {
+        if (!cancelled) {
+          setUsersLoading(false);
+        }
+      }
+    }
+
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, locale, t.saveError]);
 
   const visibleAds = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -509,6 +620,46 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       setError(t.saveError);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createInvitation() {
+    if (inviteSaving || !inviteForm.email.trim()) {
+      return;
+    }
+
+    setInviteSaving(true);
+    setInviteMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/demo/users?locale=${locale}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(inviteForm),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Invitation failed with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { invitation: AdminUsersPayload["invitations"][number] };
+      setUsersPayload((current) =>
+        current
+          ? {
+              ...current,
+              invitations: [payload.invitation, ...current.invitations.filter((item) => item.id !== payload.invitation.id)],
+            }
+          : current,
+      );
+      setInviteForm((current) => ({ ...current, email: "" }));
+      setInviteMessage(payload.invitation.inviteUrl);
+    } catch {
+      setError(t.saveError);
+    } finally {
+      setInviteSaving(false);
     }
   }
 
@@ -853,6 +1004,18 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                   </aside>
                 </section>
               </>
+            ) : activeSection === "users" ? (
+              <UsersPanel
+                payload={usersPayload}
+                loading={usersLoading}
+                saving={inviteSaving}
+                form={inviteForm}
+                message={inviteMessage}
+                locale={locale}
+                t={t}
+                onChange={setInviteForm}
+                onCreate={createInvitation}
+              />
             ) : (
               <AdminSectionPanel activeSection={activeSection} ads={ads} counts={counts} locale={locale} t={t} />
             )}
@@ -863,6 +1026,168 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
   );
 }
 
+function UsersPanel({
+  payload,
+  loading,
+  saving,
+  form,
+  message,
+  locale,
+  t,
+  onChange,
+  onCreate,
+}: {
+  payload: AdminUsersPayload | null;
+  loading: boolean;
+  saving: boolean;
+  form: InviteInput;
+  message: string;
+  locale: Locale;
+  t: (typeof content)[Locale];
+  onChange: (form: InviteInput) => void;
+  onCreate: () => void | Promise<void>;
+}) {
+  const [copiedUrl, setCopiedUrl] = useState("");
+  const branches = payload?.branches ?? [];
+  const invitations = payload?.invitations ?? [];
+  const members = payload?.members ?? [];
+
+  async function copyUrl(url: string) {
+    await navigator.clipboard?.writeText(url);
+    setCopiedUrl(url);
+  }
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <article className="rounded-md border border-black/10 bg-white">
+        <div className="border-b border-black/10 p-5">
+          <h2 className="text-xl font-semibold text-black">{t.sections.users}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#59616b]">{t.sectionIntro.users}</p>
+        </div>
+
+        <div className="grid gap-5 p-5">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-[#68707a]">{t.usersPanel.members}</h3>
+            <div className="mt-3 grid gap-2">
+              {loading && members.length === 0 ? <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm font-semibold text-sky-800">{t.loading}</div> : null}
+              {members.map((member) => (
+                <div key={member.id} className="grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-4 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.6fr]">
+                  <div>
+                    <div className="font-semibold text-black">{member.name}</div>
+                    <div className="mt-1 break-all text-sm text-[#59616b]">{member.email}</div>
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-semibold text-[#20242a]">{member.role}</span>
+                  </div>
+                  <div className="text-sm text-[#59616b]">{member.scope}</div>
+                  <div className="text-sm font-semibold text-emerald-700">{member.status}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-[#68707a]">{t.usersPanel.invitations}</h3>
+            <div className="mt-3 grid gap-2">
+              {invitations.length === 0 && !loading ? <div className="rounded-md border border-black/10 p-4 text-sm text-[#59616b]">{t.usersPanel.emptyInvites}</div> : null}
+              {invitations.map((invitation) => (
+                <div key={invitation.id} className="grid gap-3 rounded-md border border-black/10 bg-white p-4 lg:grid-cols-[1fr_auto]">
+                  <div className="min-w-0">
+                    <div className="break-all font-semibold text-black">{invitation.email}</div>
+                    <div className="mt-1 text-sm text-[#59616b]">
+                      {invitation.role} · {invitation.scope} · {invitation.status}
+                    </div>
+                    <a className="mt-2 block break-all text-xs font-semibold text-[#d94410]" href={invitation.inviteUrl}>
+                      {invitation.inviteUrl}
+                    </a>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyUrl(invitation.inviteUrl)}
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#25282d]"
+                  >
+                    <Copy size={15} />
+                    {copiedUrl === invitation.inviteUrl ? t.usersPanel.copied : t.usersPanel.copy}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <aside className="rounded-md border border-black/10 bg-white">
+        <div className="border-b border-black/10 p-5">
+          <h2 className="text-xl font-semibold text-black">{t.usersPanel.create}</h2>
+          <p className="mt-2 text-sm leading-6 text-[#59616b]">{t.usersPanel.note}</p>
+        </div>
+        <div className="grid gap-4 p-5">
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.usersPanel.email}
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) => onChange({ ...form, email: event.target.value })}
+              placeholder={locale === "cs" ? "napr. pobočka@example.cz" : "e.g. branch@example.com"}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.usersPanel.role}
+            <select
+              value={form.role}
+              onChange={(event) => onChange({ ...form, role: event.target.value as InviteInput["role"] })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            >
+              {inviteRoleKeys.map((role) => (
+                <option key={role} value={role}>
+                  {t.usersPanel.roles[role]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.usersPanel.branch}
+            <select
+              value={form.branchId ?? ""}
+              onChange={(event) => onChange({ ...form, branchId: event.target.value })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            >
+              <option value="">{t.usersPanel.allParty}</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            disabled={saving || !form.email.trim()}
+            onClick={onCreate}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+          >
+            <Mail size={16} />
+            {saving ? t.usersPanel.creating : t.usersPanel.create}
+          </button>
+
+          {message ? (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+              <div>{t.usersPanel.copied}</div>
+              <a className="mt-1 block break-all text-[#166534]" href={message}>
+                {message}
+              </a>
+            </div>
+          ) : null}
+        </div>
+      </aside>
+    </section>
+  );
+}
+
 function AdminSectionPanel({
   activeSection,
   ads,
@@ -870,7 +1195,7 @@ function AdminSectionPanel({
   locale,
   t,
 }: {
-  activeSection: Exclude<AdminSection, "ads">;
+  activeSection: Exclude<AdminSection, "ads" | "users">;
   ads: AdRecord[];
   counts: Record<Status | "all", number>;
   locale: Locale;
@@ -885,19 +1210,6 @@ function AdminSectionPanel({
       return map;
     }, new Map<string, { name: string; records: number; missing: number }>()),
   ).map(([, value]) => value);
-
-  const userRows =
-    locale === "cs"
-      ? [
-          ["Centrála", "party_admin", "plný přístup", "aktivní"],
-          ["Ostrava-Jih", "local_admin", "vlastní pobočka", "pozvánka odeslána"],
-          ["Externí grafik", "designer", "QR a podklady", "omezený přístup"],
-        ]
-      : [
-          ["Headquarters", "party_admin", "full access", "active"],
-          ["Ostrava-South", "local_admin", "own branch", "invite sent"],
-          ["External designer", "designer", "QR and assets", "limited access"],
-        ];
 
   const billingRows =
     locale === "cs"
@@ -930,9 +1242,7 @@ function AdminSectionPanel({
   const rows =
     activeSection === "branches"
       ? branchRows.map((row) => [row.name, `${row.records} ${t.sectionLabels.records}`, `${row.missing} ${t.sectionLabels.missing}`])
-      : activeSection === "users"
-        ? userRows
-        : activeSection === "billing"
+      : activeSection === "billing"
           ? billingRows
           : auditRows;
 
