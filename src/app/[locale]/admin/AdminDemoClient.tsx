@@ -278,7 +278,7 @@ const content = {
       emptyInvites: "Zatím nejsou žádné pozvánky.",
       copy: "Zkopírovat odkaz",
       copied: "Odkaz zkopírován",
-      note: "E-mailové odeslání přijde po napojení transakčního poskytovatele. Teď se vytvoří bezpečný odkaz pro pozvánku.",
+      note: "Pozvánka vytvoří bezpečný odkaz a e-mail v outboxu. Pokud je nastaven RESEND_API_KEY, odešle se automaticky.",
       roles: {
         PARTY_ADMIN: "Admin strany",
         CENTRAL_REVIEWER: "Centrální kontrolor",
@@ -472,7 +472,7 @@ const content = {
       emptyInvites: "No invitations yet.",
       copy: "Copy link",
       copied: "Link copied",
-      note: "Email sending comes after a transactional provider is connected. For now, this creates a secure invitation link.",
+      note: "The invite creates a secure link and an email in the outbox. If RESEND_API_KEY is configured, it is sent automatically.",
       roles: {
         PARTY_ADMIN: "Party admin",
         CENTRAL_REVIEWER: "Central reviewer",
@@ -1377,6 +1377,7 @@ function UsersPanel({
                     <div className="mt-1 text-sm text-[#59616b]">
                       {invitation.role} · {invitation.scope} · {invitation.status}
                     </div>
+                    <div className="mt-1 text-sm font-semibold text-[#20242a]">{invitation.emailStatus}</div>
                     <a className="mt-2 block break-all text-xs font-semibold text-[#d94410]" href={invitation.inviteUrl}>
                       {invitation.inviteUrl}
                     </a>

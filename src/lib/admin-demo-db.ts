@@ -5,6 +5,7 @@ import {
   BillingMethod,
   BillingPlan,
   BillingStatus,
+  EmailStatus,
   type AuditLog,
   InvitationStatus,
   MembershipStatus,
@@ -12,6 +13,7 @@ import {
   type Ad,
   type BillingAccount,
   type Campaign,
+  type EmailMessage,
   type Invitation,
   type OrganizationUnit,
   type Tenant,
@@ -55,6 +57,7 @@ type MembershipWithUserAndUnit = TenantMembership & {
 };
 type InvitationWithUnit = Invitation & {
   orgUnit: OrganizationUnit | null;
+  emailMessages?: EmailMessage[];
 };
 type AuditPackageAd = AdWithUnit & {
   auditLogs: AuditLog[];
@@ -123,6 +126,114 @@ function createInviteToken() {
 
 function appUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://adclare.eu").replace(/\/$/, "");
+}
+
+function emailFrom() {
+  return process.env.EMAIL_FROM || "Adclare <noreply@adclare.eu>";
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
+  const inviteUrl = `${appUrl()}/invite/${invitation.token}`;
+  const tenantName = invitation.tenant.nameCs;
+  const scope = scopeLabel(invitation.orgUnit, "cs");
+  const role = roleLabel(invitation.role, "cs");
+  const subject = `Pozvánka do Adclare: ${tenantName}`;
+  const bodyText = [
+    `Dobrý den,`,
+    ``,
+    `byl vám vytvořen přístup do Adclare pro ${tenantName}.`,
+    `Role: ${role}`,
+    `Rozsah: ${scope}`,
+    ``,
+    `Pozvánku přijmete zde:`,
+    inviteUrl,
+    ``,
+    `Odkaz je platný do ${formatDate(invitation.expiresAt, "cs")}.`,
+  ].join("\n");
+  const bodyHtml = `
+    <p>Dobrý den,</p>
+    <p>Byl vám vytvořen přístup do <strong>Adclare</strong> pro ${escapeHtml(tenantName)}.</p>
+    <p><strong>Role:</strong> ${escapeHtml(role)}<br><strong>Rozsah:</strong> ${escapeHtml(scope)}</p>
+    <p><a href="${escapeHtml(inviteUrl)}">Přijmout pozvánku</a></p>
+    <p>Odkaz je platný do ${escapeHtml(formatDate(invitation.expiresAt, "cs"))}.</p>
+  `;
+
+  return { subject, bodyText, bodyHtml, inviteUrl };
+}
+
+async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
+  const { subject, bodyText, bodyHtml } = invitationEmailCopy(invitation);
+  const email = await prisma.emailMessage.create({
+    data: {
+      tenantId: invitation.tenantId,
+      invitationId: invitation.id,
+      toEmail: invitation.email,
+      subject,
+      bodyText,
+      bodyHtml,
+      status: EmailStatus.PENDING_PROVIDER,
+      error: process.env.RESEND_API_KEY ? "" : "RESEND_API_KEY is not configured.",
+    },
+  });
+
+  if (!process.env.RESEND_API_KEY) {
+    return email;
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": email.id,
+      },
+      body: JSON.stringify({
+        from: emailFrom(),
+        to: [invitation.email],
+        subject,
+        text: bodyText,
+        html: bodyHtml,
+      }),
+    });
+
+    const result = (await response.json().catch(() => ({}))) as { id?: string; message?: string };
+
+    if (!response.ok) {
+      throw new Error(result.message || `Resend responded with ${response.status}.`);
+    }
+
+    return prisma.emailMessage.update({
+      where: {
+        id: email.id,
+      },
+      data: {
+        status: EmailStatus.SENT,
+        providerMessageId: result.id || "",
+        error: "",
+        sentAt: new Date(),
+      },
+    });
+  } catch (error) {
+    return prisma.emailMessage.update({
+      where: {
+        id: email.id,
+      },
+      data: {
+        status: EmailStatus.FAILED,
+        error: error instanceof Error ? error.message : "Unknown email send error.",
+      },
+    });
+  }
 }
 
 function roleLabel(role: UserRole, locale: Locale) {
@@ -253,6 +364,20 @@ function invitationStatusKey(status: InvitationStatus, expiresAt: Date): AdminIn
   return status === InvitationStatus.PENDING && expiresAt.getTime() < Date.now() ? "EXPIRED" : status;
 }
 
+function emailStatusLabel(status: EmailStatus, locale: Locale) {
+  const labels: Record<EmailStatus, Record<Locale, string>> = {
+    PENDING_PROVIDER: { cs: "čeká na e-mail provider", en: "waiting for email provider" },
+    SENT: { cs: "e-mail odeslán", en: "email sent" },
+    FAILED: { cs: "odeslání selhalo", en: "send failed" },
+  };
+
+  return labels[status][locale];
+}
+
+function latestEmailStatus(invitation: InvitationWithUnit): EmailStatus {
+  return invitation.emailMessages?.[0]?.status ?? EmailStatus.PENDING_PROVIDER;
+}
+
 function scopeLabel(orgUnit: OrganizationUnit | null, locale: Locale) {
   if (!orgUnit) {
     return locale === "cs" ? "celá strana" : "whole party";
@@ -274,6 +399,8 @@ function mapMember(member: MembershipWithUserAndUnit, locale: Locale): AdminMemb
 }
 
 function mapInvitation(invitation: InvitationWithUnit, locale: Locale): AdminInvitationRecord {
+  const emailStatus = latestEmailStatus(invitation);
+
   return {
     id: invitation.id,
     email: invitation.email,
@@ -282,6 +409,8 @@ function mapInvitation(invitation: InvitationWithUnit, locale: Locale): AdminInv
     scope: scopeLabel(invitation.orgUnit, locale),
     status: invitationStatusLabel(invitation.status, invitation.expiresAt, locale),
     statusKey: invitationStatusKey(invitation.status, invitation.expiresAt),
+    emailStatus: emailStatusLabel(emailStatus, locale),
+    emailStatusKey: emailStatus,
     expiresAt: formatDate(invitation.expiresAt, locale),
     inviteUrl: `${appUrl()}/invite/${invitation.token}`,
   };
@@ -766,6 +895,12 @@ export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPay
       },
       include: {
         orgUnit: true,
+        emailMessages: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -990,21 +1125,24 @@ export async function createDemoInvitation(input: InviteInput, locale: Locale) {
       expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     },
     include: {
+      tenant: true,
       orgUnit: true,
     },
   });
+
+  const emailMessage = await sendInvitationEmail(invitation);
 
   await prisma.auditLog.create({
     data: {
       tenantId: tenant.id,
       actor: "demo-admin",
       action: "create_invitation",
-      messageCs: `Vytvořena pozvánka pro ${email}.`,
-      messageEn: `Created invitation for ${email}.`,
+      messageCs: `Vytvořena pozvánka pro ${email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
+      messageEn: `Created invitation for ${email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
     },
   });
 
-  return mapInvitation(invitation, locale);
+  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
 }
 
 export async function getInvitationNotice(token: string, locale: Locale): Promise<InvitationNotice | null> {

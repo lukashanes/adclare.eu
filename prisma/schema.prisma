@@ -63,6 +63,12 @@ enum BillingStatus {
   CANCELLED
 }
 
+enum EmailStatus {
+  PENDING_PROVIDER
+  SENT
+  FAILED
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   slug      String   @unique
@@ -78,6 +84,7 @@ model Tenant {
   memberships       TenantMembership[]
   invitations       Invitation[]
   billingAccount    BillingAccount?
+  emailMessages     EmailMessage[]
 
   @@map("tenants")
 }
@@ -173,6 +180,7 @@ model Invitation {
   tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   orgUnit   OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
   invitedBy User?             @relation("InvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  emailMessages EmailMessage[]
 
   @@index([tenantId, status])
   @@index([tenantId, email])
@@ -276,4 +284,28 @@ model BillingAccount {
   @@index([status])
   @@index([method])
   @@map("billing_accounts")
+}
+
+model EmailMessage {
+  id                String      @id @default(cuid())
+  tenantId          String
+  invitationId      String?
+  toEmail           String
+  subject           String
+  bodyText          String
+  bodyHtml          String      @default("")
+  provider          String      @default("resend")
+  providerMessageId String      @default("")
+  status            EmailStatus
+  error             String      @default("")
+  sentAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitation Invitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([invitationId])
+  @@map("email_messages")
 }

@@ -14,6 +14,7 @@ export type BillingPlanKey = "SMALL_PARTY" | "LARGE_PARTY" | "CUSTOM";
 export type BillingIntervalKey = "MONTHLY" | "YEARLY";
 export type BillingMethodKey = "STRIPE" | "INVOICE";
 export type BillingStatusKey = "TRIAL" | "ACTIVE" | "PENDING_INVOICE_APPROVAL" | "PAST_DUE" | "PAUSED" | "CANCELLED";
+export type EmailStatusKey = "PENDING_PROVIDER" | "SENT" | "FAILED";
 
 export type AdRecord = {
   id: string;
@@ -133,6 +134,8 @@ export type AdminInvitationRecord = {
   scope: string;
   status: string;
   statusKey: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
+  emailStatus: string;
+  emailStatusKey: EmailStatusKey;
   expiresAt: string;
   inviteUrl: string;
 };
