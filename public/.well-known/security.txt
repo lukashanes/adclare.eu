@@ -1,0 +1,5 @@
+Contact: mailto:security@adclare.eu
+Contact: mailto:hello@adclare.eu
+Preferred-Languages: cs, en
+Canonical: https://adclare.eu/.well-known/security.txt
+Policy: https://adclare.eu/cs/privacy

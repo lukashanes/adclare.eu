@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: adclare_dev
+      POSTGRES_USER: adclare
+      POSTGRES_PASSWORD: adclare_dev_password
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adclare -d adclare_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - adclare
+
+  web:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      DATABASE_URL: postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public
+    networks:
+      - adclare
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - adclare
+
+networks:
+  adclare:
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

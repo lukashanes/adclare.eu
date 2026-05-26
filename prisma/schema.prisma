@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdStatus {
+  READY
+  WARNING
+  BLOCKED
+  REVIEW
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  nameCs    String
+  nameEn    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns         Campaign[]
+  organizationUnits OrganizationUnit[]
+  ads               Ad[]
+  auditLogs         AuditLog[]
+
+  @@map("tenants")
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  tenantId  String
+  slug      String
+  nameCs    String
+  nameEn    String
+  election  String
+  startsAt  DateTime
+  endsAt    DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ads    Ad[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("campaigns")
+}
+
+model OrganizationUnit {
+  id        String   @id @default(cuid())
+  tenantId  String
+  slug      String
+  kind      String
+  nameCs    String
+  nameEn    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ads    Ad[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("organization_units")
+}
+
+model Ad {
+  id              String   @id @default(cuid())
+  tenantId        String
+  campaignId      String
+  orgUnitId       String
+  code            String
+  titleCs         String
+  titleEn         String
+  ownerCs         String
+  ownerEn         String
+  mediaTypeCs     String
+  mediaTypeEn     String
+  publicationDate DateTime
+  periodCs        String
+  periodEn        String
+  payerCs         String
+  payerEn         String
+  amount          String   @default("")
+  fundingSourceCs String   @default("")
+  fundingSourceEn String   @default("")
+  targetingCs     String   @default("")
+  targetingEn     String   @default("")
+  missingCs       String[]
+  missingEn       String[]
+  status          AdStatus
+  statusLabelCs   String
+  statusLabelEn   String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign  Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  orgUnit   OrganizationUnit @relation(fields: [orgUnitId], references: [id], onDelete: Restrict)
+  auditLogs AuditLog[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+  @@index([tenantId, campaignId])
+  @@index([tenantId, orgUnitId])
+  @@map("ads")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  adId      String?
+  actor     String
+  action    String
+  messageCs String
+  messageEn String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ad     Ad?    @relation(fields: [adId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([adId, createdAt])
+  @@map("audit_logs")
+}

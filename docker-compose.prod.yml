@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: adclare-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-adclare_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-adclare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-adclare} -d ${POSTGRES_DB:-adclare_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    image: adclare-migrate:latest
+    profiles:
+      - tools
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: adclare-web:latest
+    container_name: adclare-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_APP_URL: https://adclare.eu
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: 0x4AAAAAADWL1GxcsZgXYZe1
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    ports:
+      - "127.0.0.1:13310:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/cs || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  postgres_data:
