@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import {
   AdStatus,
+  type AuditLog,
   InvitationStatus,
   MembershipStatus,
   UserRole,
@@ -39,6 +40,9 @@ type MembershipWithUserAndUnit = TenantMembership & {
 };
 type InvitationWithUnit = Invitation & {
   orgUnit: OrganizationUnit | null;
+};
+type AuditPackageAd = AdWithUnit & {
+  auditLogs: AuditLog[];
 };
 
 const statusMap: Record<AdStatus, Status> = {
@@ -764,4 +768,60 @@ export async function prepareDemoAuditExport(code: string) {
   });
 
   return true;
+}
+
+export async function getDemoAuditPackage(code: string, locale: Locale) {
+  const { tenant, campaign } = await getDemoTenantAndCampaign();
+  const ad = await prisma.ad.findUnique({
+    where: {
+      tenantId_code: {
+        tenantId: tenant.id,
+        code,
+      },
+    },
+    include: {
+      orgUnit: true,
+      auditLogs: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+    },
+  });
+
+  if (!ad) {
+    return null;
+  }
+
+  const typedAd = ad as AuditPackageAd;
+
+  return {
+    exportedAt: new Date().toISOString(),
+    tenant: {
+      id: tenant.id,
+      slug: tenant.slug,
+      name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
+    },
+    campaign: {
+      id: campaign.id,
+      slug: campaign.slug,
+      name: locale === "cs" ? campaign.nameCs : campaign.nameEn,
+      election: campaign.election,
+      startsAt: campaign.startsAt.toISOString(),
+      endsAt: campaign.endsAt.toISOString(),
+    },
+    ad: mapAd(typedAd, locale),
+    notice: {
+      publicUrl: `${appUrl()}/ad/${typedAd.publicToken}`,
+      lastUpdated: typedAd.updatedAt.toISOString(),
+      missing: locale === "cs" ? typedAd.missingCs : typedAd.missingEn,
+    },
+    auditLogs: typedAd.auditLogs.map((log) => ({
+      id: log.id,
+      actor: log.actor,
+      action: log.action,
+      message: locale === "cs" ? log.messageCs : log.messageEn,
+      createdAt: log.createdAt.toISOString(),
+    })),
+  };
 }

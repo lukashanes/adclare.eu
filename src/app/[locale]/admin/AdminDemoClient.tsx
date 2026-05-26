@@ -578,6 +578,7 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       setPanel("audit");
       setActiveSection("ads");
       setExportReady(true);
+      window.location.href = `/api/admin/demo/ads/${encodeURIComponent(selectedAd.id)}/audit-export?locale=${locale}`;
     } catch {
       setError(t.saveError);
     } finally {
