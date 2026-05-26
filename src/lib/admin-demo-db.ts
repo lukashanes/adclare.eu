@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { AdStatus, type Ad, type Campaign, type OrganizationUnit, type Tenant } from "@prisma/client";
 import type { AdRecord, AdminAdsPayload, EditableAdInput, Locale, Status } from "@/lib/admin-demo-types";
 import { prisma } from "@/lib/prisma";
@@ -33,6 +34,7 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
 
   return {
     id: ad.code,
+    publicUrl: `https://adclare.eu/ad/${ad.publicToken}`,
     title: isCs ? ad.titleCs : ad.titleEn,
     branch: isCs ? ad.orgUnit.nameCs : ad.orgUnit.nameEn,
     owner: isCs ? ad.ownerCs : ad.ownerEn,
@@ -47,6 +49,10 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     status: statusMap[ad.status],
     statusLabel: isCs ? ad.statusLabelCs : ad.statusLabelEn,
   };
+}
+
+function createPublicToken() {
+  return randomBytes(18).toString("base64url");
 }
 
 function mapPayload(tenant: Tenant, campaign: Campaign, ads: AdWithUnit[], locale: Locale): AdminAdsPayload {
@@ -193,14 +199,11 @@ export async function getDemoAdsPayload(locale: Locale) {
   return mapPayload(tenant, campaign, ads, locale);
 }
 
-export async function getDemoTransparencyNotice(code: string, locale: Locale) {
+export async function getDemoTransparencyNotice(publicToken: string, locale: Locale) {
   const { tenant, campaign } = await getDemoTenantAndCampaign();
   const ad = await prisma.ad.findUnique({
     where: {
-      tenantId_code: {
-        tenantId: tenant.id,
-        code: code.toUpperCase(),
-      },
+      publicToken,
     },
     include: {
       orgUnit: true,
@@ -217,7 +220,7 @@ export async function getDemoTransparencyNotice(code: string, locale: Locale) {
     election: campaign.election,
     ad: mapAd(ad, locale),
     lastUpdated: formatDate(ad.updatedAt, locale),
-    publicUrl: `https://adclare.eu/ad/${ad.code.toLowerCase()}`,
+    publicUrl: `https://adclare.eu/ad/${ad.publicToken}`,
   };
 }
 
@@ -286,6 +289,7 @@ export async function createDemoAd(input: EditableAdInput, locale: Locale) {
       campaignId: campaign.id,
       orgUnitId: unit.id,
       code,
+      publicToken: createPublicToken(),
       titleCs: input.title.trim(),
       titleEn: input.title.trim(),
       ownerCs: input.owner.trim(),

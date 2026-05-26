@@ -21,7 +21,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     return Response.json({ error: "Required data is missing." }, { status: 409 });
   }
 
-  const publicUrl = `https://adclare.eu/ad/${ad.id.toLowerCase()}`;
+  const publicUrl = ad.publicUrl;
   const qrSvg = await QRCode.toString(publicUrl, {
     type: "svg",
     margin: 1,

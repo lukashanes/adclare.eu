@@ -1093,7 +1093,7 @@ function DataPanel({
 function QrPanel({ ad, locale, t }: { ad: AdRecord; locale: Locale; t: (typeof content)[Locale] }) {
   const isReady = ad.missing.length === 0;
   const rows = [
-    [t.qrRows[0], `https://adclare.eu/ad/${ad.id.toLowerCase()}`, isReady],
+    [t.qrRows[0], ad.publicUrl, isReady],
     [t.qrRows[1], "SVG, PNG, PDF", isReady],
     [t.qrRows[2], "30 mm / 40 mm / A4", isReady],
     [t.qrRows[3], isReady ? t.states.ready : t.states.blocked, isReady],

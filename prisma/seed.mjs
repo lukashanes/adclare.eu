@@ -1,4 +1,5 @@
 import { PrismaClient, AdStatus } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
 
@@ -141,6 +142,10 @@ const ads = [
   },
 ];
 
+function createPublicToken() {
+  return randomBytes(18).toString("base64url");
+}
+
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: tenantSlug },
@@ -219,6 +224,7 @@ async function main() {
         campaignId: campaign.id,
         orgUnitId: unit.id,
         code: ad.code,
+        publicToken: createPublicToken(),
         titleCs: ad.titleCs,
         titleEn: ad.titleEn,
         ownerCs: ad.ownerCs,

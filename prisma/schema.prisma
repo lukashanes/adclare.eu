@@ -74,6 +74,7 @@ model Ad {
   campaignId      String
   orgUnitId       String
   code            String
+  publicToken     String   @unique
   titleCs         String
   titleEn         String
   ownerCs         String

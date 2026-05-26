@@ -3,6 +3,7 @@ export type Status = "ready" | "warning" | "blocked" | "review";
 
 export type AdRecord = {
   id: string;
+  publicUrl: string;
   title: string;
   branch: string;
   owner: string;

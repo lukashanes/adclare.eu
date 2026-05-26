@@ -13,8 +13,8 @@ type PageProps = {
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { code } = await params;
-  const notice = await getDemoTransparencyNotice(code, "cs");
+  const { code: publicToken } = await params;
+  const notice = await getDemoTransparencyNotice(publicToken, "cs");
 
   if (!notice) {
     return {
@@ -29,8 +29,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function TransparencyNoticePage({ params }: PageProps) {
-  const { code } = await params;
-  const notice = await getDemoTransparencyNotice(code, "cs");
+  const { code: publicToken } = await params;
+  const notice = await getDemoTransparencyNotice(publicToken, "cs");
 
   if (!notice) {
     notFound();
