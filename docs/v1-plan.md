@@ -59,7 +59,7 @@ Adclare gives political parties one place to control political advertising compl
 - Notices: EU 2024/900 transparency notice versions.
 - QR: SVG-first generation, PNG/PDF exports.
 - Approvals: configurable workflow, comments, locks.
-- Email: invites, reminders, red-status alerts, approvals, billing.
+- Email: invite outbox is implemented; reminders, red-status alerts, approvals and billing templates follow.
 - Audit: append-only log with actor, diff, timestamp and reason.
 - Public repo: search, filters, ad details, JSON endpoint.
 
@@ -82,6 +82,7 @@ Large-party plan includes repository access, archive for the legally required pe
 
 - tenants
 - billing_accounts
+- email_messages
 - subscriptions
 - invoices
 - discounts

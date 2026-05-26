@@ -109,8 +109,28 @@ Current production status:
 - Local app port: `127.0.0.1:13310`
 - Nginx vhost: `/etc/nginx/sites-enabled/adclare.eu`
 - Public URLs: `https://adclare.eu/cs`, `https://adclare.eu/en`
+- Public demo repository: `https://adclare.eu/repo/demo-party`
+- Public demo repository JSON: `https://adclare.eu/api/repo/demo-party/ads?locale=cs`
 - `www.adclare.eu` redirects to `https://adclare.eu/`
 - Docker healthcheck is enabled and checks `/cs`.
+
+## Production Secrets Still Needed
+
+Add these to `/srv/apps/adclare/.env` when the external services are ready:
+
+```bash
+EMAIL_FROM='Adclare <noreply@adclare.eu>'
+RESEND_API_KEY='re_...'
+STRIPE_SECRET_KEY='sk_live_...'
+STRIPE_WEBHOOK_SECRET='whsec_...'
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY='pk_live_...'
+```
+
+Current behavior without those secrets:
+
+- Invitation e-mails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
+- Billing plan, discount, Stripe/invoice mode and invoice approval state are stored in `billing_accounts`.
+- Real Stripe checkout, Stripe customer portal and webhook processing are not enabled until Stripe keys and product IDs are provided.
 
 ## Update
 

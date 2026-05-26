@@ -26,7 +26,10 @@ Adclare gives a paying political party or organization one workflow to:
 - Product dashboard preview with compliance statuses, deadlines, approval queue and billing state.
 - Password-protected database-backed admin preview at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
 - Database-backed members and invitation flow with secure invite links and public invite acceptance pages.
+- Invitation e-mail outbox with Resend send path when `RESEND_API_KEY` is configured.
+- Database-backed billing account state for plan, interval, Stripe/invoice mode, status and admin discount.
 - Expanded ad records with online/offline channel, supplier, distribution area, language, targeting flag, target audience and deadline-based missing-data status.
+- Public repository at `/repo/demo-party` with filters and JSON endpoint at `/api/repo/demo-party/ads`.
 - Sections for workflow, modules, pricing, security and operator footer.
 
 ## Planned SaaS Stack
@@ -74,6 +77,10 @@ The local database listens on `127.0.0.1:5433`. Use `npm run db:seed` to restore
 
 For the temporary protected admin preview, set `ADMIN_ACCESS_PASSWORD` and a random `ADMIN_SESSION_SECRET` with at least 32 characters.
 
+For invite e-mail sending, set `EMAIL_FROM` and `RESEND_API_KEY`. Without `RESEND_API_KEY`, invitations are still created and stored in the outbox with status `PENDING_PROVIDER`.
+
+For billing, set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` before adding real checkout/customer portal actions. The current admin stores billing state and discounts in Postgres.
+
 ## Checks
 
 ```bash
@@ -111,9 +118,9 @@ See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for DNS, firewall a
 ## Next Product Steps
 
 1. Replace the temporary admin password with real account login, magic links and 2FA.
-2. Add real signup and Stripe checkout/request-invoice flow.
-3. Add tenant onboarding: organization details, billing mode, custom naming for branches.
-4. Add authenticated app shell: ads, campaigns, branches, users, approvals and QR generation.
+2. Add real signup and Stripe checkout/customer portal flow.
+3. Add tenant onboarding: organization details, billing mode and custom naming for branches.
+4. Replace demo admin scope with tenant-aware authenticated app shell.
 5. Add Cloudflare Turnstile to public forms.
-6. Add transactional email sending for invites, deadlines, approvals and billing.
-7. Define database schema for tenants, organization units, ads, notices, approvals, billing and audit logs.
+6. Add deadline, approval and billing e-mail templates on top of the existing outbox.
+7. Add real file uploads to object storage for ad assets and generated exports.
