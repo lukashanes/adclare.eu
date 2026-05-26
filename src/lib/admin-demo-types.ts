@@ -10,6 +10,10 @@ export type AdminRoleKey =
   | "CANDIDATE"
   | "DESIGNER"
   | "READONLY_AUDITOR";
+export type BillingPlanKey = "SMALL_PARTY" | "LARGE_PARTY" | "CUSTOM";
+export type BillingIntervalKey = "MONTHLY" | "YEARLY";
+export type BillingMethodKey = "STRIPE" | "INVOICE";
+export type BillingStatusKey = "TRIAL" | "ACTIVE" | "PENDING_INVOICE_APPROVAL" | "PAST_DUE" | "PAUSED" | "CANCELLED";
 
 export type AdRecord = {
   id: string;
@@ -153,4 +157,47 @@ export type InvitationNotice = {
   tenant: string;
   status: AdminInvitationRecord["statusKey"];
   expiresAt: string;
+};
+
+export type AdminBillingPayload = {
+  tenant: {
+    name: string;
+    slug: string;
+  };
+  billing: {
+    plan: BillingPlanKey;
+    planLabel: string;
+    interval: BillingIntervalKey;
+    intervalLabel: string;
+    method: BillingMethodKey;
+    methodLabel: string;
+    status: BillingStatusKey;
+    statusLabel: string;
+    discountPercent: number;
+    monthlyPriceEur: number;
+    yearlyPriceEur: number;
+    effectivePrice: string;
+    invoiceEmail: string;
+    invoiceApprovedAt: string;
+    currentPeriodEndsAt: string;
+    trialEndsAt: string;
+    stripeCustomerId: string;
+    stripeSubscriptionId: string;
+    stripeConfigured: boolean;
+    note: string;
+  };
+};
+
+export type EditableBillingInput = {
+  plan: BillingPlanKey;
+  interval: BillingIntervalKey;
+  method: BillingMethodKey;
+  status: BillingStatusKey;
+  discountPercent: number;
+  monthlyPriceEur: number;
+  yearlyPriceEur: number;
+  invoiceEmail: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  note: string;
 };

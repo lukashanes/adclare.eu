@@ -1,4 +1,4 @@
-import { PrismaClient, AdStatus, MembershipStatus, UserRole } from "@prisma/client";
+import { PrismaClient, AdStatus, BillingInterval, BillingMethod, BillingPlan, BillingStatus, MembershipStatus, UserRole } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
@@ -222,6 +222,39 @@ async function main() {
       election: "municipal-2026",
       startsAt: new Date("2026-08-01T00:00:00.000Z"),
       endsAt: new Date("2026-10-10T00:00:00.000Z"),
+    },
+  });
+
+  await prisma.billingAccount.upsert({
+    where: {
+      tenantId: tenant.id,
+    },
+    update: {
+      plan: BillingPlan.LARGE_PARTY,
+      interval: BillingInterval.YEARLY,
+      method: BillingMethod.STRIPE,
+      status: BillingStatus.ACTIVE,
+      discountPercent: 50,
+      monthlyPriceEur: 99,
+      yearlyPriceEur: 999,
+      invoiceEmail: "billing@demo-strana.cz",
+      currentPeriodEndsAt: new Date("2027-05-26T00:00:00.000Z"),
+      noteCs: "Akční cena pro velkou stranu. Fakturační režim lze přepnout na ruční schválení.",
+      noteEn: "Promotional large party price. Billing can be switched to manual invoice approval.",
+    },
+    create: {
+      tenantId: tenant.id,
+      plan: BillingPlan.LARGE_PARTY,
+      interval: BillingInterval.YEARLY,
+      method: BillingMethod.STRIPE,
+      status: BillingStatus.ACTIVE,
+      discountPercent: 50,
+      monthlyPriceEur: 99,
+      yearlyPriceEur: 999,
+      invoiceEmail: "billing@demo-strana.cz",
+      currentPeriodEndsAt: new Date("2027-05-26T00:00:00.000Z"),
+      noteCs: "Akční cena pro velkou stranu. Fakturační režim lze přepnout na ruční schválení.",
+      noteEn: "Promotional large party price. Billing can be switched to manual invoice approval.",
     },
   });
 

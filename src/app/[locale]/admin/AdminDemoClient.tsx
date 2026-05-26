@@ -28,7 +28,21 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import type { AdRecord, AdminAdsPayload, AdminUsersPayload, EditableAdInput, InviteInput, Locale, Status } from "@/lib/admin-demo-types";
+import type {
+  AdRecord,
+  AdminAdsPayload,
+  AdminBillingPayload,
+  AdminUsersPayload,
+  BillingIntervalKey,
+  BillingMethodKey,
+  BillingPlanKey,
+  BillingStatusKey,
+  EditableAdInput,
+  EditableBillingInput,
+  InviteInput,
+  Locale,
+  Status,
+} from "@/lib/admin-demo-types";
 
 type AdminSection = "ads" | "branches" | "users" | "billing" | "audit";
 type DetailPanel = "data" | "qr" | "approval" | "audit";
@@ -82,6 +96,41 @@ function formFromAd(ad: AdRecord): EditableAdInput {
     isTargeted: ad.isTargeted,
     targeting: ad.targeting,
     targetAudience: ad.targetAudience,
+  };
+}
+
+function blankBillingForm(locale: Locale): EditableBillingInput {
+  return {
+    plan: "LARGE_PARTY",
+    interval: "YEARLY",
+    method: "STRIPE",
+    status: "ACTIVE",
+    discountPercent: 50,
+    monthlyPriceEur: 99,
+    yearlyPriceEur: 999,
+    invoiceEmail: "billing@demo-strana.cz",
+    stripeCustomerId: "",
+    stripeSubscriptionId: "",
+    note:
+      locale === "cs"
+        ? "Akční cena pro velkou stranu. Fakturační režim lze přepnout na ruční schválení."
+        : "Promotional large party price. Billing can be switched to manual invoice approval.",
+  };
+}
+
+function billingFormFromPayload(payload: AdminBillingPayload): EditableBillingInput {
+  return {
+    plan: payload.billing.plan,
+    interval: payload.billing.interval,
+    method: payload.billing.method,
+    status: payload.billing.status,
+    discountPercent: payload.billing.discountPercent,
+    monthlyPriceEur: payload.billing.monthlyPriceEur,
+    yearlyPriceEur: payload.billing.yearlyPriceEur,
+    invoiceEmail: payload.billing.invoiceEmail,
+    stripeCustomerId: payload.billing.stripeCustomerId,
+    stripeSubscriptionId: payload.billing.stripeSubscriptionId,
+    note: payload.billing.note,
   };
 }
 
@@ -240,6 +289,55 @@ const content = {
         READONLY_AUDITOR: "Auditor",
       },
     },
+    billingPanel: {
+      overview: "Stav účtu",
+      settings: "Nastavení fakturace",
+      save: "Uložit fakturaci",
+      saving: "Ukládám",
+      plan: "Tarif",
+      interval: "Období",
+      method: "Platba",
+      status: "Stav",
+      discount: "Sleva z předplatného",
+      monthly: "Měsíční cena",
+      yearly: "Roční cena",
+      invoiceEmail: "Fakturační e-mail",
+      stripeCustomer: "Stripe customer ID",
+      stripeSubscription: "Stripe subscription ID",
+      note: "Interní poznámka",
+      effectivePrice: "Účtovaná cena",
+      periodEnds: "Konec období",
+      trialEnds: "Konec trialu",
+      invoiceApproved: "Schválení faktury",
+      stripeStatus: "Stripe napojení",
+      stripeReady: "klíče nastavené",
+      stripeMissing: "čeká na STRIPE_SECRET_KEY a webhook",
+      invoicePending: "Faktura čeká na ruční schválení",
+      invoiceApprovedEmpty: "zatím neschváleno",
+      options: {
+        plans: {
+          SMALL_PARTY: "Malá strana",
+          LARGE_PARTY: "Velká strana",
+          CUSTOM: "Custom řešení",
+        },
+        intervals: {
+          MONTHLY: "Měsíčně",
+          YEARLY: "Ročně",
+        },
+        methods: {
+          STRIPE: "Stripe",
+          INVOICE: "Faktura",
+        },
+        statuses: {
+          TRIAL: "Trial",
+          ACTIVE: "Aktivní",
+          PENDING_INVOICE_APPROVAL: "Čeká na schválení faktury",
+          PAST_DUE: "Po splatnosti",
+          PAUSED: "Pozastaveno",
+          CANCELLED: "Zrušeno",
+        },
+      },
+    },
   },
   en: {
     back: "Back to website",
@@ -385,6 +483,55 @@ const content = {
         READONLY_AUDITOR: "Auditor",
       },
     },
+    billingPanel: {
+      overview: "Account status",
+      settings: "Billing settings",
+      save: "Save billing",
+      saving: "Saving",
+      plan: "Plan",
+      interval: "Interval",
+      method: "Payment",
+      status: "Status",
+      discount: "Subscription discount",
+      monthly: "Monthly price",
+      yearly: "Yearly price",
+      invoiceEmail: "Invoice email",
+      stripeCustomer: "Stripe customer ID",
+      stripeSubscription: "Stripe subscription ID",
+      note: "Internal note",
+      effectivePrice: "Charged price",
+      periodEnds: "Period ends",
+      trialEnds: "Trial ends",
+      invoiceApproved: "Invoice approval",
+      stripeStatus: "Stripe connection",
+      stripeReady: "keys configured",
+      stripeMissing: "waiting for STRIPE_SECRET_KEY and webhook",
+      invoicePending: "Invoice is waiting for manual approval",
+      invoiceApprovedEmpty: "not approved yet",
+      options: {
+        plans: {
+          SMALL_PARTY: "Small party",
+          LARGE_PARTY: "Large party",
+          CUSTOM: "Custom solution",
+        },
+        intervals: {
+          MONTHLY: "Monthly",
+          YEARLY: "Yearly",
+        },
+        methods: {
+          STRIPE: "Stripe",
+          INVOICE: "Invoice",
+        },
+        statuses: {
+          TRIAL: "Trial",
+          ACTIVE: "Active",
+          PENDING_INVOICE_APPROVAL: "Pending invoice approval",
+          PAST_DUE: "Past due",
+          PAUSED: "Paused",
+          CANCELLED: "Cancelled",
+        },
+      },
+    },
   },
 } as const;
 
@@ -397,6 +544,10 @@ const inviteRoleKeys = [
   "DESIGNER",
   "READONLY_AUDITOR",
 ] as const;
+const billingPlanKeys = ["SMALL_PARTY", "LARGE_PARTY", "CUSTOM"] as const satisfies readonly BillingPlanKey[];
+const billingIntervalKeys = ["MONTHLY", "YEARLY"] as const satisfies readonly BillingIntervalKey[];
+const billingMethodKeys = ["STRIPE", "INVOICE"] as const satisfies readonly BillingMethodKey[];
+const billingStatusKeys = ["TRIAL", "ACTIVE", "PENDING_INVOICE_APPROVAL", "PAST_DUE", "PAUSED", "CANCELLED"] as const satisfies readonly BillingStatusKey[];
 
 export function AdminDemoClient({ locale }: { locale: Locale }) {
   const t = content[locale];
@@ -422,6 +573,11 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
     role: "LOCAL_ADMIN",
     branchId: "",
   });
+  const [billingPayload, setBillingPayload] = useState<AdminBillingPayload | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingSaving, setBillingSaving] = useState(false);
+  const [billingMessage, setBillingMessage] = useState("");
+  const [billingForm, setBillingForm] = useState<EditableBillingInput>(() => blankBillingForm(locale));
 
   const selectedAd = ads.find((ad) => ad.id === selectedId) ?? ads[0];
   const headerTitle = activeSection === "ads" ? t.tableTitle : t.sections[activeSection];
@@ -534,6 +690,49 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
     }
 
     loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, locale, t.saveError]);
+
+  useEffect(() => {
+    if (activeSection !== "billing") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadBilling() {
+      setBillingLoading(true);
+      setBillingMessage("");
+      setError("");
+
+      try {
+        const response = await fetch(`/api/admin/demo/billing?locale=${locale}`, { cache: "no-store" });
+
+        if (!response.ok) {
+          throw new Error(`Billing API failed with ${response.status}`);
+        }
+
+        const payload = (await response.json()) as AdminBillingPayload;
+
+        if (!cancelled) {
+          setBillingPayload(payload);
+          setBillingForm(billingFormFromPayload(payload));
+        }
+      } catch {
+        if (!cancelled) {
+          setError(t.saveError);
+        }
+      } finally {
+        if (!cancelled) {
+          setBillingLoading(false);
+        }
+      }
+    }
+
+    loadBilling();
 
     return () => {
       cancelled = true;
@@ -697,6 +896,39 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       setError(t.saveError);
     } finally {
       setInviteSaving(false);
+    }
+  }
+
+  async function saveBilling() {
+    if (billingSaving) {
+      return;
+    }
+
+    setBillingSaving(true);
+    setBillingMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/demo/billing?locale=${locale}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(billingForm),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Billing update failed with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as AdminBillingPayload;
+      setBillingPayload(payload);
+      setBillingForm(billingFormFromPayload(payload));
+      setBillingMessage(locale === "cs" ? "Fakturace uložena do databáze." : "Billing saved to the database.");
+    } catch {
+      setError(t.saveError);
+    } finally {
+      setBillingSaving(false);
     }
   }
 
@@ -1053,6 +1285,17 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                 onChange={setInviteForm}
                 onCreate={createInvitation}
               />
+            ) : activeSection === "billing" ? (
+              <BillingPanel
+                payload={billingPayload}
+                loading={billingLoading}
+                saving={billingSaving}
+                message={billingMessage}
+                form={billingForm}
+                t={t}
+                onChange={setBillingForm}
+                onSave={saveBilling}
+              />
             ) : (
               <AdminSectionPanel activeSection={activeSection} ads={ads} counts={counts} locale={locale} t={t} />
             )}
@@ -1225,6 +1468,241 @@ function UsersPanel({
   );
 }
 
+function BillingPanel({
+  payload,
+  loading,
+  saving,
+  message,
+  form,
+  t,
+  onChange,
+  onSave,
+}: {
+  payload: AdminBillingPayload | null;
+  loading: boolean;
+  saving: boolean;
+  message: string;
+  form: EditableBillingInput;
+  t: (typeof content)[Locale];
+  onChange: (form: EditableBillingInput) => void;
+  onSave: () => void | Promise<void>;
+}) {
+  const billing = payload?.billing;
+  const overviewRows = billing
+    ? [
+        [t.billingPanel.plan, billing.planLabel],
+        [t.billingPanel.effectivePrice, billing.effectivePrice],
+        [t.billingPanel.status, billing.statusLabel],
+        [t.billingPanel.method, billing.methodLabel],
+        [t.billingPanel.periodEnds, billing.currentPeriodEndsAt || "-"],
+        [t.billingPanel.invoiceApproved, billing.invoiceApprovedAt || t.billingPanel.invoiceApprovedEmpty],
+      ]
+    : [];
+
+  function numberValue(value: string) {
+    return Number.parseInt(value, 10) || 0;
+  }
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
+      <article className="rounded-md border border-black/10 bg-white">
+        <div className="border-b border-black/10 p-5">
+          <h2 className="text-xl font-semibold text-black">{t.billingPanel.overview}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#59616b]">{t.sectionIntro.billing}</p>
+        </div>
+
+        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+          {loading && !billing ? (
+            <div className="rounded-md border border-sky-200 bg-sky-50 p-4 text-sm font-semibold text-sky-800">{t.loading}</div>
+          ) : null}
+          {overviewRows.map((row) => (
+            <div key={row[0]} className="rounded-md border border-black/10 bg-[#fbfbfc] p-4">
+              <div className="text-sm font-medium text-[#68707a]">{row[0]}</div>
+              <div className="mt-2 text-xl font-semibold text-black">{row[1]}</div>
+            </div>
+          ))}
+        </div>
+
+        {billing ? (
+          <div className="grid gap-3 border-t border-black/10 p-5 md:grid-cols-2">
+            <div className={`rounded-md border p-4 text-sm font-semibold ${billing.stripeConfigured ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-800"}`}>
+              {t.billingPanel.stripeStatus}: {billing.stripeConfigured ? t.billingPanel.stripeReady : t.billingPanel.stripeMissing}
+            </div>
+            {billing.method === "INVOICE" && billing.status === "PENDING_INVOICE_APPROVAL" ? (
+              <div className="rounded-md border border-orange-200 bg-orange-50 p-4 text-sm font-semibold text-orange-800">
+                {t.billingPanel.invoicePending}
+              </div>
+            ) : (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+                {billing.note || t.sectionIntro.billing}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </article>
+
+      <aside className="rounded-md border border-black/10 bg-white">
+        <div className="border-b border-black/10 p-5">
+          <h2 className="text-xl font-semibold text-black">{t.billingPanel.settings}</h2>
+          <p className="mt-2 text-sm leading-6 text-[#59616b]">
+            {payload?.tenant.name ?? t.tenant}
+          </p>
+        </div>
+
+        <div className="grid gap-4 p-5">
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.billingPanel.plan}
+            <select
+              value={form.plan}
+              onChange={(event) => onChange({ ...form, plan: event.target.value as BillingPlanKey })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            >
+              {billingPlanKeys.map((key) => (
+                <option key={key} value={key}>
+                  {t.billingPanel.options.plans[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+              {t.billingPanel.interval}
+              <select
+                value={form.interval}
+                onChange={(event) => onChange({ ...form, interval: event.target.value as BillingIntervalKey })}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+              >
+                {billingIntervalKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {t.billingPanel.options.intervals[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+              {t.billingPanel.method}
+              <select
+                value={form.method}
+                onChange={(event) => onChange({ ...form, method: event.target.value as BillingMethodKey })}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+              >
+                {billingMethodKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {t.billingPanel.options.methods[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.billingPanel.status}
+            <select
+              value={form.status}
+              onChange={(event) => onChange({ ...form, status: event.target.value as BillingStatusKey })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            >
+              {billingStatusKeys.map((key) => (
+                <option key={key} value={key}>
+                  {t.billingPanel.options.statuses[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+              {t.billingPanel.discount}
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={form.discountPercent}
+                onChange={(event) => onChange({ ...form, discountPercent: numberValue(event.target.value) })}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+              {t.billingPanel.monthly}
+              <input
+                type="number"
+                min="0"
+                value={form.monthlyPriceEur}
+                onChange={(event) => onChange({ ...form, monthlyPriceEur: numberValue(event.target.value) })}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+              {t.billingPanel.yearly}
+              <input
+                type="number"
+                min="0"
+                value={form.yearlyPriceEur}
+                onChange={(event) => onChange({ ...form, yearlyPriceEur: numberValue(event.target.value) })}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+              />
+            </label>
+          </div>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.billingPanel.invoiceEmail}
+            <input
+              type="email"
+              value={form.invoiceEmail}
+              onChange={(event) => onChange({ ...form, invoiceEmail: event.target.value })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.billingPanel.stripeCustomer}
+            <input
+              value={form.stripeCustomerId}
+              onChange={(event) => onChange({ ...form, stripeCustomerId: event.target.value })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.billingPanel.stripeSubscription}
+            <input
+              value={form.stripeSubscriptionId}
+              onChange={(event) => onChange({ ...form, stripeSubscriptionId: event.target.value })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            {t.billingPanel.note}
+            <textarea
+              value={form.note}
+              onChange={(event) => onChange({ ...form, note: event.target.value })}
+              rows={3}
+              className="resize-none rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+            />
+          </label>
+
+          <button
+            type="button"
+            disabled={saving || !form.invoiceEmail.trim()}
+            onClick={onSave}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+          >
+            <CreditCard size={16} />
+            {saving ? t.billingPanel.saving : t.billingPanel.save}
+          </button>
+
+          {message ? (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</div>
+          ) : null}
+        </div>
+      </aside>
+    </section>
+  );
+}
+
 function AdminSectionPanel({
   activeSection,
   ads,
@@ -1232,7 +1710,7 @@ function AdminSectionPanel({
   locale,
   t,
 }: {
-  activeSection: Exclude<AdminSection, "ads" | "users">;
+  activeSection: Exclude<AdminSection, "ads" | "users" | "billing">;
   ads: AdRecord[];
   counts: Record<Status | "all", number>;
   locale: Locale;
@@ -1247,19 +1725,6 @@ function AdminSectionPanel({
       return map;
     }, new Map<string, { name: string; records: number; missing: number }>()),
   ).map(([, value]) => value);
-
-  const billingRows =
-    locale === "cs"
-      ? [
-          ["Velká strana", "99 EUR / měsíc", "aktivní"],
-          ["Uživatelé", "neomezeně", "bez limitu"],
-          ["Archiv", "zákonná doba + export", "zapnuto"],
-        ]
-      : [
-          ["Large party", "EUR 99 / month", "active"],
-          ["Users", "unlimited", "no limit"],
-          ["Archive", "legal period + export", "enabled"],
-        ];
 
   const auditRows =
     locale === "cs"
@@ -1279,9 +1744,7 @@ function AdminSectionPanel({
   const rows =
     activeSection === "branches"
       ? branchRows.map((row) => [row.name, `${row.records} ${t.sectionLabels.records}`, `${row.missing} ${t.sectionLabels.missing}`])
-      : activeSection === "billing"
-          ? billingRows
-          : auditRows;
+      : auditRows;
 
   return (
     <section className="rounded-md border border-black/10 bg-white">
@@ -1296,7 +1759,7 @@ function AdminSectionPanel({
             <div className="text-sm font-semibold text-black">{row[0]}</div>
             <div className="mt-3 grid gap-2 text-sm text-[#59616b]">
               <div className="flex items-center justify-between gap-3">
-                <span>{activeSection === "billing" ? t.sectionLabels.amount : t.sectionLabels.role}</span>
+                <span>{t.sectionLabels.role}</span>
                 <span className="text-right font-semibold text-[#20242a]">{row[1]}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
