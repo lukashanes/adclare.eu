@@ -193,6 +193,34 @@ export async function getDemoAdsPayload(locale: Locale) {
   return mapPayload(tenant, campaign, ads, locale);
 }
 
+export async function getDemoTransparencyNotice(code: string, locale: Locale) {
+  const { tenant, campaign } = await getDemoTenantAndCampaign();
+  const ad = await prisma.ad.findUnique({
+    where: {
+      tenantId_code: {
+        tenantId: tenant.id,
+        code: code.toUpperCase(),
+      },
+    },
+    include: {
+      orgUnit: true,
+    },
+  });
+
+  if (!ad) {
+    return null;
+  }
+
+  return {
+    tenant: locale === "cs" ? tenant.nameCs : tenant.nameEn,
+    campaign: locale === "cs" ? campaign.nameCs : campaign.nameEn,
+    election: campaign.election,
+    ad: mapAd(ad, locale),
+    lastUpdated: formatDate(ad.updatedAt, locale),
+    publicUrl: `https://adclare.eu/ad/${ad.code.toLowerCase()}`,
+  };
+}
+
 export async function completeDemoAd(code: string, locale: Locale) {
   const { tenant } = await getDemoTenantAndCampaign();
   const ad = await prisma.ad.findUnique({
