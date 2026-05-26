@@ -94,6 +94,12 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 ```
 
+PostgreSQL backups can be created with:
+
+```bash
+APP_DIR=/srv/apps/adclare BACKUP_DIR=/srv/backups/adclare/postgres scripts/backup-postgres.sh
+```
+
 The root `docker-compose.yml` also includes Caddy for a standalone fresh server:
 
 ```bash
