@@ -167,16 +167,25 @@ model Ad {
   ownerEn         String
   mediaTypeCs     String
   mediaTypeEn     String
+  channel         String   @default("offline")
   publicationDate DateTime
   periodCs        String
   periodEn        String
+  distributionAreaCs String @default("")
+  distributionAreaEn String @default("")
   payerCs         String
   payerEn         String
+  supplierCs      String   @default("")
+  supplierEn      String   @default("")
   amount          String   @default("")
   fundingSourceCs String   @default("")
   fundingSourceEn String   @default("")
+  language        String   @default("cs")
+  isTargeted      Boolean  @default(false)
   targetingCs     String   @default("")
   targetingEn     String   @default("")
+  targetAudienceCs String  @default("")
+  targetAudienceEn String  @default("")
   missingCs       String[]
   missingEn       String[]
   status          AdStatus

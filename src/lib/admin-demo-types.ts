@@ -1,5 +1,6 @@
 export type Locale = "cs" | "en";
 export type Status = "ready" | "warning" | "blocked" | "review";
+export type AdChannel = "online" | "offline";
 export type AdminRoleKey =
   | "SUPER_ADMIN"
   | "PARTY_ADMIN"
@@ -17,12 +18,18 @@ export type AdRecord = {
   branch: string;
   owner: string;
   type: string;
+  channel: AdChannel;
   publicationDate: string;
   period: string;
+  distributionArea: string;
   payer: string;
+  supplier: string;
   amount: string;
   fundingSource: string;
+  language: string;
+  isTargeted: boolean;
   targeting: string;
+  targetAudience: string;
   missing: string[];
   status: Status;
   statusLabel: string;
@@ -46,12 +53,18 @@ export type EditableAdInput = {
   branch: string;
   owner: string;
   type: string;
+  channel: AdChannel;
   publicationDate: string;
   period: string;
+  distributionArea: string;
   payer: string;
+  supplier: string;
   amount: string;
   fundingSource: string;
+  language: string;
+  isTargeted: boolean;
   targeting: string;
+  targetAudience: string;
 };
 
 export type AdminBranchOption = {

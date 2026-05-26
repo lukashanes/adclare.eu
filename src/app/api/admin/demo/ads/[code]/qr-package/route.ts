@@ -39,11 +39,17 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     id: ad.id,
     title: ad.title,
     publicUrl,
+    channel: ad.channel,
     payer: ad.payer,
+    supplier: ad.supplier,
     amount: ad.amount,
     fundingSource: ad.fundingSource,
     period: ad.period,
+    distributionArea: ad.distributionArea,
+    language: ad.language,
+    isTargeted: ad.isTargeted,
     targeting: ad.targeting,
+    targetAudience: ad.targetAudience,
   };
   const label = locale === "cs" ? "Informace o politické reklamě" : "Political advertising information";
   const zip = new JSZip();

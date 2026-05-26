@@ -48,12 +48,18 @@ function blankForm(locale: Locale): EditableAdInput {
     branch: locale === "cs" ? "Nová pobočka" : "New branch",
     owner: locale === "cs" ? "Lokální tým" : "Local team",
     type: locale === "cs" ? "plakát" : "poster",
+    channel: "offline",
     publicationDate: "2026-09-25",
     period: locale === "cs" ? "25. 9. - 8. 10. 2026" : "25 Sep - 8 Oct 2026",
+    distributionArea: locale === "cs" ? "městská část" : "local district",
     payer: locale === "cs" ? "Demo strana" : "Demo party",
+    supplier: "",
     amount: "",
     fundingSource: "",
+    language: "cs",
+    isTargeted: false,
     targeting: locale === "cs" ? "nepoužito" : "not used",
+    targetAudience: "",
   };
 }
 
@@ -64,12 +70,18 @@ function formFromAd(ad: AdRecord): EditableAdInput {
     branch: ad.branch,
     owner: ad.owner,
     type: ad.type,
+    channel: ad.channel,
     publicationDate: toInputDate(ad.publicationDate),
     period: ad.period,
+    distributionArea: ad.distributionArea,
     payer: ad.payer,
+    supplier: ad.supplier,
     amount: ad.amount,
     fundingSource: ad.fundingSource,
+    language: ad.language,
+    isTargeted: ad.isTargeted,
     targeting: ad.targeting,
+    targetAudience: ad.targetAudience,
   };
 }
 
@@ -129,10 +141,15 @@ const content = {
     fields: {
       advertiser: "Zadavatel",
       payer: "Plátce",
+      supplier: "Dodavatel",
       amount: "Částka za sdělení",
       funding: "Původ částek",
       period: "Období šíření",
+      distributionArea: "Oblast šíření",
+      channel: "Online / offline",
+      language: "Jazyk",
       targeting: "Cílení",
+      targetAudience: "Cílové publikum",
     },
     states: {
       complete: "vyplněno",
@@ -186,12 +203,18 @@ const content = {
       branch: "Pobočka / oblast",
       owner: "Zadavatel",
       type: "Typ",
+      channel: "Online / offline",
       publicationDate: "Datum zveřejnění",
       period: "Období šíření",
+      distributionArea: "Oblast šíření",
       payer: "Plátce",
+      supplier: "Dodavatel",
       amount: "Částka",
       fundingSource: "Původ financí",
+      language: "Jazyk",
+      isTargeted: "Používá cílení",
       targeting: "Cílení",
+      targetAudience: "Cílové publikum",
     },
     completeNote: "Po doplnění se změna uloží do databáze, reklama přejde do kontroly a QR výstupy se odblokují.",
     usersPanel: {
@@ -263,10 +286,15 @@ const content = {
     fields: {
       advertiser: "Advertiser",
       payer: "Payer",
+      supplier: "Supplier",
       amount: "Ad amount",
       funding: "Funding source",
       period: "Distribution period",
+      distributionArea: "Distribution area",
+      channel: "Online / offline",
+      language: "Language",
       targeting: "Targeting",
+      targetAudience: "Target audience",
     },
     states: {
       complete: "complete",
@@ -320,12 +348,18 @@ const content = {
       branch: "Branch / area",
       owner: "Advertiser",
       type: "Type",
+      channel: "Online / offline",
       publicationDate: "Publication date",
       period: "Distribution period",
+      distributionArea: "Distribution area",
       payer: "Payer",
+      supplier: "Supplier",
       amount: "Amount",
       fundingSource: "Funding source",
+      language: "Language",
+      isTargeted: "Uses targeting",
       targeting: "Targeting",
+      targetAudience: "Target audience",
     },
     completeNote: "After completion, the change is saved to the database, the ad moves to review and QR outputs unlock.",
     usersPanel: {
@@ -513,7 +547,9 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       const matchesStatus = statusFilter === "all" || ad.status === statusFilter;
       const matchesQuery =
         normalizedQuery.length === 0 ||
-        [ad.id, ad.title, ad.branch, ad.owner, ad.type].some((value) => value.toLowerCase().includes(normalizedQuery));
+        [ad.id, ad.title, ad.branch, ad.owner, ad.type, ad.supplier, ad.distributionArea].some((value) =>
+          value.toLowerCase().includes(normalizedQuery),
+        );
 
       return matchesStatus && matchesQuery;
     });
@@ -1302,10 +1338,14 @@ function AdEditor({
     ["type", t.formFields.type, "text"],
     ["publicationDate", t.formFields.publicationDate, "date"],
     ["period", t.formFields.period, "text"],
+    ["distributionArea", t.formFields.distributionArea, "text"],
     ["payer", t.formFields.payer, "text"],
+    ["supplier", t.formFields.supplier, "text"],
     ["amount", t.formFields.amount, "text"],
     ["fundingSource", t.formFields.fundingSource, "text"],
+    ["language", t.formFields.language, "text"],
     ["targeting", t.formFields.targeting, "text"],
+    ["targetAudience", t.formFields.targetAudience, "text"],
   ] as const;
 
   return (
@@ -1336,6 +1376,18 @@ function AdEditor({
       </div>
 
       <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+        <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+          {t.formFields.channel}
+          <select
+            value={form.channel}
+            onChange={(event) => onChange({ ...form, channel: event.target.value === "online" ? "online" : "offline" })}
+            className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
+          >
+            <option value="offline">Offline</option>
+            <option value="online">Online</option>
+          </select>
+        </label>
+
         {fields.map(([key, label, type]) => (
           <label key={key} className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
             {label}
@@ -1348,15 +1400,25 @@ function AdEditor({
             />
           </label>
         ))}
+
+        <label className="flex items-center gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]">
+          <input
+            type="checkbox"
+            checked={form.isTargeted}
+            onChange={(event) => onChange({ ...form, isTargeted: event.target.checked })}
+            className="size-4 accent-[#f45d1f]"
+          />
+          {t.formFields.isTargeted}
+        </label>
       </div>
 
       {locale === "cs" ? (
         <p className="px-5 pb-5 text-xs leading-5 text-[#68707a]">
-          Pokud chybí částka nebo původ financí, záznam zůstane ve stavu k doplnění a QR balíček nepůjde stáhnout.
+          Pokud chybí povinné údaje, záznam zůstane k doplnění. V den zveřejnění a později přejde do červeného stavu a QR balíček nepůjde stáhnout.
         </p>
       ) : (
         <p className="px-5 pb-5 text-xs leading-5 text-[#68707a]">
-          If amount or funding source is missing, the record stays incomplete and the QR package remains blocked.
+          If required data is missing, the record stays incomplete. On and after the publication date it turns red and the QR package remains blocked.
         </p>
       )}
     </section>
@@ -1379,10 +1441,15 @@ function DataPanel({
   const rows = [
     [t.fields.advertiser, ad.owner, "ok"],
     [t.fields.payer, ad.payer, "ok"],
+    [t.fields.supplier, ad.supplier || t.states.missing, ad.supplier ? "ok" : "bad"],
     [t.fields.amount, ad.amount || t.states.missing, ad.amount ? "ok" : "bad"],
     [t.fields.funding, ad.fundingSource || t.states.missing, ad.fundingSource ? "ok" : "bad"],
     [t.fields.period, ad.period, "ok"],
+    [t.fields.distributionArea, ad.distributionArea || t.states.missing, ad.distributionArea ? "ok" : "bad"],
+    [t.fields.channel, ad.channel, "ok"],
+    [t.fields.language, ad.language || t.states.missing, ad.language ? "ok" : "bad"],
     [t.fields.targeting, ad.targeting || t.states.notUsed, "ok"],
+    [t.fields.targetAudience, ad.isTargeted ? ad.targetAudience || t.states.missing : t.states.notUsed, ad.isTargeted && !ad.targetAudience ? "bad" : "ok"],
   ] as const;
 
   return (

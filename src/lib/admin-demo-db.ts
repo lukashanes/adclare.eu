@@ -15,6 +15,7 @@ import {
 } from "@prisma/client";
 import type {
   AdRecord,
+  AdChannel,
   AdminAdsPayload,
   AdminInvitationRecord,
   AdminMemberRecord,
@@ -66,23 +67,31 @@ function formatDate(date: Date, locale: Locale) {
 
 function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
   const isCs = locale === "cs";
+  const missing = missingForAd(ad, locale);
+  const status = statusForAd(ad, missing);
 
   return {
     id: ad.code,
-    publicUrl: `https://adclare.eu/ad/${ad.publicToken}`,
+    publicUrl: `${appUrl()}/ad/${ad.publicToken}`,
     title: isCs ? ad.titleCs : ad.titleEn,
     branch: isCs ? ad.orgUnit.nameCs : ad.orgUnit.nameEn,
     owner: isCs ? ad.ownerCs : ad.ownerEn,
     type: isCs ? ad.mediaTypeCs : ad.mediaTypeEn,
+    channel: normalizeChannel(ad.channel),
     publicationDate: formatDate(ad.publicationDate, locale),
     period: isCs ? ad.periodCs : ad.periodEn,
+    distributionArea: isCs ? ad.distributionAreaCs : ad.distributionAreaEn,
     payer: isCs ? ad.payerCs : ad.payerEn,
+    supplier: isCs ? ad.supplierCs : ad.supplierEn,
     amount: ad.amount,
     fundingSource: isCs ? ad.fundingSourceCs : ad.fundingSourceEn,
+    language: ad.language,
+    isTargeted: ad.isTargeted,
     targeting: isCs ? ad.targetingCs : ad.targetingEn,
-    missing: isCs ? ad.missingCs : ad.missingEn,
-    status: statusMap[ad.status],
-    statusLabel: isCs ? ad.statusLabelCs : ad.statusLabelEn,
+    targetAudience: isCs ? ad.targetAudienceCs : ad.targetAudienceEn,
+    missing,
+    status: statusMap[status],
+    statusLabel: statusLabel(status, locale),
   };
 }
 
@@ -214,30 +223,183 @@ function nextCode(branch: string) {
   return `${prefix}-${String(Date.now()).slice(-4)}`;
 }
 
+function normalizeChannel(value: string): AdChannel {
+  return value === "online" ? "online" : "offline";
+}
+
+function isBlank(value: string | null | undefined) {
+  return !value?.trim();
+}
+
+function requiresTargetingDetails(input: Pick<EditableAdInput, "isTargeted" | "targeting" | "targetAudience">) {
+  const targeting = input.targeting.trim().toLowerCase();
+
+  return input.isTargeted || (targeting !== "" && targeting !== "nepoužito" && targeting !== "not used");
+}
+
 function requiredMissing(input: EditableAdInput, locale: Locale) {
   const missing: string[] = [];
 
-  if (!input.amount.trim()) {
-    missing.push(locale === "cs" ? "částka" : "amount");
+  const labels =
+    locale === "cs"
+      ? {
+          title: "název materiálu",
+          owner: "zadavatel",
+          type: "typ reklamy",
+          publicationDate: "datum zveřejnění",
+          period: "období šíření",
+          distributionArea: "oblast šíření",
+          payer: "plátce",
+          supplier: "dodavatel",
+          amount: "částka",
+          fundingSource: "původ financí",
+          language: "jazyk",
+          targeting: "cílení",
+          targetAudience: "cílové publikum",
+        }
+      : {
+          title: "asset title",
+          owner: "advertiser",
+          type: "ad type",
+          publicationDate: "publication date",
+          period: "display period",
+          distributionArea: "distribution area",
+          payer: "payer",
+          supplier: "supplier",
+          amount: "amount",
+          fundingSource: "funding source",
+          language: "language",
+          targeting: "targeting",
+          targetAudience: "target audience",
+        };
+
+  if (isBlank(input.title)) {
+    missing.push(labels.title);
   }
 
-  if (!input.fundingSource.trim()) {
-    missing.push(locale === "cs" ? "původ financí" : "funding source");
+  if (isBlank(input.owner)) {
+    missing.push(labels.owner);
+  }
+
+  if (isBlank(input.type)) {
+    missing.push(labels.type);
+  }
+
+  if (isBlank(input.publicationDate)) {
+    missing.push(labels.publicationDate);
+  }
+
+  if (isBlank(input.period)) {
+    missing.push(labels.period);
+  }
+
+  if (isBlank(input.distributionArea)) {
+    missing.push(labels.distributionArea);
+  }
+
+  if (isBlank(input.payer)) {
+    missing.push(labels.payer);
+  }
+
+  if (isBlank(input.supplier)) {
+    missing.push(labels.supplier);
+  }
+
+  if (isBlank(input.amount)) {
+    missing.push(labels.amount);
+  }
+
+  if (isBlank(input.fundingSource)) {
+    missing.push(labels.fundingSource);
+  }
+
+  if (isBlank(input.language)) {
+    missing.push(labels.language);
+  }
+
+  if (requiresTargetingDetails(input)) {
+    if (isBlank(input.targeting)) {
+      missing.push(labels.targeting);
+    }
+
+    if (isBlank(input.targetAudience)) {
+      missing.push(labels.targetAudience);
+    }
   }
 
   return missing;
 }
 
+function missingForAd(ad: Ad, locale: Locale) {
+  return requiredMissing(
+    {
+      title: locale === "cs" ? ad.titleCs : ad.titleEn,
+      branch: "",
+      owner: locale === "cs" ? ad.ownerCs : ad.ownerEn,
+      type: locale === "cs" ? ad.mediaTypeCs : ad.mediaTypeEn,
+      channel: normalizeChannel(ad.channel),
+      publicationDate: ad.publicationDate.toISOString().slice(0, 10),
+      period: locale === "cs" ? ad.periodCs : ad.periodEn,
+      distributionArea: locale === "cs" ? ad.distributionAreaCs : ad.distributionAreaEn,
+      payer: locale === "cs" ? ad.payerCs : ad.payerEn,
+      supplier: locale === "cs" ? ad.supplierCs : ad.supplierEn,
+      amount: ad.amount,
+      fundingSource: locale === "cs" ? ad.fundingSourceCs : ad.fundingSourceEn,
+      language: ad.language,
+      isTargeted: ad.isTargeted,
+      targeting: locale === "cs" ? ad.targetingCs : ad.targetingEn,
+      targetAudience: locale === "cs" ? ad.targetAudienceCs : ad.targetAudienceEn,
+    },
+    locale,
+  );
+}
+
+function statusForMissing(missing: string[], publicationDate: Date) {
+  if (missing.length === 0) {
+    return AdStatus.READY;
+  }
+
+  const deadline = new Date(publicationDate);
+  deadline.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return deadline.getTime() <= today.getTime() ? AdStatus.BLOCKED : AdStatus.WARNING;
+}
+
+function statusForAd(ad: Ad, missing: string[]) {
+  if (ad.status === AdStatus.REVIEW && missing.length === 0) {
+    return AdStatus.REVIEW;
+  }
+
+  return statusForMissing(missing, ad.publicationDate);
+}
+
 function statusForInput(input: EditableAdInput) {
-  return input.amount.trim() && input.fundingSource.trim() ? AdStatus.READY : AdStatus.WARNING;
+  return statusForMissing(requiredMissing(input, "cs"), parsePublicationDate(input.publicationDate));
+}
+
+function statusLabel(status: AdStatus, locale: Locale) {
+  const labels: Record<AdStatus, Record<Locale, string>> = {
+    READY: { cs: "Připraveno", en: "Ready" },
+    WARNING: { cs: "Doplnit", en: "Complete" },
+    BLOCKED: { cs: "Červená", en: "Red" },
+    REVIEW: { cs: "Kontrola", en: "Review" },
+  };
+
+  return labels[status][locale];
 }
 
 function statusLabelForInput(input: EditableAdInput, locale: Locale) {
-  if (statusForInput(input) === AdStatus.READY) {
-    return locale === "cs" ? "Připraveno" : "Ready";
+  return statusLabel(statusForInput(input), locale);
+}
+
+function defaultTargeting(input: EditableAdInput, locale: Locale) {
+  if (input.isTargeted) {
+    return input.targeting.trim();
   }
 
-  return locale === "cs" ? "Doplnit" : "Complete";
+  return input.targeting.trim() || (locale === "cs" ? "nepoužito" : "not used");
 }
 
 function parsePublicationDate(value: string) {
@@ -560,7 +722,7 @@ export async function getDemoTransparencyNotice(publicToken: string, locale: Loc
     election: campaign.election,
     ad: mapAd(ad, locale),
     lastUpdated: formatDate(ad.updatedAt, locale),
-    publicUrl: `https://adclare.eu/ad/${ad.publicToken}`,
+    publicUrl: `${appUrl()}/ad/${ad.publicToken}`,
   };
 }
 
@@ -590,6 +752,13 @@ export async function completeDemoAd(code: string, locale: Locale) {
       amount: ad.amount || "24 500 Kč",
       fundingSourceCs: ad.fundingSourceCs || "volební účet",
       fundingSourceEn: ad.fundingSourceEn || "campaign account",
+      supplierCs: ad.supplierCs || "interní tým / dodavatel kampaně",
+      supplierEn: ad.supplierEn || "internal team / campaign supplier",
+      distributionAreaCs: ad.distributionAreaCs || (ad.orgUnitId ? "lokální oblast" : "území kampaně"),
+      distributionAreaEn: ad.distributionAreaEn || (ad.orgUnitId ? "local area" : "campaign area"),
+      language: ad.language || "cs",
+      targetAudienceCs: ad.isTargeted ? ad.targetAudienceCs || "voliči v určené oblasti" : ad.targetAudienceCs,
+      targetAudienceEn: ad.isTargeted ? ad.targetAudienceEn || "voters in the selected area" : ad.targetAudienceEn,
       missingCs: [],
       missingEn: [],
       status: AdStatus.REVIEW,
@@ -636,16 +805,25 @@ export async function createDemoAd(input: EditableAdInput, locale: Locale) {
       ownerEn: input.owner.trim(),
       mediaTypeCs: input.type.trim(),
       mediaTypeEn: input.type.trim(),
+      channel: normalizeChannel(input.channel),
       publicationDate: parsePublicationDate(input.publicationDate),
       periodCs: input.period.trim(),
       periodEn: input.period.trim(),
+      distributionAreaCs: input.distributionArea.trim(),
+      distributionAreaEn: input.distributionArea.trim(),
       payerCs: input.payer.trim(),
       payerEn: input.payer.trim(),
+      supplierCs: input.supplier.trim(),
+      supplierEn: input.supplier.trim(),
       amount: input.amount.trim(),
       fundingSourceCs: input.fundingSource.trim(),
       fundingSourceEn: input.fundingSource.trim(),
-      targetingCs: input.targeting.trim() || "nepoužito",
-      targetingEn: input.targeting.trim() || "not used",
+      language: input.language.trim(),
+      isTargeted: input.isTargeted,
+      targetingCs: defaultTargeting(input, "cs"),
+      targetingEn: defaultTargeting(input, "en"),
+      targetAudienceCs: input.targetAudience.trim(),
+      targetAudienceEn: input.targetAudience.trim(),
       missingCs,
       missingEn,
       status,
@@ -706,16 +884,25 @@ export async function updateDemoAd(code: string, input: EditableAdInput, locale:
       ownerEn: input.owner.trim(),
       mediaTypeCs: input.type.trim(),
       mediaTypeEn: input.type.trim(),
+      channel: normalizeChannel(input.channel),
       publicationDate: parsePublicationDate(input.publicationDate),
       periodCs: input.period.trim(),
       periodEn: input.period.trim(),
+      distributionAreaCs: input.distributionArea.trim(),
+      distributionAreaEn: input.distributionArea.trim(),
       payerCs: input.payer.trim(),
       payerEn: input.payer.trim(),
+      supplierCs: input.supplier.trim(),
+      supplierEn: input.supplier.trim(),
       amount: input.amount.trim(),
       fundingSourceCs: input.fundingSource.trim(),
       fundingSourceEn: input.fundingSource.trim(),
-      targetingCs: input.targeting.trim() || "nepoužito",
-      targetingEn: input.targeting.trim() || "not used",
+      language: input.language.trim(),
+      isTargeted: input.isTargeted,
+      targetingCs: defaultTargeting(input, "cs"),
+      targetingEn: defaultTargeting(input, "en"),
+      targetAudienceCs: input.targetAudience.trim(),
+      targetAudienceEn: input.targetAudience.trim(),
       missingCs,
       missingEn,
       status,

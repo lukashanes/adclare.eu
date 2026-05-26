@@ -26,6 +26,7 @@ Adclare gives a paying political party or organization one workflow to:
 - Product dashboard preview with compliance statuses, deadlines, approval queue and billing state.
 - Password-protected database-backed admin preview at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
 - Database-backed members and invitation flow with secure invite links and public invite acceptance pages.
+- Expanded ad records with online/offline channel, supplier, distribution area, language, targeting flag, target audience and deadline-based missing-data status.
 - Sections for workflow, modules, pricing, security and operator footer.
 
 ## Planned SaaS Stack
