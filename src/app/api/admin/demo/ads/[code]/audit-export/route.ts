@@ -1,9 +1,16 @@
+import { requireAdminRequest } from "@/lib/admin-auth";
 import { prepareDemoAuditExport } from "@/lib/admin-demo-db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(_request: Request, context: { params: Promise<{ code: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ code: string }> }) {
+  const authResponse = requireAdminRequest(request, { mutating: true });
+
+  if (authResponse) {
+    return authResponse;
+  }
+
   const { code } = await context.params;
 
   try {

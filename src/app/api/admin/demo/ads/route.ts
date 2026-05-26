@@ -1,3 +1,4 @@
+import { requireAdminRequest } from "@/lib/admin-auth";
 import { createDemoAd, getDemoAdsPayload, normalizeLocale } from "@/lib/admin-demo-db";
 import type { EditableAdInput } from "@/lib/admin-demo-types";
 
@@ -5,6 +6,12 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  const authResponse = requireAdminRequest(request);
+
+  if (authResponse) {
+    return authResponse;
+  }
+
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
@@ -17,6 +24,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const authResponse = requireAdminRequest(request, { mutating: true });
+
+  if (authResponse) {
+    return authResponse;
+  }
+
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {

@@ -15,6 +15,7 @@ import {
   FileArchive,
   FileText,
   History,
+  LogOut,
   Mail,
   Menu,
   PencilLine,
@@ -122,6 +123,7 @@ const content = {
       edit: "Upravit záznam",
       save: "Uložit do databáze",
       cancel: "Zrušit",
+      logout: "Odhlásit",
     },
     fields: {
       advertiser: "Zadavatel",
@@ -232,6 +234,7 @@ const content = {
       edit: "Edit record",
       save: "Save to database",
       cancel: "Cancel",
+      logout: "Sign out",
     },
     fields: {
       advertiser: "Advertiser",
@@ -509,6 +512,11 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
     }
   }
 
+  async function logout() {
+    await fetch("/api/admin/session", { method: "DELETE" });
+    window.location.reload();
+  }
+
   const sidebar = (
     <>
       <div className="flex h-18 items-center justify-between gap-3 px-6">
@@ -635,6 +643,15 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                 >
                   <Mail size={16} />
                   <span className="hidden sm:inline">{t.actions.invite}</span>
+                </button>
+                <button
+                  type="button"
+                  className="grid size-10 place-items-center rounded-md border border-black/10 bg-white text-[#25282d]"
+                  onClick={logout}
+                  aria-label={t.actions.logout}
+                  title={t.actions.logout}
+                >
+                  <LogOut size={17} />
                 </button>
               </div>
             </div>

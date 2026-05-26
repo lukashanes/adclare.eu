@@ -76,7 +76,7 @@ Use the production compose file so the app listens only on localhost:
 
 ```bash
 mkdir -p /srv/apps/adclare
-rsync -az --delete --exclude '.env' --exclude 'node_modules' --exclude '.next' ./ root@46.224.66.79:/srv/apps/adclare/
+rsync -az --delete --exclude '.env' --exclude '.admin-access' --exclude 'node_modules' --exclude '.next' ./ root@46.224.66.79:/srv/apps/adclare/
 ssh root@46.224.66.79 'cd /srv/apps/adclare && test -f .env || {
   PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
   printf "POSTGRES_DB=adclare_prod\nPOSTGRES_USER=adclare\nPOSTGRES_PASSWORD=%s\nDATABASE_URL=postgresql://adclare:%s@db:5432/adclare_prod?schema=public\nNEXT_PUBLIC_APP_URL=https://adclare.eu\nNEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAADWL1GxcsZgXYZe1\n" "$PASS" "$PASS" > .env

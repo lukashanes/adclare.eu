@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { ADMIN_SESSION_COOKIE, isAdminAuthConfigured, isValidAdminSessionCookie } from "@/lib/admin-auth";
 import { AdminDemoClient } from "./AdminDemoClient";
+import { AdminLogin } from "./AdminLogin";
 
 const locales = ["cs", "en"] as const;
 type Locale = (typeof locales)[number];
+
+export const dynamic = "force-dynamic";
 
 const metadata = {
   cs: {
@@ -51,6 +56,13 @@ export default async function AdminPage({
   const { locale } = await params;
   if (!isLocale(locale)) {
     notFound();
+  }
+
+  const cookieStore = await cookies();
+  const authenticated = isValidAdminSessionCookie(cookieStore.get(ADMIN_SESSION_COOKIE)?.value);
+
+  if (!authenticated) {
+    return <AdminLogin locale={locale} configured={isAdminAuthConfigured()} />;
   }
 
   return <AdminDemoClient locale={locale} />;

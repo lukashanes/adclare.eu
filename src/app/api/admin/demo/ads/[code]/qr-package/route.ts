@@ -1,11 +1,18 @@
 import JSZip from "jszip";
 import QRCode from "qrcode";
+import { requireAdminRequest } from "@/lib/admin-auth";
 import { getDemoAdsPayload, normalizeLocale } from "@/lib/admin-demo-db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request, context: { params: Promise<{ code: string }> }) {
+  const authResponse = requireAdminRequest(request);
+
+  if (authResponse) {
+    return authResponse;
+  }
+
   const [{ code }, locale] = await Promise.all([
     context.params,
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),

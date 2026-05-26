@@ -24,7 +24,7 @@ Adclare gives a paying political party or organization one workflow to:
 - Czech and English routes: `/cs`, `/en`.
 - Cloudflare-inspired visual direction: clear typography, white surface, dark product UI, orange accent.
 - Product dashboard preview with compliance statuses, deadlines, approval queue and billing state.
-- Database-backed admin demo at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
+- Password-protected database-backed admin preview at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
 - Sections for workflow, modules, pricing, security and operator footer.
 
 ## Planned SaaS Stack
@@ -70,6 +70,8 @@ Open `http://localhost:3000`. The root route redirects to `/cs`.
 
 The local database listens on `127.0.0.1:5433`. Use `npm run db:seed` to restore the demo admin records.
 
+For the temporary protected admin preview, set `ADMIN_ACCESS_PASSWORD` and a random `ADMIN_SESSION_SECRET` with at least 32 characters.
+
 ## Checks
 
 ```bash
@@ -100,9 +102,10 @@ See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for DNS, firewall a
 
 ## Next Product Steps
 
-1. Add real signup and Stripe checkout/request-invoice flow.
-2. Add tenant onboarding: organization details, billing mode, custom naming for branches.
-3. Add authenticated app shell: ads, campaigns, branches, users, approvals and QR generation.
-4. Add Cloudflare Turnstile to public forms.
-5. Add email templates for invites, deadlines, approvals and billing.
-6. Define database schema for tenants, organization units, ads, notices, approvals, billing and audit logs.
+1. Replace the temporary admin password with real user accounts, magic-link login, roles and 2FA.
+2. Add real signup and Stripe checkout/request-invoice flow.
+3. Add tenant onboarding: organization details, billing mode, custom naming for branches.
+4. Add authenticated app shell: ads, campaigns, branches, users, approvals and QR generation.
+5. Add Cloudflare Turnstile to public forms.
+6. Add email templates for invites, deadlines, approvals and billing.
+7. Define database schema for tenants, organization units, ads, notices, approvals, billing and audit logs.
