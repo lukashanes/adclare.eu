@@ -47,6 +47,45 @@ export type AdminAdsPayload = {
   ads: AdRecord[];
 };
 
+export type PublicRepositoryFilters = {
+  q: string;
+  channel: "all" | AdChannel;
+  status: "all" | Status;
+  type: string;
+  branch: string;
+  campaign: string;
+};
+
+export type PublicRepositoryOption = {
+  value: string;
+  label: string;
+};
+
+export type PublicRepositoryAdRecord = AdRecord & {
+  campaign: string;
+  campaignSlug: string;
+  election: string;
+  lastUpdated: string;
+};
+
+export type PublicRepositoryPayload = {
+  tenant: {
+    name: string;
+    slug: string;
+  };
+  ads: PublicRepositoryAdRecord[];
+  totalCount: number;
+  filteredCount: number;
+  filters: PublicRepositoryFilters;
+  options: {
+    channels: PublicRepositoryOption[];
+    statuses: PublicRepositoryOption[];
+    types: PublicRepositoryOption[];
+    branches: PublicRepositoryOption[];
+    campaigns: PublicRepositoryOption[];
+  };
+};
+
 export type EditableAdInput = {
   code?: string;
   title: string;

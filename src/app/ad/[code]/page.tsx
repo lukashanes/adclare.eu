@@ -99,6 +99,12 @@ export default async function TransparencyNoticePage({ params }: PageProps) {
             </a>
             <div className="mt-6 text-sm font-semibold text-[#68707a]">Subjekt</div>
             <div className="mt-2 text-lg font-semibold text-black">{notice.tenant}</div>
+            <Link
+              href={`/repo/${notice.tenantSlug}`}
+              className="mt-3 inline-flex rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#d94410] transition hover:border-[#f45d1f]"
+            >
+              Veřejný repozitář
+            </Link>
             <div className="mt-6 text-sm font-semibold text-[#68707a]">Stav</div>
             <div className="mt-2 inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">
               {notice.ad.missing.length === 0 ? "Údaje vyplněny" : "K doplnění"}

@@ -25,6 +25,10 @@ import type {
   InvitationNotice,
   InviteInput,
   Locale,
+  PublicRepositoryAdRecord,
+  PublicRepositoryFilters,
+  PublicRepositoryOption,
+  PublicRepositoryPayload,
   Status,
 } from "@/lib/admin-demo-types";
 import { prisma } from "@/lib/prisma";
@@ -34,6 +38,9 @@ const campaignSlug = "municipal-2026";
 
 type AdWithUnit = Ad & {
   orgUnit: OrganizationUnit;
+};
+type AdWithRepositoryRelations = AdWithUnit & {
+  campaign: Campaign;
 };
 type MembershipWithUserAndUnit = TenantMembership & {
   user: User;
@@ -195,6 +202,16 @@ function mapPayload(tenant: Tenant, campaign: Campaign, ads: AdWithUnit[], local
       slug: campaign.slug,
     },
     ads: ads.map((ad) => mapAd(ad, locale)),
+  };
+}
+
+function mapRepositoryAd(ad: AdWithRepositoryRelations, locale: Locale): PublicRepositoryAdRecord {
+  return {
+    ...mapAd(ad, locale),
+    campaign: locale === "cs" ? ad.campaign.nameCs : ad.campaign.nameEn,
+    campaignSlug: ad.campaign.slug,
+    election: ad.campaign.election,
+    lastUpdated: formatDate(ad.updatedAt, locale),
   };
 }
 
@@ -390,6 +407,91 @@ function statusLabel(status: AdStatus, locale: Locale) {
   return labels[status][locale];
 }
 
+function publicStatusOptions(locale: Locale): PublicRepositoryOption[] {
+  return [
+    { value: "all", label: locale === "cs" ? "Všechny stavy" : "All statuses" },
+    { value: "ready", label: statusLabel(AdStatus.READY, locale) },
+    { value: "warning", label: statusLabel(AdStatus.WARNING, locale) },
+    { value: "blocked", label: statusLabel(AdStatus.BLOCKED, locale) },
+    { value: "review", label: statusLabel(AdStatus.REVIEW, locale) },
+  ];
+}
+
+function publicChannelOptions(locale: Locale): PublicRepositoryOption[] {
+  return [
+    { value: "all", label: locale === "cs" ? "Online i offline" : "Online and offline" },
+    { value: "online", label: "Online" },
+    { value: "offline", label: "Offline" },
+  ];
+}
+
+function uniqueOptions(values: string[], allLabel: string): PublicRepositoryOption[] {
+  const seen = new Set<string>();
+  const options = values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.localeCompare(b, "cs"));
+
+  return [{ value: "all", label: allLabel }, ...options.map((value) => ({ value, label: value }))];
+}
+
+function normalizeRepositoryFilters(input: Partial<PublicRepositoryFilters>): PublicRepositoryFilters {
+  const channel = input.channel === "online" || input.channel === "offline" ? input.channel : "all";
+  const status =
+    input.status === "ready" || input.status === "warning" || input.status === "blocked" || input.status === "review"
+      ? input.status
+      : "all";
+
+  return {
+    q: input.q?.trim() || "",
+    channel,
+    status,
+    type: input.type?.trim() || "all",
+    branch: input.branch?.trim() || "all",
+    campaign: input.campaign?.trim() || "all",
+  };
+}
+
+function matchesValue(filter: string, value: string) {
+  return filter === "all" || value === filter;
+}
+
+function matchesSearch(ad: PublicRepositoryAdRecord, query: string) {
+  if (!query) {
+    return true;
+  }
+
+  const needle = query.toLowerCase();
+  const haystack = [
+    ad.id,
+    ad.title,
+    ad.branch,
+    ad.owner,
+    ad.type,
+    ad.campaign,
+    ad.distributionArea,
+    ad.payer,
+    ad.supplier,
+    ad.fundingSource,
+    ad.targeting,
+    ad.targetAudience,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(needle);
+}
+
 function statusLabelForInput(input: EditableAdInput, locale: Locale) {
   return statusLabel(statusForInput(input), locale);
 }
@@ -477,6 +579,74 @@ export async function getDemoAdsPayload(locale: Locale) {
   });
 
   return mapPayload(tenant, campaign, ads, locale);
+}
+
+export async function getPublicRepositoryPayload(
+  requestedTenantSlug: string,
+  locale: Locale,
+  inputFilters: Partial<PublicRepositoryFilters> = {},
+): Promise<PublicRepositoryPayload | null> {
+  const tenant = await prisma.tenant.findUnique({
+    where: {
+      slug: requestedTenantSlug,
+    },
+  });
+
+  if (!tenant) {
+    return null;
+  }
+
+  const ads = await prisma.ad.findMany({
+    where: {
+      tenantId: tenant.id,
+    },
+    include: {
+      orgUnit: true,
+      campaign: true,
+    },
+    orderBy: [{ publicationDate: "desc" }, { code: "asc" }],
+  });
+
+  const mappedAds = ads.map((ad) => mapRepositoryAd(ad, locale));
+  const filters = normalizeRepositoryFilters(inputFilters);
+  const filteredAds = mappedAds.filter(
+    (ad) =>
+      matchesSearch(ad, filters.q) &&
+      matchesValue(filters.channel, ad.channel) &&
+      matchesValue(filters.status, ad.status) &&
+      matchesValue(filters.type, ad.type) &&
+      matchesValue(filters.branch, ad.branch) &&
+      matchesValue(filters.campaign, ad.campaignSlug),
+  );
+
+  return {
+    tenant: {
+      name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
+      slug: tenant.slug,
+    },
+    ads: filteredAds,
+    totalCount: mappedAds.length,
+    filteredCount: filteredAds.length,
+    filters,
+    options: {
+      channels: publicChannelOptions(locale),
+      statuses: publicStatusOptions(locale),
+      types: uniqueOptions(mappedAds.map((ad) => ad.type), locale === "cs" ? "Všechny typy" : "All types"),
+      branches: uniqueOptions(mappedAds.map((ad) => ad.branch), locale === "cs" ? "Všechny pobočky" : "All branches"),
+      campaigns: [
+        { value: "all", label: locale === "cs" ? "Všechny kampaně" : "All campaigns" },
+        ...uniqueOptions(
+          mappedAds.map((ad) => `${ad.campaignSlug}::${ad.campaign}`),
+          "",
+        )
+          .slice(1)
+          .map((option) => {
+            const [value, label] = option.value.split("::");
+            return { value, label };
+          }),
+      ],
+    },
+  };
 }
 
 export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPayload> {
@@ -718,6 +888,7 @@ export async function getDemoTransparencyNotice(publicToken: string, locale: Loc
 
   return {
     tenant: locale === "cs" ? tenant.nameCs : tenant.nameEn,
+    tenantSlug: tenant.slug,
     campaign: locale === "cs" ? campaign.nameCs : campaign.nameEn,
     election: campaign.election,
     ad: mapAd(ad, locale),
