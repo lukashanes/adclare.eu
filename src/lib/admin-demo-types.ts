@@ -187,6 +187,8 @@ export type AdminBillingPayload = {
     stripeCustomerId: string;
     stripeSubscriptionId: string;
     stripeConfigured: boolean;
+    stripeCheckoutConfigured: boolean;
+    stripeWebhookConfigured: boolean;
     note: string;
   };
 };

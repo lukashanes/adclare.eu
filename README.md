@@ -79,7 +79,7 @@ For the temporary protected admin preview, set `ADMIN_ACCESS_PASSWORD` and a ran
 
 For invite e-mail sending, set `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`. Without those Cloudflare Email Service credentials, invitations are still created and stored in the outbox with status `PENDING_PROVIDER`.
 
-For billing, set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` before adding real checkout/customer portal actions. The current admin stores billing state and discounts in Postgres.
+For billing, set `STRIPE_SECRET_KEY` to enable hosted Stripe Checkout and Customer Portal redirects from the admin. Set `STRIPE_WEBHOOK_SECRET` for `/api/stripe/webhook` so completed payments and subscription changes sync back into Postgres.
 
 ## Checks
 
@@ -118,7 +118,7 @@ See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for DNS, firewall a
 ## Next Product Steps
 
 1. Replace the temporary admin password with real account login, magic links and 2FA.
-2. Add real signup and Stripe checkout/customer portal flow.
+2. Add real signup and tenant onboarding outside the demo tenant.
 3. Add tenant onboarding: organization details, billing mode and custom naming for branches.
 4. Replace demo admin scope with tenant-aware authenticated app shell.
 5. Add Cloudflare Turnstile to public forms.

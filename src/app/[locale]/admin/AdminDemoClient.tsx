@@ -13,6 +13,7 @@ import {
   CreditCard,
   Database,
   Download,
+  ExternalLink,
   FileArchive,
   FileText,
   History,
@@ -21,6 +22,7 @@ import {
   Menu,
   PencilLine,
   Plus,
+  RefreshCw,
   Save,
   Search,
   ShieldCheck,
@@ -278,6 +280,8 @@ const content = {
       emptyInvites: "Zatím nejsou žádné pozvánky.",
       copy: "Zkopírovat odkaz",
       copied: "Odkaz zkopírován",
+      retryEmail: "Odeslat znovu",
+      retryingEmail: "Odesílám",
       note: "Pozvánka vytvoří bezpečný odkaz a e-mail v outboxu. Pokud je nastaven Cloudflare Email Service token, odešle se automaticky.",
       roles: {
         PARTY_ADMIN: "Admin strany",
@@ -312,6 +316,12 @@ const content = {
       stripeStatus: "Stripe napojení",
       stripeReady: "klíče nastavené",
       stripeMissing: "čeká na STRIPE_SECRET_KEY a webhook",
+      stripeCheckoutReady: "checkout připravený",
+      stripeWebhookMissing: "webhook zatím není nastavený",
+      checkout: "Otevřít Stripe checkout",
+      portal: "Otevřít customer portal",
+      approveInvoice: "Schválit fakturu",
+      processing: "Zpracovávám",
       invoicePending: "Faktura čeká na ruční schválení",
       invoiceApprovedEmpty: "zatím neschváleno",
       options: {
@@ -472,6 +482,8 @@ const content = {
       emptyInvites: "No invitations yet.",
       copy: "Copy link",
       copied: "Link copied",
+      retryEmail: "Send again",
+      retryingEmail: "Sending",
       note: "The invite creates a secure link and an email in the outbox. If a Cloudflare Email Service token is configured, it is sent automatically.",
       roles: {
         PARTY_ADMIN: "Party admin",
@@ -506,6 +518,12 @@ const content = {
       stripeStatus: "Stripe connection",
       stripeReady: "keys configured",
       stripeMissing: "waiting for STRIPE_SECRET_KEY and webhook",
+      stripeCheckoutReady: "checkout ready",
+      stripeWebhookMissing: "webhook is not configured yet",
+      checkout: "Open Stripe checkout",
+      portal: "Open customer portal",
+      approveInvoice: "Approve invoice",
+      processing: "Processing",
       invoicePending: "Invoice is waiting for manual approval",
       invoiceApprovedEmpty: "not approved yet",
       options: {
@@ -567,6 +585,7 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
   const [usersPayload, setUsersPayload] = useState<AdminUsersPayload | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
   const [inviteSaving, setInviteSaving] = useState(false);
+  const [retryingInviteId, setRetryingInviteId] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteForm, setInviteForm] = useState<InviteInput>({
     email: "",
@@ -576,6 +595,7 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
   const [billingPayload, setBillingPayload] = useState<AdminBillingPayload | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingSaving, setBillingSaving] = useState(false);
+  const [billingActionLoading, setBillingActionLoading] = useState<"" | "checkout" | "portal" | "invoice">("");
   const [billingMessage, setBillingMessage] = useState("");
   const [billingForm, setBillingForm] = useState<EditableBillingInput>(() => blankBillingForm(locale));
 
@@ -899,6 +919,41 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
     }
   }
 
+  async function retryInvitationEmail(invitationId: string) {
+    if (retryingInviteId) {
+      return;
+    }
+
+    setRetryingInviteId(invitationId);
+    setInviteMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/demo/users/${encodeURIComponent(invitationId)}/retry-email?locale=${locale}`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error || `Email retry failed with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { invitation: AdminUsersPayload["invitations"][number] };
+      setUsersPayload((current) =>
+        current
+          ? {
+              ...current,
+              invitations: current.invitations.map((item) => (item.id === payload.invitation.id ? payload.invitation : item)),
+            }
+          : current,
+      );
+    } catch (emailError) {
+      setError(emailError instanceof Error ? emailError.message : t.saveError);
+    } finally {
+      setRetryingInviteId("");
+    }
+  }
+
   async function saveBilling() {
     if (billingSaving) {
       return;
@@ -929,6 +984,49 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       setError(t.saveError);
     } finally {
       setBillingSaving(false);
+    }
+  }
+
+  async function runBillingAction(action: "checkout" | "portal" | "invoice") {
+    if (billingActionLoading) {
+      return;
+    }
+
+    setBillingActionLoading(action);
+    setBillingMessage("");
+    setError("");
+
+    const endpoint =
+      action === "checkout"
+        ? "checkout"
+        : action === "portal"
+          ? "portal"
+          : "approve-invoice";
+
+    try {
+      const response = await fetch(`/api/admin/demo/billing/${endpoint}?locale=${locale}`, {
+        method: "POST",
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string } | AdminBillingPayload;
+
+      if (!response.ok) {
+        throw new Error("error" in payload && payload.error ? payload.error : `Billing action failed with ${response.status}`);
+      }
+
+      if ("url" in payload && payload.url) {
+        window.location.href = payload.url;
+        return;
+      }
+
+      const billingPayloadResult = payload as AdminBillingPayload;
+      setBillingPayload(billingPayloadResult);
+      setBillingForm(billingFormFromPayload(billingPayloadResult));
+      setBillingMessage(locale === "cs" ? "Faktura byla ručně schválena." : "Invoice was manually approved.");
+    } catch (billingError) {
+      setError(billingError instanceof Error ? billingError.message : t.saveError);
+    } finally {
+      setBillingActionLoading("");
     }
   }
 
@@ -1284,6 +1382,8 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                 t={t}
                 onChange={setInviteForm}
                 onCreate={createInvitation}
+                retryingInviteId={retryingInviteId}
+                onRetryEmail={retryInvitationEmail}
               />
             ) : activeSection === "billing" ? (
               <BillingPanel
@@ -1295,6 +1395,10 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                 t={t}
                 onChange={setBillingForm}
                 onSave={saveBilling}
+                actionLoading={billingActionLoading}
+                onCheckout={() => runBillingAction("checkout")}
+                onPortal={() => runBillingAction("portal")}
+                onApproveInvoice={() => runBillingAction("invoice")}
               />
             ) : (
               <AdminSectionPanel activeSection={activeSection} ads={ads} counts={counts} locale={locale} t={t} />
@@ -1316,6 +1420,8 @@ function UsersPanel({
   t,
   onChange,
   onCreate,
+  retryingInviteId,
+  onRetryEmail,
 }: {
   payload: AdminUsersPayload | null;
   loading: boolean;
@@ -1326,6 +1432,8 @@ function UsersPanel({
   t: (typeof content)[Locale];
   onChange: (form: InviteInput) => void;
   onCreate: () => void | Promise<void>;
+  retryingInviteId: string;
+  onRetryEmail: (invitationId: string) => void | Promise<void>;
 }) {
   const [copiedUrl, setCopiedUrl] = useState("");
   const branches = payload?.branches ?? [];
@@ -1382,14 +1490,27 @@ function UsersPanel({
                       {invitation.inviteUrl}
                     </a>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => copyUrl(invitation.inviteUrl)}
-                    className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#25282d]"
-                  >
-                    <Copy size={15} />
-                    {copiedUrl === invitation.inviteUrl ? t.usersPanel.copied : t.usersPanel.copy}
-                  </button>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                    <button
+                      type="button"
+                      onClick={() => copyUrl(invitation.inviteUrl)}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#25282d]"
+                    >
+                      <Copy size={15} />
+                      {copiedUrl === invitation.inviteUrl ? t.usersPanel.copied : t.usersPanel.copy}
+                    </button>
+                    {invitation.emailStatusKey !== "SENT" ? (
+                      <button
+                        type="button"
+                        disabled={Boolean(retryingInviteId)}
+                        onClick={() => onRetryEmail(invitation.id)}
+                        className="inline-flex items-center justify-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-[#bd3b0d] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <RefreshCw size={15} />
+                        {retryingInviteId === invitation.id ? t.usersPanel.retryingEmail : t.usersPanel.retryEmail}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1478,6 +1599,10 @@ function BillingPanel({
   t,
   onChange,
   onSave,
+  actionLoading,
+  onCheckout,
+  onPortal,
+  onApproveInvoice,
 }: {
   payload: AdminBillingPayload | null;
   loading: boolean;
@@ -1487,6 +1612,10 @@ function BillingPanel({
   t: (typeof content)[Locale];
   onChange: (form: EditableBillingInput) => void;
   onSave: () => void | Promise<void>;
+  actionLoading: "" | "checkout" | "portal" | "invoice";
+  onCheckout: () => void | Promise<void>;
+  onPortal: () => void | Promise<void>;
+  onApproveInvoice: () => void | Promise<void>;
 }) {
   const billing = payload?.billing;
   const overviewRows = billing
@@ -1527,7 +1656,12 @@ function BillingPanel({
         {billing ? (
           <div className="grid gap-3 border-t border-black/10 p-5 md:grid-cols-2">
             <div className={`rounded-md border p-4 text-sm font-semibold ${billing.stripeConfigured ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-800"}`}>
-              {t.billingPanel.stripeStatus}: {billing.stripeConfigured ? t.billingPanel.stripeReady : t.billingPanel.stripeMissing}
+              {t.billingPanel.stripeStatus}:{" "}
+              {billing.stripeConfigured
+                ? t.billingPanel.stripeReady
+                : billing.stripeCheckoutConfigured
+                  ? `${t.billingPanel.stripeCheckoutReady}, ${t.billingPanel.stripeWebhookMissing}`
+                  : t.billingPanel.stripeMissing}
             </div>
             {billing.method === "INVOICE" && billing.status === "PENDING_INVOICE_APPROVAL" ? (
               <div className="rounded-md border border-orange-200 bg-orange-50 p-4 text-sm font-semibold text-orange-800">
@@ -1538,6 +1672,35 @@ function BillingPanel({
                 {billing.note || t.sectionIntro.billing}
               </div>
             )}
+            <div className="grid gap-2 md:col-span-2 md:grid-cols-3">
+              <button
+                type="button"
+                disabled={Boolean(actionLoading) || billing.method !== "STRIPE" || !billing.stripeCheckoutConfigured}
+                onClick={onCheckout}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+              >
+                <ExternalLink size={15} />
+                {actionLoading === "checkout" ? t.billingPanel.processing : t.billingPanel.checkout}
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(actionLoading) || !billing.stripeCustomerId || !billing.stripeCheckoutConfigured}
+                onClick={onPortal}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CreditCard size={15} />
+                {actionLoading === "portal" ? t.billingPanel.processing : t.billingPanel.portal}
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(actionLoading) || billing.method !== "INVOICE" || billing.status !== "PENDING_INVOICE_APPROVAL"}
+                onClick={onApproveInvoice}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Check size={15} />
+                {actionLoading === "invoice" ? t.billingPanel.processing : t.billingPanel.approveInvoice}
+              </button>
+            </div>
           </div>
         ) : null}
       </article>

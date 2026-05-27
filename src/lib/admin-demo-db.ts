@@ -144,6 +144,8 @@ function isCloudflareEmailConfigured() {
   return Boolean(cloudflareEmailAccountId() && cloudflareEmailApiToken());
 }
 
+const cloudflareEmailMissingConfigError = "CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are not configured.";
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -182,25 +184,18 @@ function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit:
   return { subject, bodyText, bodyHtml, inviteUrl };
 }
 
-async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
-  const { subject, bodyText, bodyHtml } = invitationEmailCopy(invitation);
-  const cloudflareConfigured = isCloudflareEmailConfigured();
-  const email = await prisma.emailMessage.create({
-    data: {
-      tenantId: invitation.tenantId,
-      invitationId: invitation.id,
-      toEmail: invitation.email,
-      subject,
-      bodyText,
-      bodyHtml,
-      provider: "cloudflare_email_service",
-      status: EmailStatus.PENDING_PROVIDER,
-      error: cloudflareConfigured ? "" : "CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are not configured.",
-    },
-  });
-
-  if (!cloudflareConfigured) {
-    return email;
+async function deliverEmailMessage(email: EmailMessage) {
+  if (!isCloudflareEmailConfigured()) {
+    return prisma.emailMessage.update({
+      where: {
+        id: email.id,
+      },
+      data: {
+        provider: "cloudflare_email_service",
+        status: EmailStatus.PENDING_PROVIDER,
+        error: cloudflareEmailMissingConfigError,
+      },
+    });
   }
 
   try {
@@ -212,10 +207,10 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
       },
       body: JSON.stringify({
         from: emailFrom(),
-        to: invitation.email,
-        subject,
-        html: bodyHtml,
-        text: bodyText,
+        to: email.toEmail,
+        subject: email.subject,
+        html: email.bodyHtml,
+        text: email.bodyText,
       }),
     });
 
@@ -234,7 +229,7 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
       throw new Error(message || `Cloudflare Email Service responded with ${response.status}.`);
     }
 
-    if (result.result?.permanent_bounces?.includes(invitation.email)) {
+    if (result.result?.permanent_bounces?.includes(email.toEmail)) {
       throw new Error("Cloudflare Email Service reported a permanent bounce.");
     }
 
@@ -247,6 +242,7 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
       },
       data: {
         status: EmailStatus.SENT,
+        provider: "cloudflare_email_service",
         providerMessageId: [...delivered.map((item) => `delivered:${item}`), ...queued.map((item) => `queued:${item}`)].join(","),
         error: "",
         sentAt: new Date(),
@@ -259,10 +255,30 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
       },
       data: {
         status: EmailStatus.FAILED,
+        provider: "cloudflare_email_service",
         error: error instanceof Error ? error.message : "Unknown email send error.",
       },
     });
   }
+}
+
+async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
+  const { subject, bodyText, bodyHtml } = invitationEmailCopy(invitation);
+  const email = await prisma.emailMessage.create({
+    data: {
+      tenantId: invitation.tenantId,
+      invitationId: invitation.id,
+      toEmail: invitation.email,
+      subject,
+      bodyText,
+      bodyHtml,
+      provider: "cloudflare_email_service",
+      status: EmailStatus.PENDING_PROVIDER,
+      error: isCloudflareEmailConfigured() ? "" : cloudflareEmailMissingConfigError,
+    },
+  });
+
+  return deliverEmailMessage(email);
 }
 
 function roleLabel(role: UserRole, locale: Locale) {
@@ -325,8 +341,16 @@ function formatOptionalDate(date: Date | null, locale: Locale) {
   return date ? formatDate(date, locale) : "";
 }
 
+function hasStripeSecretConfig() {
+  return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
+}
+
+function hasStripeWebhookConfig() {
+  return Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim());
+}
+
 function hasStripeConfig() {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+  return hasStripeSecretConfig() && hasStripeWebhookConfig();
 }
 
 function effectiveBillingPrice(account: BillingAccount, locale: Locale) {
@@ -362,6 +386,8 @@ function mapBillingAccount(account: BillingAccountWithTenant, locale: Locale): A
       stripeCustomerId: account.stripeCustomerId,
       stripeSubscriptionId: account.stripeSubscriptionId,
       stripeConfigured: hasStripeConfig(),
+      stripeCheckoutConfigured: hasStripeSecretConfig(),
+      stripeWebhookConfigured: hasStripeWebhookConfig(),
       note: locale === "cs" ? account.noteCs : account.noteEn,
     },
   };
@@ -997,7 +1023,7 @@ function positivePrice(value: number, fallback: number) {
   return Math.round(value);
 }
 
-async function ensureDemoBillingAccount() {
+export async function ensureDemoBillingAccount() {
   const { tenant } = await getDemoTenantAndCampaign();
 
   return prisma.billingAccount.upsert({
@@ -1092,6 +1118,36 @@ export async function updateDemoBillingAccount(input: EditableBillingInput, loca
   return mapBillingAccount(billingAccount, locale);
 }
 
+export async function approveDemoInvoiceBilling(locale: Locale) {
+  const billingAccount = await ensureDemoBillingAccount();
+
+  const updatedAccount = await prisma.billingAccount.update({
+    where: {
+      id: billingAccount.id,
+    },
+    data: {
+      method: BillingMethod.INVOICE,
+      status: BillingStatus.ACTIVE,
+      invoiceApprovedAt: new Date(),
+    },
+    include: {
+      tenant: true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: updatedAccount.tenantId,
+      actor: "demo-admin",
+      action: "approve_invoice_billing",
+      messageCs: "Fakturační platba byla ručně schválena.",
+      messageEn: "Invoice payment was manually approved.",
+    },
+  });
+
+  return mapBillingAccount(updatedAccount, locale);
+}
+
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
@@ -1168,6 +1224,45 @@ export async function createDemoInvitation(input: InviteInput, locale: Locale) {
       action: "create_invitation",
       messageCs: `Vytvořena pozvánka pro ${email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
       messageEn: `Created invitation for ${email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
+    },
+  });
+
+  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
+}
+
+export async function retryDemoInvitationEmail(invitationId: string, locale: Locale) {
+  const { tenant } = await getDemoTenantAndCampaign();
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      id: invitationId,
+      tenantId: tenant.id,
+    },
+    include: {
+      tenant: true,
+      orgUnit: true,
+      emailMessages: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!invitation) {
+    throw new Error("Invitation not found.");
+  }
+
+  const latestEmail = invitation.emailMessages[0];
+  const emailMessage = latestEmail?.status === EmailStatus.SENT ? latestEmail : latestEmail ? await deliverEmailMessage(latestEmail) : await sendInvitationEmail(invitation);
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: tenant.id,
+      actor: "demo-admin",
+      action: "retry_invitation_email",
+      messageCs: `Znovu zpracováno odeslání pozvánky pro ${invitation.email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
+      messageEn: `Retried invitation email for ${invitation.email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
     },
   });
 
