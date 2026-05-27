@@ -42,7 +42,7 @@ const languageOptions = {
 const content = {
   cs: {
     nav: ["Produkt", "Workflow", "Cena", "Bezpečnost", "Kontakt"],
-    login: "Ukázka adminu",
+    login: "Přihlášení",
     cta: "Získat přístup",
     secondaryCta: "Zobrazit workflow",
     lang: "CS",
@@ -198,7 +198,7 @@ const content = {
   },
   en: {
     nav: ["Product", "Workflow", "Pricing", "Security", "Contact"],
-    login: "Admin demo",
+    login: "Sign in",
     cta: "Get access",
     secondaryCta: "View workflow",
     lang: "EN",
@@ -481,7 +481,7 @@ function Header({
 
         <div className="flex items-center gap-2 sm:gap-3">
           <LanguageDropdown locale={locale} />
-          <Link className="hidden px-3 py-2 text-sm font-medium text-[#25282d] sm:inline-flex" href={`/${locale}/admin`}>
+          <Link className="hidden px-3 py-2 text-sm font-medium text-[#25282d] sm:inline-flex" href="/login">
             {t.login}
           </Link>
           <a
@@ -516,7 +516,7 @@ function Header({
                 <LanguageDropdown locale={locale} mobile />
                 <Link
                   className="rounded-md px-4 py-3 text-sm font-semibold text-[#25282d] transition hover:bg-[#f7f7f8]"
-                  href={`/${locale}/admin`}
+                  href="/login"
                 >
                   {t.login}
                 </Link>

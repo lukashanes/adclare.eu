@@ -33,12 +33,17 @@ export function InviteAcceptClient({ invitation }: { invitation: InvitationNotic
   }
 
   if (status === "accepted") {
+    const loginHref = `/login?email=${encodeURIComponent(invitation.email)}`;
+
     return (
       <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
         <div className="flex items-center gap-2">
           <CheckCircle2 size={17} />
           Pozvánka je přijatá. Přístup je připravený pro {invitation.email}.
         </div>
+        <a className="mt-3 inline-flex rounded-md bg-[#11161c] px-3 py-2 text-white" href={loginHref}>
+          Pokračovat na přihlášení
+        </a>
       </div>
     );
   }

@@ -190,6 +190,39 @@ export type InvitationNotice = {
   expiresAt: string;
 };
 
+export type AppWorkspacePayload = {
+  user: {
+    name: string;
+    email: string;
+  };
+  tenant: {
+    name: string;
+    slug: string;
+  };
+  membership: {
+    role: string;
+    roleKey: AdminRoleKey;
+    scope: string;
+    status: string;
+  };
+  billing: {
+    plan: BillingPlanKey;
+    status: BillingStatusKey;
+    statusLabel: string;
+    methodLabel: string;
+    effectivePrice: string;
+  } | null;
+  ads: AdRecord[];
+  counts: {
+    all: number;
+    needsData: number;
+    review: number;
+    approved: number;
+    published: number;
+    blocked: number;
+  };
+};
+
 export type AdminBillingPayload = {
   tenant: {
     name: string;

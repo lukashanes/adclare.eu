@@ -29,6 +29,7 @@ import type {
   AdChannel,
   AdminAdsPayload,
   AdminBillingPayload,
+  AppWorkspacePayload,
   AdminInvitationRecord,
   AdminMemberRecord,
   AdminRoleKey,
@@ -2130,5 +2131,99 @@ export async function getDemoAuditPackage(code: string, locale: Locale) {
       message: locale === "cs" ? log.messageCs : log.messageEn,
       createdAt: log.createdAt.toISOString(),
     })),
+  };
+}
+
+function isTenantWideRole(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.READONLY_AUDITOR;
+}
+
+export async function getAppWorkspacePayload(userId: string, locale: Locale): Promise<AppWorkspacePayload | null> {
+  const membership = await prisma.tenantMembership.findFirst({
+    where: {
+      userId,
+      status: MembershipStatus.ACTIVE,
+    },
+    include: {
+      user: true,
+      tenant: true,
+      orgUnit: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  if (!membership) {
+    return null;
+  }
+
+  const tenantWideRole = isTenantWideRole(membership.role);
+  const scopedOrgUnitId = tenantWideRole ? undefined : membership.orgUnitId || "__missing_org_scope__";
+  const [ads, billingAccount] = await Promise.all([
+    prisma.ad.findMany({
+      where: {
+        tenantId: membership.tenantId,
+        ...(scopedOrgUnitId ? { orgUnitId: scopedOrgUnitId } : {}),
+      },
+      include: {
+        orgUnit: true,
+        campaign: true,
+        tenant: true,
+      },
+      orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
+    }),
+    prisma.billingAccount.findUnique({
+      where: {
+        tenantId: membership.tenantId,
+      },
+      include: {
+        tenant: true,
+      },
+    }),
+  ]);
+
+  const mappedAds = ads.map((ad) => mapAd(ad, locale));
+  const membershipScope = tenantWideRole
+    ? scopeLabel(null, locale)
+    : membership.orgUnit
+      ? scopeLabel(membership.orgUnit, locale)
+      : locale === "cs"
+        ? "bez pobočky"
+        : "no branch assigned";
+
+  return {
+    user: {
+      name: membership.user.name,
+      email: membership.user.email,
+    },
+    tenant: {
+      name: locale === "cs" ? membership.tenant.nameCs : membership.tenant.nameEn,
+      slug: membership.tenant.slug,
+    },
+    membership: {
+      role: roleLabel(membership.role, locale),
+      roleKey: membership.role,
+      scope: membershipScope,
+      status: membershipStatusLabel(membership.status, locale),
+    },
+    billing: billingAccount
+      ? {
+          plan: billingAccount.plan,
+          status: billingAccount.status,
+          statusLabel: billingStatusLabel(billingAccount.status, locale),
+          methodLabel: billingMethodLabel(billingAccount.method, locale),
+          effectivePrice: effectiveBillingPrice(billingAccount, locale),
+        }
+      : null,
+    ads: mappedAds,
+    counts: {
+      all: mappedAds.length,
+      needsData: mappedAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA").length,
+      review: mappedAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW").length,
+      approved: mappedAds.filter((ad) => ad.workflowStatus === "APPROVED").length,
+      published: mappedAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
+      blocked: mappedAds.filter((ad) => ad.status === "blocked").length,
+    },
   };
 }
