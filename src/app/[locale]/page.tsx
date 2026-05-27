@@ -110,7 +110,7 @@ const content = {
       ["Deadline před vyvěšením", "Datum publikace určuje termín. Pokud chybí plátce, období, částky, původ financí nebo cílení, reklama zčervená."],
       ["Tagy místo chaotických složek", "Štítky pro volby, kraj, město, téma, dodavatele, médium, rozpočtovou kapitolu nebo prioritu."],
       ["Repozitář pro veřejnost i kontrolu", "Stabilní URL reklamy, vyhledávání, JSON endpoint, archiv a možnost nahlášení problému."],
-      ["Billing a přístupy", "Stripe, faktura, ruční schválení, sleva z předplatného, trial i pozastavení účtu z administrace."],
+      ["Billing a přístupy", "Stripe, faktura, ruční schválení, sleva z předplatného, zkušební přístup i pozastavení účtu z administrace."],
     ],
     pricingTitle: "Jednoduché ceny pro strany všech velikostí",
     pricingText:

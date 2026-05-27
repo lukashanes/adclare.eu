@@ -14,7 +14,7 @@ export type AdminRoleKey =
 export type BillingPlanKey = "SMALL_PARTY" | "LARGE_PARTY" | "CUSTOM";
 export type BillingIntervalKey = "MONTHLY" | "YEARLY";
 export type BillingMethodKey = "STRIPE" | "INVOICE";
-export type BillingStatusKey = "TRIAL" | "ACTIVE" | "PENDING_INVOICE_APPROVAL" | "PAST_DUE" | "PAUSED" | "CANCELLED";
+export type BillingStatusKey = "TRIAL" | "ACTIVE" | "PENDING_INVOICE_APPROVAL" | "TRIAL_EXPIRED" | "PAST_DUE" | "PAUSED" | "CANCELLED";
 export type EmailStatusKey = "PENDING_PROVIDER" | "SENT" | "FAILED";
 
 export type AdDeadlineState = "clear" | "upcoming" | "due-soon" | "overdue";
@@ -211,6 +211,12 @@ export type AppWorkspacePayload = {
     statusLabel: string;
     methodLabel: string;
     effectivePrice: string;
+    trialEndsAt: string;
+    trialDaysLeft: number;
+    canUseApp: boolean;
+    activationRequired: boolean;
+    invoicePending: boolean;
+    stripeCheckoutConfigured: boolean;
   } | null;
   ads: AdRecord[];
   counts: {

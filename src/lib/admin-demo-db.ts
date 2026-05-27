@@ -45,6 +45,7 @@ import type {
   PublicRepositoryPayload,
   Status,
 } from "@/lib/admin-demo-types";
+import { getTenantBillingAccess } from "@/lib/billing-access";
 import { prisma } from "@/lib/prisma";
 
 const tenantSlug = "demo-party";
@@ -420,9 +421,10 @@ function billingMethodLabel(method: BillingMethod, locale: Locale) {
 
 function billingStatusLabel(status: BillingStatus, locale: Locale) {
   const labels: Record<BillingStatus, Record<Locale, string>> = {
-    TRIAL: { cs: "trial", en: "trial" },
+    TRIAL: { cs: "zkušební přístup", en: "trial" },
     ACTIVE: { cs: "aktivní", en: "active" },
     PENDING_INVOICE_APPROVAL: { cs: "čeká na schválení faktury", en: "pending invoice approval" },
+    TRIAL_EXPIRED: { cs: "zkušební přístup skončil", en: "trial expired" },
     PAST_DUE: { cs: "po splatnosti", en: "past due" },
     PAUSED: { cs: "pozastaveno", en: "paused" },
     CANCELLED: { cs: "zrušeno", en: "cancelled" },
@@ -1140,6 +1142,7 @@ function normalizeBillingStatus(value: string): BillingStatus {
     BillingStatus.TRIAL,
     BillingStatus.ACTIVE,
     BillingStatus.PENDING_INVOICE_APPROVAL,
+    BillingStatus.TRIAL_EXPIRED,
     BillingStatus.PAST_DUE,
     BillingStatus.PAUSED,
     BillingStatus.CANCELLED,
@@ -2225,7 +2228,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   }
 
   const { membership, tenantWideRole } = context;
-  const [ads, billingAccount] = await Promise.all([
+  const [ads, billingAccess] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
@@ -2235,14 +2238,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       },
       orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
     }),
-    prisma.billingAccount.findUnique({
-      where: {
-        tenantId: membership.tenantId,
-      },
-      include: {
-        tenant: true,
-      },
-    }),
+    getTenantBillingAccess(membership.tenantId, locale),
   ]);
 
   const mappedAds = ads.map((ad) => mapAd(ad, locale));
@@ -2269,13 +2265,19 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       scope: membershipScope,
       status: membershipStatusLabel(membership.status, locale),
     },
-    billing: billingAccount
+    billing: billingAccess
       ? {
-          plan: billingAccount.plan,
-          status: billingAccount.status,
-          statusLabel: billingStatusLabel(billingAccount.status, locale),
-          methodLabel: billingMethodLabel(billingAccount.method, locale),
-          effectivePrice: effectiveBillingPrice(billingAccount, locale),
+          plan: billingAccess.plan,
+          status: billingAccess.status,
+          statusLabel: billingAccess.statusLabel,
+          methodLabel: billingAccess.methodLabel,
+          effectivePrice: billingAccess.effectivePrice,
+          trialEndsAt: billingAccess.trialEndsAt,
+          trialDaysLeft: billingAccess.trialDaysLeft,
+          canUseApp: billingAccess.canUseApp,
+          activationRequired: billingAccess.activationRequired,
+          invoicePending: billingAccess.invoicePending,
+          stripeCheckoutConfigured: billingAccess.stripeCheckoutConfigured,
         }
       : null,
     ads: mappedAds,

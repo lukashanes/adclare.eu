@@ -1,0 +1,2 @@
+-- AddEnumValue
+ALTER TYPE "BillingStatus" ADD VALUE IF NOT EXISTS 'TRIAL_EXPIRED';

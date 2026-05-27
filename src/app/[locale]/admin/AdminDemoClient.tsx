@@ -335,11 +335,11 @@ const content = {
       note: "Interní poznámka",
       effectivePrice: "Účtovaná cena",
       periodEnds: "Konec období",
-      trialEnds: "Konec trialu",
+      trialEnds: "Konec zkušebního přístupu",
       invoiceApproved: "Schválení faktury",
       stripeStatus: "Stripe napojení",
       stripeReady: "klíče nastavené",
-      stripeMissing: "čeká na STRIPE_SECRET_KEY a webhook",
+      stripeMissing: "čeká na nastavení platby kartou a webhook",
       stripeCheckoutReady: "checkout připravený",
       stripeWebhookMissing: "webhook zatím není nastavený",
       checkout: "Otevřít Stripe checkout",
@@ -363,9 +363,10 @@ const content = {
           INVOICE: "Faktura",
         },
         statuses: {
-          TRIAL: "Trial",
+          TRIAL: "Zkušební přístup",
           ACTIVE: "Aktivní",
           PENDING_INVOICE_APPROVAL: "Čeká na schválení faktury",
+          TRIAL_EXPIRED: "Zkušební přístup skončil",
           PAST_DUE: "Po splatnosti",
           PAUSED: "Pozastaveno",
           CANCELLED: "Zrušeno",
@@ -549,7 +550,7 @@ const content = {
       invoiceApproved: "Invoice approval",
       stripeStatus: "Stripe connection",
       stripeReady: "keys configured",
-      stripeMissing: "waiting for STRIPE_SECRET_KEY and webhook",
+      stripeMissing: "waiting for card payment and webhook setup",
       stripeCheckoutReady: "checkout ready",
       stripeWebhookMissing: "webhook is not configured yet",
       checkout: "Open Stripe checkout",
@@ -576,6 +577,7 @@ const content = {
           TRIAL: "Trial",
           ACTIVE: "Active",
           PENDING_INVOICE_APPROVAL: "Pending invoice approval",
+          TRIAL_EXPIRED: "Trial expired",
           PAST_DUE: "Past due",
           PAUSED: "Paused",
           CANCELLED: "Cancelled",
@@ -597,7 +599,7 @@ const inviteRoleKeys = [
 const billingPlanKeys = ["SMALL_PARTY", "LARGE_PARTY", "CUSTOM"] as const satisfies readonly BillingPlanKey[];
 const billingIntervalKeys = ["MONTHLY", "YEARLY"] as const satisfies readonly BillingIntervalKey[];
 const billingMethodKeys = ["STRIPE", "INVOICE"] as const satisfies readonly BillingMethodKey[];
-const billingStatusKeys = ["TRIAL", "ACTIVE", "PENDING_INVOICE_APPROVAL", "PAST_DUE", "PAUSED", "CANCELLED"] as const satisfies readonly BillingStatusKey[];
+const billingStatusKeys = ["TRIAL", "ACTIVE", "PENDING_INVOICE_APPROVAL", "TRIAL_EXPIRED", "PAST_DUE", "PAUSED", "CANCELLED"] as const satisfies readonly BillingStatusKey[];
 
 export function AdminDemoClient({ locale }: { locale: Locale }) {
   const t = content[locale];

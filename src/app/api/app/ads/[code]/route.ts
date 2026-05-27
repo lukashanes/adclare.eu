@@ -1,5 +1,6 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
+import { getUserBillingAccess } from "@/lib/billing-access";
 import { normalizeLocale, updateAppAd } from "@/lib/admin-demo-db";
 import type { EditableAdInput } from "@/lib/admin-demo-types";
 
@@ -21,6 +22,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
     context.params,
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
+  const billingAccess = await getUserBillingAccess(session.userId, locale);
+
+  if (!billingAccess?.canUseApp) {
+    return Response.json({ error: "Zkušební přístup skončil nebo účet není aktivní.", activationRequired: true }, { status: 402 });
+  }
+
   const input = (await request.json()) as EditableAdInput;
   const ad = await updateAppAd(session.userId, decodeURIComponent(code), input, locale);
 

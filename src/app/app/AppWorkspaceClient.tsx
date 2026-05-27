@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Download, Edit3, FileArchive, Plus, RefreshCw, Save, Search, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, CreditCard, Download, Edit3, FileArchive, Plus, RefreshCw, Save, Search, X } from "lucide-react";
 import type { AdRecord, AppWorkspacePayload, EditableAdInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
@@ -105,6 +106,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
   const selectedAd = workspace.ads.find((ad) => ad.id === selectedId) ?? workspace.ads[0] ?? null;
   const writable = canManageAds(workspace);
+  const billing = workspace.billing;
   const filteredAds = useMemo(() => {
     const normalized = query.trim().toLowerCase();
 
@@ -204,6 +206,21 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
   return (
     <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:px-8">
+      {billing?.status === "TRIAL" || billing?.invoicePending ? (
+        <div className="flex flex-col gap-3 rounded-md border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900 sm:flex-row sm:items-center sm:justify-between">
+          <div className="font-semibold">
+            {billing.invoicePending
+              ? "Fakturace čeká na ruční schválení."
+              : `Zkušební přístup běží ještě ${billing.trialDaysLeft} ${billing.trialDaysLeft === 1 ? "den" : billing.trialDaysLeft < 5 ? "dny" : "dní"}.`}
+            <span className="ml-1 font-normal">Po skončení se pracovní přístupy uzamknou, dokud účet nebude aktivní.</span>
+          </div>
+          <Link href="/app/activate" className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 font-semibold text-white">
+            <CreditCard size={15} />
+            Aktivovat účet
+          </Link>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <article className="rounded-md border border-black/10 bg-white p-5">
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Pracovní plocha</p>

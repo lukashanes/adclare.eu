@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/app",
+        source: "/app/:path*",
         headers: [
           {
             key: "X-Robots-Tag",

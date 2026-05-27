@@ -248,13 +248,10 @@ async function main() {
     update: {
       plan: BillingPlan.LARGE_PARTY,
       interval: BillingInterval.YEARLY,
-      method: BillingMethod.STRIPE,
-      status: BillingStatus.ACTIVE,
       discountPercent: 50,
       monthlyPriceEur: 99,
       yearlyPriceEur: 999,
       invoiceEmail: "billing@demo-strana.cz",
-      currentPeriodEndsAt: new Date("2027-05-26T00:00:00.000Z"),
       noteCs: "Akční cena pro velkou stranu. Fakturační režim lze přepnout na ruční schválení.",
       noteEn: "Promotional large party price. Billing can be switched to manual invoice approval.",
     },

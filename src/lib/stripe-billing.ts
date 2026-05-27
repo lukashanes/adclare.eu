@@ -2,6 +2,7 @@ import { BillingInterval, BillingMethod, BillingPlan, BillingStatus, type Billin
 import Stripe from "stripe";
 import { ensureDemoBillingAccount } from "@/lib/admin-demo-db";
 import type { Locale } from "@/lib/admin-demo-types";
+import { ensureTenantBillingAccount } from "@/lib/billing-access";
 import { prisma } from "@/lib/prisma";
 
 const stripeApiVersion = "2026-04-22.dahlia";
@@ -152,13 +153,8 @@ function subscriptionIdFromInvoice(invoice: Stripe.Invoice) {
   return stripeId((invoice as unknown as { subscription?: string | { id: string } | null }).subscription);
 }
 
-export async function createDemoCheckoutSession(locale: Locale) {
+async function createCheckoutSessionForAccount(account: BillingAccount, locale: Locale, successPath: string, cancelPath: string, actor: string) {
   const stripe = stripeClient();
-  const account = await ensureDemoBillingAccount();
-
-  if (account.method !== BillingMethod.STRIPE) {
-    throw new Error("Billing account is set to invoice mode.");
-  }
 
   const metadata = {
     tenantId: account.tenantId,
@@ -193,8 +189,8 @@ export async function createDemoCheckoutSession(locale: Locale) {
     subscription_data: {
       metadata,
     },
-    success_url: `${appUrl()}/${locale}/admin?checkout=success`,
-    cancel_url: `${appUrl()}/${locale}/admin?checkout=cancelled`,
+    success_url: `${appUrl()}${successPath}`,
+    cancel_url: `${appUrl()}${cancelPath}`,
   });
 
   if (!session.url) {
@@ -204,7 +200,7 @@ export async function createDemoCheckoutSession(locale: Locale) {
   await prisma.auditLog.create({
     data: {
       tenantId: account.tenantId,
-      actor: "demo-admin",
+      actor,
       action: "create_stripe_checkout",
       messageCs: "Vytvořena Stripe Checkout session pro předplatné.",
       messageEn: "Created Stripe Checkout session for subscription.",
@@ -214,6 +210,33 @@ export async function createDemoCheckoutSession(locale: Locale) {
   return {
     url: session.url,
   };
+}
+
+export async function createDemoCheckoutSession(locale: Locale) {
+  const account = await ensureDemoBillingAccount();
+
+  if (account.method !== BillingMethod.STRIPE) {
+    throw new Error("Billing account is set to invoice mode.");
+  }
+
+  return createCheckoutSessionForAccount(account, locale, `/${locale}/admin?checkout=success`, `/${locale}/admin?checkout=cancelled`, "demo-admin");
+}
+
+export async function createTenantCheckoutSession(tenantId: string, locale: Locale, actor: string) {
+  const account = await ensureTenantBillingAccount(tenantId);
+
+  if (account.method !== BillingMethod.STRIPE) {
+    await prisma.billingAccount.update({
+      where: {
+        id: account.id,
+      },
+      data: {
+        method: BillingMethod.STRIPE,
+      },
+    });
+  }
+
+  return createCheckoutSessionForAccount(account, locale, "/app/activate?checkout=success", "/app/activate?checkout=cancelled", actor);
 }
 
 export async function createDemoPortalSession(locale: Locale) {
@@ -227,6 +250,24 @@ export async function createDemoPortalSession(locale: Locale) {
   const session = await stripe.billingPortal.sessions.create({
     customer: account.stripeCustomerId,
     return_url: `${appUrl()}/${locale}/admin?portal=return`,
+  });
+
+  return {
+    url: session.url,
+  };
+}
+
+export async function createTenantPortalSession(tenantId: string) {
+  const stripe = stripeClient();
+  const account = await ensureTenantBillingAccount(tenantId);
+
+  if (!account.stripeCustomerId) {
+    throw new Error("Stripe customer ID is missing.");
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: account.stripeCustomerId,
+    return_url: `${appUrl()}/app/activate?portal=return`,
   });
 
   return {
