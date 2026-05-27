@@ -1,4 +1,15 @@
-import { PrismaClient, AdStatus, BillingInterval, BillingMethod, BillingPlan, BillingStatus, MembershipStatus, UserRole } from "@prisma/client";
+import {
+  PrismaClient,
+  AdStatus,
+  AdWorkflowStatus,
+  ApprovalStatus,
+  BillingInterval,
+  BillingMethod,
+  BillingPlan,
+  BillingStatus,
+  MembershipStatus,
+  UserRole,
+} from "@prisma/client";
 import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
@@ -48,6 +59,7 @@ const ads = [
     status: AdStatus.WARNING,
     statusLabelCs: "Doplnit",
     statusLabelEn: "Complete",
+    workflowStatus: AdWorkflowStatus.NEEDS_DATA,
   },
   {
     code: "BRN-032",
@@ -82,6 +94,7 @@ const ads = [
     status: AdStatus.WARNING,
     statusLabelCs: "Doplnit",
     statusLabelEn: "Complete",
+    workflowStatus: AdWorkflowStatus.NEEDS_DATA,
   },
   {
     code: "LBC-006",
@@ -116,6 +129,7 @@ const ads = [
     status: AdStatus.REVIEW,
     statusLabelCs: "Kontrola",
     statusLabelEn: "Review",
+    workflowStatus: AdWorkflowStatus.READY_FOR_REVIEW,
   },
   {
     code: "PHA-014",
@@ -150,6 +164,7 @@ const ads = [
     status: AdStatus.READY,
     statusLabelCs: "Připraveno",
     statusLabelEn: "Ready",
+    workflowStatus: AdWorkflowStatus.APPROVED,
   },
   {
     code: "PLZ-019",
@@ -184,6 +199,7 @@ const ads = [
     status: AdStatus.READY,
     statusLabelCs: "Schváleno",
     statusLabelEn: "Approved",
+    workflowStatus: AdWorkflowStatus.PUBLISHED,
   },
 ];
 
@@ -334,6 +350,32 @@ async function main() {
         status: ad.status,
         statusLabelCs: ad.statusLabelCs,
         statusLabelEn: ad.statusLabelEn,
+        workflowStatus: ad.workflowStatus,
+        reviewRequestedAt: ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW ? new Date("2026-08-20T00:00:00.000Z") : null,
+        approvedAt:
+          ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED
+            ? new Date("2026-08-24T00:00:00.000Z")
+            : null,
+        publishedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
+        lockedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
+        reviewerName:
+          ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? "Centrální kontrola" : "",
+        statusNoteCs:
+          ad.workflowStatus === AdWorkflowStatus.PUBLISHED
+            ? "Publikovaná verze je uzamčená."
+            : ad.workflowStatus === AdWorkflowStatus.APPROVED
+              ? "Záznam je schválený a připravený k publikaci."
+              : ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW
+                ? "Záznam čeká na centrální kontrolu."
+                : "Záznam čeká na doplnění povinných údajů.",
+        statusNoteEn:
+          ad.workflowStatus === AdWorkflowStatus.PUBLISHED
+            ? "Published version is locked."
+            : ad.workflowStatus === AdWorkflowStatus.APPROVED
+              ? "The record is approved and ready to publish."
+              : ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW
+                ? "The record is waiting for central review."
+                : "The record is waiting for required data.",
       },
       create: {
         tenantId: tenant.id,
@@ -371,6 +413,32 @@ async function main() {
         status: ad.status,
         statusLabelCs: ad.statusLabelCs,
         statusLabelEn: ad.statusLabelEn,
+        workflowStatus: ad.workflowStatus,
+        reviewRequestedAt: ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW ? new Date("2026-08-20T00:00:00.000Z") : null,
+        approvedAt:
+          ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED
+            ? new Date("2026-08-24T00:00:00.000Z")
+            : null,
+        publishedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
+        lockedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
+        reviewerName:
+          ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? "Centrální kontrola" : "",
+        statusNoteCs:
+          ad.workflowStatus === AdWorkflowStatus.PUBLISHED
+            ? "Publikovaná verze je uzamčená."
+            : ad.workflowStatus === AdWorkflowStatus.APPROVED
+              ? "Záznam je schválený a připravený k publikaci."
+              : ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW
+                ? "Záznam čeká na centrální kontrolu."
+                : "Záznam čeká na doplnění povinných údajů.",
+        statusNoteEn:
+          ad.workflowStatus === AdWorkflowStatus.PUBLISHED
+            ? "Published version is locked."
+            : ad.workflowStatus === AdWorkflowStatus.APPROVED
+              ? "The record is approved and ready to publish."
+              : ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW
+                ? "The record is waiting for central review."
+                : "The record is waiting for required data.",
       },
     });
 
@@ -394,6 +462,75 @@ async function main() {
         messageEn: `Seeded demo ad ${ad.code}`,
       },
     });
+
+    if (ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW || ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED) {
+      await prisma.approval.upsert({
+        where: { id: `${savedAd.id}:review-requested` },
+        update: {
+          tenantId: tenant.id,
+          adId: savedAd.id,
+          actor: "system",
+          status: ApprovalStatus.REQUESTED,
+          noteCs: "Seed: reklama předána ke kontrole.",
+          noteEn: "Seed: ad submitted for review.",
+        },
+        create: {
+          id: `${savedAd.id}:review-requested`,
+          tenantId: tenant.id,
+          adId: savedAd.id,
+          actor: "system",
+          status: ApprovalStatus.REQUESTED,
+          noteCs: "Seed: reklama předána ke kontrole.",
+          noteEn: "Seed: ad submitted for review.",
+        },
+      });
+    }
+
+    if (ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED) {
+      await prisma.approval.upsert({
+        where: { id: `${savedAd.id}:approved` },
+        update: {
+          tenantId: tenant.id,
+          adId: savedAd.id,
+          actor: "central-review",
+          status: ApprovalStatus.APPROVED,
+          noteCs: "Seed: reklama schválena.",
+          noteEn: "Seed: ad approved.",
+        },
+        create: {
+          id: `${savedAd.id}:approved`,
+          tenantId: tenant.id,
+          adId: savedAd.id,
+          actor: "central-review",
+          status: ApprovalStatus.APPROVED,
+          noteCs: "Seed: reklama schválena.",
+          noteEn: "Seed: ad approved.",
+        },
+      });
+    }
+
+    if (ad.workflowStatus === AdWorkflowStatus.PUBLISHED) {
+      await prisma.approval.upsert({
+        where: { id: `${savedAd.id}:published` },
+        update: {
+          tenantId: tenant.id,
+          adId: savedAd.id,
+          actor: "central-review",
+          status: ApprovalStatus.PUBLISHED,
+          noteCs: "Seed: reklama publikována.",
+          noteEn: "Seed: ad published.",
+        },
+        create: {
+          id: `${savedAd.id}:published`,
+          tenantId: tenant.id,
+          adId: savedAd.id,
+          actor: "central-review",
+          status: ApprovalStatus.PUBLISHED,
+          noteCs: "Seed: reklama publikována.",
+          noteEn: "Seed: ad published.",
+        },
+      });
+    }
   }
 
   console.log(`Seeded ${ads.length} ads for ${tenant.slug}.`);

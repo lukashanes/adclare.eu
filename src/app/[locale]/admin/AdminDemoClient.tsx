@@ -57,6 +57,22 @@ const statusClass: Record<Status, string> = {
   review: "border-sky-200 bg-sky-50 text-sky-700",
 };
 
+const workflowClass: Record<AdRecord["workflowStatus"], string> = {
+  DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
+  NEEDS_DATA: "border-orange-200 bg-orange-50 text-orange-700",
+  READY_FOR_REVIEW: "border-sky-200 bg-sky-50 text-sky-700",
+  APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  PUBLISHED: "border-[#b9e0d2] bg-[#ecf8f2] text-[#0f6b45]",
+  ARCHIVED: "border-neutral-200 bg-neutral-50 text-neutral-700",
+};
+
+const deadlineClass: Record<AdRecord["deadlineState"], string> = {
+  clear: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  upcoming: "border-sky-200 bg-sky-50 text-sky-700",
+  "due-soon": "border-orange-200 bg-orange-50 text-orange-700",
+  overdue: "border-red-200 bg-red-50 text-red-700",
+};
+
 function blankForm(locale: Locale): EditableAdInput {
   return {
     code: "",
@@ -87,7 +103,7 @@ function formFromAd(ad: AdRecord): EditableAdInput {
     owner: ad.owner,
     type: ad.type,
     channel: ad.channel,
-    publicationDate: toInputDate(ad.publicationDate),
+    publicationDate: ad.publicationDateIso || toInputDate(ad.publicationDate),
     period: ad.period,
     distributionArea: ad.distributionArea,
     payer: ad.payer,
@@ -152,7 +168,7 @@ const content = {
     tenant: "Demo strana",
     layer: "Vrstva: centrála strany",
     campaign: "Komunální volby 2026",
-    demo: "Demo adminu napojené na Postgres. Tabulka, doplnění dat a auditní export čtou a zapisují přes API.",
+    demo: "Pracovní dashboard nad databází. Každá reklama má semafor, workflow stav, veřejný hash odkaz, QR balíček, schválení a auditní stopu.",
     search: "Hledat kód, materiál, pobočku",
     nav: ["Reklamy", "Pobočky", "Uživatelé", "Fakturace", "Audit"],
     tabs: {
@@ -170,7 +186,7 @@ const content = {
       review: "Kontrola",
     },
     tableTitle: "Databáze reklam pro stranu",
-    tableHeads: ["Kód", "Materiál", "Pobočka", "Typ", "Publikace", "Chybí", "Stav"],
+    tableHeads: ["Kód", "Materiál", "Pobočka", "Kampaň", "Termín", "Chybí", "Workflow", "Semafor"],
     selected: "Vybraný záznam",
     panels: {
       data: "Data",
@@ -180,6 +196,8 @@ const content = {
     },
     actions: {
       complete: "Doplnit chybějící data",
+      approve: "Schválit",
+      publish: "Publikovat a zamknout",
       export: "Připravit auditní ZIP",
       invite: "Pozvat uživatele",
       download: "Stáhnout QR balíček",
@@ -201,6 +219,12 @@ const content = {
       language: "Jazyk",
       targeting: "Cílení",
       targetAudience: "Cílové publikum",
+      workflow: "Workflow",
+      deadline: "Termín",
+      version: "Verze",
+      updated: "Aktualizace",
+      responsible: "Odpovědný",
+      reviewer: "Kontrolor",
     },
     states: {
       complete: "vyplněno",
@@ -211,7 +235,7 @@ const content = {
       saving: "ukládám",
     },
     qrRows: ["Veřejná URL", "QR výstupy", "Tiskový label", "Repozitář"],
-    approvalRows: ["Lokální tým", "Grafik", "Kontrolor", "Publikace"],
+    approvalRows: ["Povinné údaje", "Předání ke kontrole", "Schválení", "Publikace"],
     auditRows: ["Změny záznamu", "Soubory", "QR a oznámení", "Export"],
     empty: "Žádné reklamy neodpovídají filtrům.",
     inviteTitle: "Pozvánky",
@@ -354,7 +378,7 @@ const content = {
     tenant: "Demo party",
     layer: "Layer: party headquarters",
     campaign: "Municipal election 2026",
-    demo: "Admin demo connected to Postgres. The table, data completion and audit export read and write through API routes.",
+    demo: "Operational dashboard backed by the database. Every ad has a traffic light, workflow state, public hash URL, QR package, approval and audit trail.",
     search: "Search code, asset, branch",
     nav: ["Ads", "Branches", "Users", "Billing", "Audit"],
     tabs: {
@@ -372,7 +396,7 @@ const content = {
       review: "Review",
     },
     tableTitle: "Party ad database",
-    tableHeads: ["Code", "Asset", "Branch", "Type", "Publication", "Missing", "Status"],
+    tableHeads: ["Code", "Asset", "Branch", "Campaign", "Deadline", "Missing", "Workflow", "Signal"],
     selected: "Selected record",
     panels: {
       data: "Data",
@@ -382,6 +406,8 @@ const content = {
     },
     actions: {
       complete: "Complete missing data",
+      approve: "Approve",
+      publish: "Publish and lock",
       export: "Prepare audit ZIP",
       invite: "Invite user",
       download: "Download QR package",
@@ -403,6 +429,12 @@ const content = {
       language: "Language",
       targeting: "Targeting",
       targetAudience: "Target audience",
+      workflow: "Workflow",
+      deadline: "Deadline",
+      version: "Version",
+      updated: "Updated",
+      responsible: "Responsible",
+      reviewer: "Reviewer",
     },
     states: {
       complete: "complete",
@@ -413,7 +445,7 @@ const content = {
       saving: "saving",
     },
     qrRows: ["Public URL", "QR outputs", "Print label", "Repository"],
-    approvalRows: ["Local team", "Designer", "Reviewer", "Publication"],
+    approvalRows: ["Required data", "Review request", "Approval", "Publication"],
     auditRows: ["Record changes", "Files", "QR and notice", "Export"],
     empty: "No ads match the filters.",
     inviteTitle: "Invites",
@@ -576,6 +608,7 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
   const [selectedId, setSelectedId] = useState("");
   const [panel, setPanel] = useState<DetailPanel>("data");
   const [ads, setAds] = useState<AdRecord[]>([]);
+  const [adminContext, setAdminContext] = useState<Pick<AdminAdsPayload, "tenant" | "campaign" | "campaigns" | "branches"> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -600,6 +633,8 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
   const [billingForm, setBillingForm] = useState<EditableBillingInput>(() => blankBillingForm(locale));
 
   const selectedAd = ads.find((ad) => ad.id === selectedId) ?? ads[0];
+  const tenantName = adminContext?.tenant.name ?? t.tenant;
+  const campaignName = adminContext?.campaign.name ?? t.campaign;
   const headerTitle = activeSection === "ads" ? t.tableTitle : t.sections[activeSection];
   const navItems = [
     { key: "ads", icon: Database, label: t.nav[0] },
@@ -652,6 +687,12 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
         }
 
         setAds(payload.ads);
+        setAdminContext({
+          tenant: payload.tenant,
+          campaign: payload.campaign,
+          campaigns: payload.campaigns,
+          branches: payload.branches,
+        });
         setSelectedId((current) => (payload.ads.some((ad) => ad.id === current) ? current : payload.ads[0]?.id ?? ""));
       } catch {
         if (!cancelled) {
@@ -808,6 +849,35 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       setPanel("approval");
     } catch {
       setError(t.saveError);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runAdWorkflowAction(action: "approve" | "publish") {
+    if (!selectedAd || saving) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/demo/ads/${encodeURIComponent(selectedAd.id)}/${action}?locale=${locale}`, {
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error || `Workflow action failed with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { ad: AdRecord };
+      setAds((current) => current.map((ad) => (ad.id === payload.ad.id ? payload.ad : ad)));
+      setSelectedId(payload.ad.id);
+      setPanel(action === "publish" ? "qr" : "approval");
+    } catch (workflowError) {
+      setError(workflowError instanceof Error ? workflowError.message : t.saveError);
     } finally {
       setSaving(false);
     }
@@ -1071,9 +1141,9 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
       </nav>
 
       <div className="mx-6 mt-auto border-t border-white/10 py-5 text-sm leading-6 text-white/62">
-        <div className="font-semibold text-white">{t.tenant}</div>
+        <div className="font-semibold text-white">{tenantName}</div>
         <div>{t.layer}</div>
-        <div>{t.campaign}</div>
+        <div>{campaignName}</div>
       </div>
     </>
   );
@@ -1240,7 +1310,7 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                   <div className="min-w-0">
                     <h2 className="text-base font-semibold text-black">{t.tableTitle}</h2>
                     <p className="mt-1 text-sm text-[#59616b]">
-                      {t.tenant} · {t.campaign}
+                      {tenantName} · {campaignName}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -1265,7 +1335,7 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[860px] text-left text-sm">
+                  <table className="w-full min-w-[1040px] text-left text-sm">
                     <thead className="bg-[#f7f7f8] text-xs text-[#68707a]">
                       <tr>
                         {t.tableHeads.map((head) => (
@@ -1293,9 +1363,19 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                           </td>
                           <td className="px-4 py-4 font-medium text-[#20242a]">{ad.title}</td>
                           <td className="px-4 py-4 text-[#59616b]">{ad.branch}</td>
-                          <td className="px-4 py-4 text-[#59616b]">{ad.type}</td>
-                          <td className="whitespace-nowrap px-4 py-4 text-[#20242a]">{ad.publicationDate}</td>
+                          <td className="px-4 py-4 text-[#59616b]">{ad.campaign}</td>
+                          <td className="whitespace-nowrap px-4 py-4">
+                            <div className="font-semibold text-[#20242a]">{ad.publicationDate}</div>
+                            <span className={`mt-1 inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${deadlineClass[ad.deadlineState]}`}>
+                              {ad.deadlineLabel}
+                            </span>
+                          </td>
                           <td className="px-4 py-4 text-[#59616b]">{ad.missing.length ? ad.missing.join(", ") : "-"}</td>
+                          <td className="px-4 py-4">
+                            <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>
+                              {ad.workflowLabel}
+                            </span>
+                          </td>
                           <td className="px-4 py-4">
                             <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass[ad.status]}`}>
                               {ad.statusLabel}
@@ -1324,6 +1404,18 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                           <p className="mt-1 text-sm leading-6 text-[#59616b]">
                             {selectedAd.branch} · {selectedAd.type} · {selectedAd.publicationDate}
                           </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${workflowClass[selectedAd.workflowStatus]}`}>
+                              {selectedAd.workflowLabel}
+                            </span>
+                            <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${deadlineClass[selectedAd.deadlineState]}`}>
+                              {selectedAd.deadlineLabel}
+                            </span>
+                            <span className="inline-flex rounded-md border border-black/10 bg-[#f7f7f8] px-2.5 py-1 text-xs font-semibold text-[#59616b]">
+                              v{selectedAd.version}
+                              {selectedAd.locked ? " · locked" : ""}
+                            </span>
+                          </div>
                         </div>
                         <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass[selectedAd.status]}`}>
                           {selectedAd.statusLabel}
@@ -1359,7 +1451,15 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
                         <DataPanel ad={selectedAd} locale={locale} onComplete={completeSelectedAd} saving={saving} t={t} />
                       ) : null}
                       {panel === "qr" ? <QrPanel ad={selectedAd} locale={locale} t={t} /> : null}
-                      {panel === "approval" ? <ApprovalPanel ad={selectedAd} t={t} /> : null}
+                      {panel === "approval" ? (
+                        <ApprovalPanel
+                          ad={selectedAd}
+                          saving={saving}
+                          t={t}
+                          onApprove={() => runAdWorkflowAction("approve")}
+                          onPublish={() => runAdWorkflowAction("publish")}
+                        />
+                      ) : null}
                       {panel === "audit" ? (
                         <AuditPanel ad={selectedAd} exportReady={exportReady} onExport={prepareAuditExport} t={t} />
                       ) : null}
@@ -2066,6 +2166,9 @@ function DataPanel({
   t: (typeof content)[Locale];
 }) {
   const rows = [
+    [t.fields.workflow, ad.workflowLabel, "ok"],
+    [t.fields.deadline, ad.deadlineLabel, ad.deadlineState === "overdue" ? "bad" : "ok"],
+    [t.fields.version, `v${ad.version}${ad.locked ? " · locked" : ""}`, "ok"],
     [t.fields.advertiser, ad.owner, "ok"],
     [t.fields.payer, ad.payer, "ok"],
     [t.fields.supplier, ad.supplier || t.states.missing, ad.supplier ? "ok" : "bad"],
@@ -2077,6 +2180,7 @@ function DataPanel({
     [t.fields.language, ad.language || t.states.missing, ad.language ? "ok" : "bad"],
     [t.fields.targeting, ad.targeting || t.states.notUsed, "ok"],
     [t.fields.targetAudience, ad.isTargeted ? ad.targetAudience || t.states.missing : t.states.notUsed, ad.isTargeted && !ad.targetAudience ? "bad" : "ok"],
+    [t.fields.updated, ad.updatedAt, "ok"],
   ] as const;
 
   return (
@@ -2091,6 +2195,12 @@ function DataPanel({
           </div>
         ))}
       </div>
+
+      {ad.statusNote ? (
+        <div className="mt-4 rounded-md border border-black/10 bg-[#fbfbfc] p-3 text-sm font-semibold text-[#20242a]">
+          {ad.statusNote}
+        </div>
+      ) : null}
 
       {ad.missing.length ? (
         <button
@@ -2113,7 +2223,7 @@ function DataPanel({
 }
 
 function QrPanel({ ad, locale, t }: { ad: AdRecord; locale: Locale; t: (typeof content)[Locale] }) {
-  const isReady = ad.missing.length === 0;
+  const isReady = ad.canDownloadQr;
   const rows = [
     [t.qrRows[0], ad.publicUrl, isReady],
     [t.qrRows[1], "SVG, PNG, PDF", isReady],
@@ -2146,25 +2256,60 @@ function QrPanel({ ad, locale, t }: { ad: AdRecord; locale: Locale; t: (typeof c
   );
 }
 
-function ApprovalPanel({ ad, t }: { ad: AdRecord; t: (typeof content)[Locale] }) {
+function ApprovalPanel({
+  ad,
+  saving,
+  t,
+  onApprove,
+  onPublish,
+}: {
+  ad: AdRecord;
+  saving: boolean;
+  t: (typeof content)[Locale];
+  onApprove: () => void | Promise<void>;
+  onPublish: () => void | Promise<void>;
+}) {
   const rows = [
     [t.approvalRows[0], ad.missing.length ? t.states.missing : t.states.complete, ad.missing.length === 0],
-    [t.approvalRows[1], ad.missing.length ? t.states.blocked : t.states.ready, ad.missing.length === 0],
-    [t.approvalRows[2], ad.status === "review" ? t.states.ready : t.states.blocked, ad.status === "review"],
-    [t.approvalRows[3], ad.status === "ready" ? t.states.ready : t.states.blocked, ad.status === "ready"],
+    [t.approvalRows[1], ad.reviewRequestedAt ? t.states.ready : t.states.blocked, Boolean(ad.reviewRequestedAt)],
+    [t.approvalRows[2], ad.approvedAt ? t.states.ready : t.states.blocked, Boolean(ad.approvedAt)],
+    [t.approvalRows[3], ad.publishedAt ? t.states.ready : t.states.blocked, Boolean(ad.publishedAt)],
   ] as const;
 
   return (
-    <div className="grid gap-3 text-sm">
-      {rows.map((row) => (
-        <div key={row[0]} className="flex items-center justify-between gap-4 rounded-md border border-black/10 p-3">
-          <span className="text-[#59616b]">{row[0]}</span>
-          <span className={`inline-flex items-center gap-1.5 font-semibold ${row[2] ? "text-emerald-700" : "text-red-700"}`}>
-            {row[2] ? <CheckCircle2 size={15} /> : <CircleAlert size={15} />}
-            {row[1]}
-          </span>
-        </div>
-      ))}
+    <div>
+      <div className="grid gap-3 text-sm">
+        {rows.map((row) => (
+          <div key={row[0]} className="flex items-center justify-between gap-4 rounded-md border border-black/10 p-3">
+            <span className="text-[#59616b]">{row[0]}</span>
+            <span className={`inline-flex items-center gap-1.5 font-semibold ${row[2] ? "text-emerald-700" : "text-red-700"}`}>
+              {row[2] ? <CheckCircle2 size={15} /> : <CircleAlert size={15} />}
+              {row[1]}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        <button
+          type="button"
+          disabled={saving || !ad.canApprove}
+          onClick={onApprove}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <CheckCircle2 size={16} />
+          {t.actions.approve}
+        </button>
+        <button
+          type="button"
+          disabled={saving || !ad.canPublish}
+          onClick={onPublish}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+        >
+          <ShieldCheck size={16} />
+          {t.actions.publish}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2181,8 +2326,8 @@ function AuditPanel({
   t: (typeof content)[Locale];
 }) {
   const rows = [
-    [t.auditRows[0], ad.missing.length ? "3" : "5"],
-    [t.auditRows[1], "2"],
+    [t.auditRows[0], `v${ad.version}`],
+    [t.auditRows[1], ad.locked ? t.states.ready : ad.workflowLabel],
     [t.auditRows[2], ad.missing.length ? t.states.blocked : t.states.ready],
     [t.auditRows[3], exportReady ? t.states.ready : "ZIP"],
   ] as const;

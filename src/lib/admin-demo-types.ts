@@ -1,6 +1,7 @@
 export type Locale = "cs" | "en";
 export type Status = "ready" | "warning" | "blocked" | "review";
 export type AdChannel = "online" | "offline";
+export type AdWorkflowStatusKey = "DRAFT" | "NEEDS_DATA" | "READY_FOR_REVIEW" | "APPROVED" | "PUBLISHED" | "ARCHIVED";
 export type AdminRoleKey =
   | "SUPER_ADMIN"
   | "PARTY_ADMIN"
@@ -16,15 +17,21 @@ export type BillingMethodKey = "STRIPE" | "INVOICE";
 export type BillingStatusKey = "TRIAL" | "ACTIVE" | "PENDING_INVOICE_APPROVAL" | "PAST_DUE" | "PAUSED" | "CANCELLED";
 export type EmailStatusKey = "PENDING_PROVIDER" | "SENT" | "FAILED";
 
+export type AdDeadlineState = "clear" | "upcoming" | "due-soon" | "overdue";
+
 export type AdRecord = {
   id: string;
   publicUrl: string;
   title: string;
+  tenantSlug: string;
+  campaign: string;
+  campaignSlug: string;
   branch: string;
   owner: string;
   type: string;
   channel: AdChannel;
   publicationDate: string;
+  publicationDateIso: string;
   period: string;
   distributionArea: string;
   payer: string;
@@ -38,6 +45,25 @@ export type AdRecord = {
   missing: string[];
   status: Status;
   statusLabel: string;
+  workflowStatus: AdWorkflowStatusKey;
+  workflowLabel: string;
+  deadlineState: AdDeadlineState;
+  deadlineLabel: string;
+  daysUntilPublication: number;
+  responsibleName: string;
+  reviewerName: string;
+  statusNote: string;
+  version: number;
+  locked: boolean;
+  reviewRequestedAt: string;
+  approvedAt: string;
+  publishedAt: string;
+  archivedAt: string;
+  updatedAt: string;
+  canRequestReview: boolean;
+  canApprove: boolean;
+  canPublish: boolean;
+  canDownloadQr: boolean;
 };
 
 export type AdminAdsPayload = {
@@ -49,6 +75,8 @@ export type AdminAdsPayload = {
     name: string;
     slug: string;
   };
+  campaigns: PublicRepositoryOption[];
+  branches: AdminBranchOption[];
   ads: AdRecord[];
 };
 

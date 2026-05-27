@@ -38,6 +38,9 @@ export default async function TransparencyNoticePage({ params }: PageProps) {
 
   const rows = [
     ["Unikátní ID reklamy", notice.ad.id],
+    ["Veřejný hash", publicToken],
+    ["Verze oznámení", `v${notice.ad.version}`],
+    ["Stav workflow", notice.ad.workflowLabel],
     ["Název materiálu", notice.ad.title],
     ["Typ reklamy", notice.ad.type],
     ["Online / offline", notice.ad.channel],
@@ -106,8 +109,15 @@ export default async function TransparencyNoticePage({ params }: PageProps) {
               Veřejný repozitář
             </Link>
             <div className="mt-6 text-sm font-semibold text-[#68707a]">Stav</div>
-            <div className="mt-2 inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">
-              {notice.ad.missing.length === 0 ? "Údaje vyplněny" : "K doplnění"}
+            <div
+              className={`mt-2 inline-flex rounded-md border px-3 py-1 text-sm font-semibold ${
+                notice.ad.missing.length === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-800"
+              }`}
+            >
+              {notice.ad.missing.length === 0 ? `Údaje vyplněny · ${notice.ad.workflowLabel}` : "K doplnění"}
+            </div>
+            <div className="mt-3 text-sm leading-6 text-[#59616b]">
+              {notice.ad.locked ? "Publikovaná verze je uzamčená." : "Záznam zatím není uzamčený jako publikovaná verze."}
             </div>
           </aside>
         </div>

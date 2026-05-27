@@ -12,12 +12,12 @@ export const dynamic = "force-dynamic";
 
 const metadata = {
   cs: {
-    title: "Admin demo",
-    description: "Interaktivní demo adminu Adclare pro evidenci reklam, QR, schvalování a audit.",
+    title: "Admin Adclare",
+    description: "Pracovní aplikace Adclare pro evidenci reklam, QR, schvalování a audit.",
   },
   en: {
-    title: "Admin demo",
-    description: "Interactive Adclare admin demo for ad records, QR, approvals and audit.",
+    title: "Adclare Admin",
+    description: "Adclare workspace for ad records, QR, approvals and audit.",
   },
 } as const;
 
