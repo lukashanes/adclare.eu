@@ -33,10 +33,14 @@ export default async function ActivateAccountPage() {
     redirect("/login?error=session");
   }
 
-  const trialText =
-    billing.trialDaysLeft > 0
-      ? `Zkušební přístup běží ještě ${billing.trialDaysLeft} ${billing.trialDaysLeft === 1 ? "den" : billing.trialDaysLeft < 5 ? "dny" : "dní"}.`
-      : "Zkušební přístup skončil. Pro pokračování je potřeba aktivovat účet.";
+  const accessText =
+    billing.status === "ACTIVE"
+      ? "Účet je aktivní. Přístup do aplikace je otevřený."
+      : billing.invoicePending
+        ? "Platba na fakturu čeká na ruční schválení."
+        : billing.trialDaysLeft > 0
+          ? `Zkušební přístup běží ještě ${billing.trialDaysLeft} ${billing.trialDaysLeft === 1 ? "den" : billing.trialDaysLeft < 5 ? "dny" : "dní"}.`
+          : "Zkušební přístup skončil. Pro pokračování je potřeba aktivovat účet.";
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] px-4 py-8 text-[#11161c] sm:px-6 lg:px-8">
@@ -79,12 +83,14 @@ export default async function ActivateAccountPage() {
           </div>
 
           <div className={`mt-4 rounded-md border p-3 text-sm font-semibold ${billing.canUseApp ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-800"}`}>
-            {trialText}
+            {accessText}
           </div>
 
-          <div className="mt-5">
-            <ActivateAccountClient billing={billing} />
-          </div>
+          {billing.status !== "ACTIVE" ? (
+            <div className="mt-5">
+              <ActivateAccountClient billing={billing} />
+            </div>
+          ) : null}
         </aside>
       </section>
     </main>
