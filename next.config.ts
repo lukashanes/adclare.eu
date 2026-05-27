@@ -82,6 +82,15 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/api/app/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "private, no-store, max-age=0",
+          },
+        ],
+      },
+      {
         source: "/api/logout",
         headers: [
           {
