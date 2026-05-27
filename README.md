@@ -26,7 +26,7 @@ Adclare gives a paying political party or organization one workflow to:
 - Product dashboard preview with compliance statuses, deadlines, approval queue and billing state.
 - Password-protected database-backed admin preview at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
 - Database-backed members and invitation flow with secure invite links and public invite acceptance pages.
-- Invitation e-mail outbox with Resend send path when `RESEND_API_KEY` is configured.
+- Invitation e-mail outbox with Cloudflare Email Service REST API send path when Cloudflare e-mail credentials are configured.
 - Database-backed billing account state for plan, interval, Stripe/invoice mode, status and admin discount.
 - Expanded ad records with online/offline channel, supplier, distribution area, language, targeting flag, target audience and deadline-based missing-data status.
 - Public repository at `/repo/demo-party` with filters and JSON endpoint at `/api/repo/demo-party/ads`.
@@ -77,7 +77,7 @@ The local database listens on `127.0.0.1:5433`. Use `npm run db:seed` to restore
 
 For the temporary protected admin preview, set `ADMIN_ACCESS_PASSWORD` and a random `ADMIN_SESSION_SECRET` with at least 32 characters.
 
-For invite e-mail sending, set `EMAIL_FROM` and `RESEND_API_KEY`. Without `RESEND_API_KEY`, invitations are still created and stored in the outbox with status `PENDING_PROVIDER`.
+For invite e-mail sending, set `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`. Without those Cloudflare Email Service credentials, invitations are still created and stored in the outbox with status `PENDING_PROVIDER`.
 
 For billing, set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` before adding real checkout/customer portal actions. The current admin stores billing state and discounts in Postgres.
 

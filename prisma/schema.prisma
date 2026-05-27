@@ -294,7 +294,7 @@ model EmailMessage {
   subject           String
   bodyText          String
   bodyHtml          String      @default("")
-  provider          String      @default("resend")
+  provider          String      @default("cloudflare_email_service")
   providerMessageId String      @default("")
   status            EmailStatus
   error             String      @default("")

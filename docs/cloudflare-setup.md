@@ -112,7 +112,17 @@ Start with `p=none` to monitor legitimate mail flow. Move to `quarantine` or `re
 
 Outbound Email:
 
-Cloudflare Email Routing is for inbound forwarding. Transactional sending for magic links, invites and billing emails should be configured separately, for example through Cloudflare Email Service if available on the account, or Resend/Postmark/SES.
+Cloudflare Email Routing is for inbound forwarding. Transactional sending for magic links, invites and billing emails uses Cloudflare Email Service REST API from the Hetzner app.
+
+Needed in production `.env` after Email Sending is onboarded in Cloudflare:
+
+```bash
+EMAIL_FROM='Adclare <noreply@adclare.eu>'
+CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
+CLOUDFLARE_EMAIL_API_TOKEN='...'
+```
+
+Cloudflare Email Service requires Cloudflare DNS and a token with permission to send emails. Until these values are present, invitations are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
 
 ## How To Provide The Token Locally
 

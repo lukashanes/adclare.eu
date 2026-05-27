@@ -132,6 +132,18 @@ function emailFrom() {
   return process.env.EMAIL_FROM || "Adclare <noreply@adclare.eu>";
 }
 
+function cloudflareEmailAccountId() {
+  return (process.env.CLOUDFLARE_EMAIL_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
+}
+
+function cloudflareEmailApiToken() {
+  return (process.env.CLOUDFLARE_EMAIL_API_TOKEN || "").trim();
+}
+
+function isCloudflareEmailConfigured() {
+  return Boolean(cloudflareEmailAccountId() && cloudflareEmailApiToken());
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -172,6 +184,7 @@ function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit:
 
 async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
   const { subject, bodyText, bodyHtml } = invitationEmailCopy(invitation);
+  const cloudflareConfigured = isCloudflareEmailConfigured();
   const email = await prisma.emailMessage.create({
     data: {
       tenantId: invitation.tenantId,
@@ -180,37 +193,53 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
       subject,
       bodyText,
       bodyHtml,
+      provider: "cloudflare_email_service",
       status: EmailStatus.PENDING_PROVIDER,
-      error: process.env.RESEND_API_KEY ? "" : "RESEND_API_KEY is not configured.",
+      error: cloudflareConfigured ? "" : "CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are not configured.",
     },
   });
 
-  if (!process.env.RESEND_API_KEY) {
+  if (!cloudflareConfigured) {
     return email;
   }
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cloudflareEmailAccountId()}/email/sending/send`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        Authorization: `Bearer ${cloudflareEmailApiToken()}`,
         "Content-Type": "application/json",
-        "Idempotency-Key": email.id,
       },
       body: JSON.stringify({
         from: emailFrom(),
-        to: [invitation.email],
+        to: invitation.email,
         subject,
-        text: bodyText,
         html: bodyHtml,
+        text: bodyText,
       }),
     });
 
-    const result = (await response.json().catch(() => ({}))) as { id?: string; message?: string };
+    const result = (await response.json().catch(() => ({}))) as {
+      success?: boolean;
+      errors?: { code?: number; message?: string }[];
+      result?: {
+        delivered?: string[];
+        permanent_bounces?: string[];
+        queued?: string[];
+      };
+    };
 
-    if (!response.ok) {
-      throw new Error(result.message || `Resend responded with ${response.status}.`);
+    if (!response.ok || !result.success) {
+      const message = result.errors?.map((errorItem) => errorItem.message || errorItem.code).filter(Boolean).join(", ");
+      throw new Error(message || `Cloudflare Email Service responded with ${response.status}.`);
     }
+
+    if (result.result?.permanent_bounces?.includes(invitation.email)) {
+      throw new Error("Cloudflare Email Service reported a permanent bounce.");
+    }
+
+    const delivered = result.result?.delivered ?? [];
+    const queued = result.result?.queued ?? [];
 
     return prisma.emailMessage.update({
       where: {
@@ -218,7 +247,7 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
       },
       data: {
         status: EmailStatus.SENT,
-        providerMessageId: result.id || "",
+        providerMessageId: [...delivered.map((item) => `delivered:${item}`), ...queued.map((item) => `queued:${item}`)].join(","),
         error: "",
         sentAt: new Date(),
       },

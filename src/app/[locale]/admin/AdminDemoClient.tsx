@@ -278,7 +278,7 @@ const content = {
       emptyInvites: "Zatím nejsou žádné pozvánky.",
       copy: "Zkopírovat odkaz",
       copied: "Odkaz zkopírován",
-      note: "Pozvánka vytvoří bezpečný odkaz a e-mail v outboxu. Pokud je nastaven RESEND_API_KEY, odešle se automaticky.",
+      note: "Pozvánka vytvoří bezpečný odkaz a e-mail v outboxu. Pokud je nastaven Cloudflare Email Service token, odešle se automaticky.",
       roles: {
         PARTY_ADMIN: "Admin strany",
         CENTRAL_REVIEWER: "Centrální kontrolor",
@@ -472,7 +472,7 @@ const content = {
       emptyInvites: "No invitations yet.",
       copy: "Copy link",
       copied: "Link copied",
-      note: "The invite creates a secure link and an email in the outbox. If RESEND_API_KEY is configured, it is sent automatically.",
+      note: "The invite creates a secure link and an email in the outbox. If a Cloudflare Email Service token is configured, it is sent automatically.",
       roles: {
         PARTY_ADMIN: "Party admin",
         CENTRAL_REVIEWER: "Central reviewer",

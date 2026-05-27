@@ -120,7 +120,8 @@ Add these to `/srv/apps/adclare/.env` when the external services are ready:
 
 ```bash
 EMAIL_FROM='Adclare <noreply@adclare.eu>'
-RESEND_API_KEY='re_...'
+CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
+CLOUDFLARE_EMAIL_API_TOKEN='...'
 STRIPE_SECRET_KEY='sk_live_...'
 STRIPE_WEBHOOK_SECRET='whsec_...'
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY='pk_live_...'
@@ -129,6 +130,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY='pk_live_...'
 Current behavior without those secrets:
 
 - Invitation e-mails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
+- Outbound transactional e-mail uses Cloudflare Email Service REST API, not Email Routing aliases. Email Routing remains useful for inbound aliases such as `hello@`, `billing@`, `support@` and `security@`.
 - Billing plan, discount, Stripe/invoice mode and invoice approval state are stored in `billing_accounts`.
 - Real Stripe checkout, Stripe customer portal and webhook processing are not enabled until Stripe keys and product IDs are provided.
 
