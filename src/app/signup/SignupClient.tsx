@@ -7,7 +7,13 @@ import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 
 type SignupState = "idle" | "saving" | "done" | "error";
 
-export function SignupClient({ defaultPlan = "large" }: { defaultPlan?: "large" | "small" }) {
+export function SignupClient({
+  defaultPlan = "large",
+  turnstileSiteKey = "",
+}: {
+  defaultPlan?: "large" | "small";
+  turnstileSiteKey?: string;
+}) {
   const [organizationName, setOrganizationName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -119,7 +125,7 @@ export function SignupClient({ defaultPlan = "large" }: { defaultPlan?: "large" 
         </label>
       </fieldset>
 
-      <TurnstileField />
+      <TurnstileField siteKey={turnstileSiteKey} />
 
       <button
         type="submit"

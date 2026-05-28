@@ -82,6 +82,7 @@ Security:
 Turnstile environment variables:
 
 ```bash
+TURNSTILE_SITE_KEY=0x4AAAAAADWL1GxcsZgXYZe1
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAADWL1GxcsZgXYZe1
 TURNSTILE_SECRET_KEY=replace_with_cloudflare_turnstile_secret
 ```

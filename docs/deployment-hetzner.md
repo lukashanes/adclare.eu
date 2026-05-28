@@ -121,6 +121,7 @@ Add these to `/srv/apps/adclare/.env` when the external services are ready:
 EMAIL_FROM='Adclare <noreply@adclare.eu>'
 CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
 CLOUDFLARE_EMAIL_API_TOKEN='...'
+TURNSTILE_SITE_KEY='...'
 NEXT_PUBLIC_TURNSTILE_SITE_KEY='...'
 TURNSTILE_SECRET_KEY='...'
 TURNSTILE_REQUIRED='1'
@@ -134,7 +135,7 @@ Current behavior without those secrets:
 
 - Invitation e-mails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
 - Outbound transactional e-mail uses Cloudflare Email Service REST API, not Email Routing aliases. Email Routing remains useful for inbound aliases such as `hello@`, `billing@`, `support@` and `security@`.
-- Turnstile is required in production by default. Set both `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` together and keep `TURNSTILE_ALLOWED_HOSTNAMES` limited to production hostnames. A temporary `TURNSTILE_REQUIRED=0` override exists only to avoid locking login/signup before the secret is available.
+- Turnstile is required in production by default. Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` together and keep `TURNSTILE_ALLOWED_HOSTNAMES` limited to production hostnames. `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is kept only for backwards compatibility with older builds. A temporary `TURNSTILE_REQUIRED=0` override exists only to avoid locking login/signup before the secret is available.
 - Billing plan, discount, Stripe/invoice mode and invoice approval state are stored in `billing_accounts`.
 - Stripe Checkout and Customer Portal actions are disabled until `STRIPE_SECRET_KEY` is present. Subscription state sync is disabled until `STRIPE_WEBHOOK_SECRET` is present and the Stripe webhook points to `https://adclare.eu/api/stripe/webhook`. Webhook event IDs are stored in `stripe_webhook_events` so repeated Stripe deliveries are idempotent.
 

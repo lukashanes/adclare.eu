@@ -2,7 +2,6 @@
 
 import Script from "next/script";
 
-const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 const placeholderSiteKeys = new Set(["", "replace_with_cloudflare_turnstile_site_key", "replace_with_turnstile_site_key"]);
 
 export function turnstileTokenFromForm(form: HTMLFormElement) {
@@ -10,15 +9,15 @@ export function turnstileTokenFromForm(form: HTMLFormElement) {
   return typeof token === "string" ? token : "";
 }
 
-export function TurnstileField() {
-  if (!turnstileSiteKey || placeholderSiteKeys.has(turnstileSiteKey)) {
+export function TurnstileField({ siteKey = "" }: { siteKey?: string }) {
+  if (!siteKey || placeholderSiteKeys.has(siteKey)) {
     return null;
   }
 
   return (
     <div className="min-h-[65px]">
       <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />
-      <div className="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="light" />
+      <div className="cf-turnstile" data-sitekey={siteKey} data-theme="light" />
     </div>
   );
 }

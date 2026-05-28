@@ -25,6 +25,8 @@ const inviteRoute = read("src/app/api/invite/[token]/accept/route.ts");
 const workspaceClient = read("src/app/app/AppWorkspaceClient.tsx");
 const signupRoute = read("src/app/api/signup/route.ts");
 const marketingPage = read("src/app/[locale]/page.tsx");
+const turnstileField = read("src/app/TurnstileField.tsx");
+const turnstileLib = read("src/lib/turnstile.ts");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
@@ -36,6 +38,8 @@ check(transparencyPage.includes('notice.status === "pending"'), "Transparency pa
 check(loginRoute.includes("verifyTurnstileToken"), "Login link route should verify Turnstile when configured.");
 check(inviteRoute.includes("verifyTurnstileToken"), "Invite acceptance route should verify Turnstile when configured.");
 check(signupRoute.includes("createSignupTrial") && signupRoute.includes("verifyTurnstileToken"), "Signup route should create trials and verify Turnstile when configured.");
+check(!turnstileField.includes("process.env"), "Turnstile client component must receive the site key as a prop.");
+check(turnstileLib.includes("TURNSTILE_SITE_KEY"), "Turnstile site key should be readable from a server runtime variable.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");

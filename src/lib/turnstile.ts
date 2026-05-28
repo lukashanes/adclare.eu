@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 const placeholderValues = new Set(["", "replace_with_cloudflare_turnstile_secret", "replace_with_turnstile_secret"]);
+const placeholderSiteKeys = new Set(["", "replace_with_cloudflare_turnstile_site_key", "replace_with_turnstile_site_key"]);
 const siteverifyUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 type TurnstileSiteverifyResponse = {
@@ -12,6 +13,11 @@ type TurnstileSiteverifyResponse = {
 
 function turnstileSecret() {
   return (process.env.TURNSTILE_SECRET_KEY || "").trim();
+}
+
+export function publicTurnstileSiteKey() {
+  const siteKey = (process.env.TURNSTILE_SITE_KEY || process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
+  return placeholderSiteKeys.has(siteKey) ? "" : siteKey;
 }
 
 export function isTurnstileConfigured() {

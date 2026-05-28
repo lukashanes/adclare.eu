@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { publicTurnstileSiteKey } from "@/lib/turnstile";
 import { SignupClient } from "./SignupClient";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ export default async function SignupPage({
             Bez platby na začátku. Po 14 dnech účet pokračuje přes Stripe nebo platbu na fakturu po schválení.
           </p>
           <div className="mt-6">
-            <SignupClient defaultPlan={defaultPlan} />
+            <SignupClient defaultPlan={defaultPlan} turnstileSiteKey={publicTurnstileSiteKey()} />
           </div>
         </aside>
       </section>

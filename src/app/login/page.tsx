@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
+import { publicTurnstileSiteKey } from "@/lib/turnstile";
 import { LoginClient } from "./LoginClient";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,7 @@ export default async function LoginPage({
           <h2 className="text-2xl font-semibold text-black">Přihlásit se</h2>
           <p className="mt-2 text-sm leading-6 text-[#59616b]">Zadejte e-mail, na který vám přišla pozvánka do Adclare.</p>
           <div className="mt-6">
-            <LoginClient defaultEmail={email} />
+            <LoginClient defaultEmail={email} turnstileSiteKey={publicTurnstileSiteKey()} />
           </div>
           {errorMessage(error) ? (
             <div className="mt-4 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getInvitationNotice } from "@/lib/admin-demo-db";
+import { publicTurnstileSiteKey } from "@/lib/turnstile";
 import { InviteAcceptClient } from "./InviteAcceptClient";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export default async function InvitePage({ params }: PageProps) {
 
           <aside className="rounded-md border border-black/10 bg-[#fbfbfc] p-5">
             <div className="mb-4 text-sm font-semibold text-[#68707a]">Přijetí pozvánky</div>
-            <InviteAcceptClient invitation={invitation} />
+            <InviteAcceptClient invitation={invitation} turnstileSiteKey={publicTurnstileSiteKey()} />
           </aside>
         </div>
       </section>

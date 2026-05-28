@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
 import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 
-export function LoginClient({ defaultEmail = "" }: { defaultEmail?: string }) {
+export function LoginClient({ defaultEmail = "", turnstileSiteKey = "" }: { defaultEmail?: string; turnstileSiteKey?: string }) {
   const [email, setEmail] = useState(defaultEmail);
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
@@ -51,7 +51,7 @@ export function LoginClient({ defaultEmail = "" }: { defaultEmail?: string }) {
         />
       </label>
 
-      <TurnstileField />
+      <TurnstileField siteKey={turnstileSiteKey} />
 
       <button
         type="submit"
