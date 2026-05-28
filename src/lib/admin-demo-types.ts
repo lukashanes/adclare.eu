@@ -19,6 +19,18 @@ export type EmailStatusKey = "PENDING_PROVIDER" | "SENT" | "FAILED";
 
 export type AdDeadlineState = "clear" | "upcoming" | "due-soon" | "overdue";
 
+export type AdAssetRecord = {
+  id: string;
+  fileName: string;
+  originalName: string;
+  contentType: string;
+  byteSize: number;
+  sizeLabel: string;
+  uploadedAt: string;
+  downloadUrl: string;
+  checksumSha256: string;
+};
+
 export type AdRecord = {
   id: string;
   publicUrl: string;
@@ -64,6 +76,8 @@ export type AdRecord = {
   canApprove: boolean;
   canPublish: boolean;
   canDownloadQr: boolean;
+  assetCount: number;
+  assets: AdAssetRecord[];
 };
 
 export type AdminAdsPayload = {
@@ -219,6 +233,12 @@ export type AppWorkspacePayload = {
     stripeCheckoutConfigured: boolean;
     canManageBilling: boolean;
   } | null;
+  storage: {
+    configured: boolean;
+    provider: string;
+    bucket: string;
+    maxUploadSizeMb: number;
+  };
   ads: AdRecord[];
   counts: {
     all: number;

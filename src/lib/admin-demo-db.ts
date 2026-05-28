@@ -3,6 +3,7 @@ import {
   AdStatus,
   AdWorkflowStatus,
   ApprovalStatus,
+  type AdAsset,
   BillingInterval,
   BillingMethod,
   BillingPlan,
@@ -46,6 +47,7 @@ import type {
   Status,
 } from "@/lib/admin-demo-types";
 import { getTenantBillingAccess } from "@/lib/billing-access";
+import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
 
 const tenantSlug = "demo-party";
@@ -56,6 +58,7 @@ type AdWithUnit = Ad & {
   orgUnit: OrganizationUnit;
   campaign: Campaign;
   tenant?: Tenant;
+  assets?: AdAsset[];
 };
 type AdWithRepositoryRelations = AdWithUnit;
 type MembershipWithUserAndUnit = TenantMembership & {
@@ -70,6 +73,7 @@ type AuditPackageAd = AdWithUnit & {
   auditLogs: AuditLog[];
   versions: AdVersion[];
   approvals: Approval[];
+  assets: AdAsset[];
 };
 
 type BillingAccountWithTenant = BillingAccount & {
@@ -157,12 +161,33 @@ function workflowLabel(status: AdWorkflowStatus, locale: Locale) {
   return labels[status][locale];
 }
 
+function formatBytes(bytes: number, locale: Locale) {
+  return new Intl.NumberFormat(locale === "cs" ? "cs-CZ" : "en-GB", {
+    maximumFractionDigits: bytes >= 1024 * 1024 ? 1 : 0,
+  }).format(bytes >= 1024 * 1024 ? bytes / 1024 / 1024 : Math.max(1, Math.round(bytes / 1024))) + (bytes >= 1024 * 1024 ? " MB" : " KB");
+}
+
+function mapAsset(asset: AdAsset, adCode: string, locale: Locale) {
+  return {
+    id: asset.id,
+    fileName: asset.fileName,
+    originalName: asset.originalName,
+    contentType: asset.contentType,
+    byteSize: asset.byteSize,
+    sizeLabel: formatBytes(asset.byteSize, locale),
+    uploadedAt: formatDate(asset.createdAt, locale),
+    downloadUrl: `/api/app/ads/${encodeURIComponent(adCode)}/assets/${encodeURIComponent(asset.id)}`,
+    checksumSha256: asset.checksumSha256,
+  };
+}
+
 function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
   const isCs = locale === "cs";
   const missing = missingForAd(ad, locale);
   const status = statusForAd(ad, missing);
   const workflowStatus = workflowStatusForAd(ad, missing);
   const state = deadlineState(ad, missing);
+  const assets = (ad.assets ?? []).map((asset) => mapAsset(asset, ad.code, locale));
 
   return {
     id: ad.code,
@@ -209,6 +234,8 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     canApprove: missing.length === 0 && workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW,
     canPublish: missing.length === 0 && workflowStatus === AdWorkflowStatus.APPROVED,
     canDownloadQr: missing.length === 0 && workflowStatus !== AdWorkflowStatus.ARCHIVED,
+    assetCount: assets.length,
+    assets,
   };
 }
 
@@ -988,6 +1015,11 @@ export async function getDemoAdsPayload(locale: Locale) {
         orgUnit: true,
         campaign: true,
         tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
       orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
     }),
@@ -1612,6 +1644,11 @@ export async function completeDemoAd(code: string, locale: Locale) {
         orgUnit: true,
         campaign: true,
         tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 
@@ -2135,6 +2172,11 @@ export async function getDemoAuditPackage(code: string, locale: Locale) {
           createdAt: "asc",
         },
       },
+      assets: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
   });
 
@@ -2179,6 +2221,19 @@ export async function getDemoAuditPackage(code: string, locale: Locale) {
       status: approval.status,
       note: locale === "cs" ? approval.noteCs : approval.noteEn,
       createdAt: approval.createdAt.toISOString(),
+    })),
+    assets: typedAd.assets.map((asset) => ({
+      id: asset.id,
+      fileName: asset.fileName,
+      originalName: asset.originalName,
+      contentType: asset.contentType,
+      byteSize: asset.byteSize,
+      checksumSha256: asset.checksumSha256,
+      storageProvider: asset.storageProvider,
+      storageBucket: asset.storageBucket,
+      storageKey: asset.storageKey,
+      uploadedBy: asset.uploadedBy,
+      createdAt: asset.createdAt.toISOString(),
     })),
     auditLogs: typedAd.auditLogs.map((log) => ({
       id: log.id,
@@ -2292,6 +2347,11 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
         orgUnit: true,
         campaign: true,
         tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
       orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
     }),
@@ -2338,6 +2398,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           canManageBilling: membership.role === UserRole.SUPER_ADMIN || membership.role === UserRole.PARTY_ADMIN,
         }
       : null,
+    storage: objectStorageStatus(),
     ads: mappedAds,
     counts: {
       all: mappedAds.length,
@@ -2416,6 +2477,11 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
         orgUnit: true,
         campaign: true,
         tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 
@@ -2562,6 +2628,11 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
         orgUnit: true,
         campaign: true,
         tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 
@@ -2614,6 +2685,11 @@ export async function getAppAdRecord(userId: string, code: string, locale: Local
       orgUnit: true,
       campaign: true,
       tenant: true,
+      assets: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
   });
 
@@ -2622,6 +2698,148 @@ export async function getAppAdRecord(userId: string, code: string, locale: Local
   }
 
   return mapAd(ad, locale);
+}
+
+type StoredAdAssetInput = {
+  bucket: string;
+  key: string;
+  publicUrl: string;
+  fileName: string;
+  originalName: string;
+  contentType: string;
+  byteSize: number;
+  checksumSha256: string;
+};
+
+export async function getAppAdUploadTarget(userId: string, code: string) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppAds(context.membership.role)) {
+    return null;
+  }
+
+  const ad = await prisma.ad.findUnique({
+    where: {
+      tenantId_code: {
+        tenantId: context.membership.tenantId,
+        code,
+      },
+    },
+  });
+
+  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+    return null;
+  }
+
+  return {
+    tenantId: context.membership.tenantId,
+    tenantSlug: context.membership.tenant.slug,
+    adId: ad.id,
+    adCode: ad.code,
+    userId: context.membership.userId,
+    userEmail: context.membership.user.email,
+  };
+}
+
+export async function attachAppAdAsset(userId: string, code: string, input: StoredAdAssetInput, locale: Locale) {
+  const target = await getAppAdUploadTarget(userId, code);
+
+  if (!target) {
+    return null;
+  }
+
+  const ad = await prisma.$transaction(async (tx) => {
+    await tx.adAsset.create({
+      data: {
+        tenantId: target.tenantId,
+        adId: target.adId,
+        fileName: input.fileName,
+        originalName: input.originalName,
+        contentType: input.contentType,
+        byteSize: input.byteSize,
+        storageBucket: input.bucket,
+        storageKey: input.key,
+        publicUrl: input.publicUrl,
+        checksumSha256: input.checksumSha256,
+        uploadedBy: target.userEmail,
+        uploadedByUserId: target.userId,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: target.tenantId,
+        adId: target.adId,
+        actor: target.userEmail,
+        actorUserId: target.userId,
+        action: "upload_ad_asset",
+        messageCs: `Nahrán soubor ${input.originalName} k reklamě ${target.adCode}.`,
+        messageEn: `Uploaded file ${input.originalName} for ad ${target.adCode}.`,
+        metadata: {
+          fileName: input.fileName,
+          originalName: input.originalName,
+          contentType: input.contentType,
+          byteSize: input.byteSize,
+          storageKey: input.key,
+          checksumSha256: input.checksumSha256,
+        },
+      },
+    });
+
+    return tx.ad.findUniqueOrThrow({
+      where: {
+        id: target.adId,
+      },
+      include: {
+        orgUnit: true,
+        campaign: true,
+        tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+      },
+    });
+  });
+
+  return mapAd(ad, locale);
+}
+
+export async function getAppAdAssetDownload(userId: string, code: string, assetId: string) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context) {
+    return null;
+  }
+
+  const asset = await prisma.adAsset.findUnique({
+    where: {
+      id: assetId,
+    },
+    include: {
+      ad: true,
+    },
+  });
+
+  if (
+    !asset ||
+    asset.tenantId !== context.membership.tenantId ||
+    asset.ad.code !== code ||
+    (!context.tenantWideRole && asset.ad.orgUnitId !== context.membership.orgUnitId)
+  ) {
+    return null;
+  }
+
+  return {
+    id: asset.id,
+    fileName: asset.fileName,
+    originalName: asset.originalName,
+    contentType: asset.contentType,
+    byteSize: asset.byteSize,
+    storageBucket: asset.storageBucket,
+    storageKey: asset.storageKey,
+  };
 }
 
 export async function approveAppAd(userId: string, code: string, locale: Locale) {
@@ -2681,6 +2899,11 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
         orgUnit: true,
         campaign: true,
         tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 
@@ -2772,6 +2995,11 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
         orgUnit: true,
         campaign: true,
         tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 

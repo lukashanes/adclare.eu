@@ -40,7 +40,7 @@ Adclare gives a paying political party or organization one workflow to:
 ## Planned SaaS Stack
 
 - Hetzner VPS for app runtime, API, workers, PostgreSQL and Redis/BullMQ.
-- Hetzner Object Storage for ad assets, QR exports, PDFs, ZIPs and audit packages.
+- Hetzner Object Storage for uploaded ad assets, QR exports, PDFs, ZIPs and audit packages.
 - Cloudflare DNS, proxy, WAF, Turnstile and email sending.
 - Stripe Billing for recurring subscriptions, hosted invoices, coupons, discounts and customer portal.
 - Manual invoice workflow for larger parties and enterprise customers.
@@ -85,6 +85,8 @@ For the temporary protected admin preview, set `ADMIN_ACCESS_PASSWORD` and a ran
 For invite e-mail sending, set `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`. Without those Cloudflare Email Service credentials, invitations are still created and stored in the outbox with status `PENDING_PROVIDER`.
 
 For billing, set `STRIPE_SECRET_KEY` to enable hosted Stripe Checkout and Customer Portal redirects from the admin. Set `STRIPE_WEBHOOK_SECRET` for `/api/stripe/webhook` so completed payments and subscription changes sync back into Postgres.
+
+For uploaded ad files, set `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID` and `OBJECT_STORAGE_SECRET_ACCESS_KEY`. Hetzner Object Storage uses an S3-compatible endpoint such as `https://fsn1.your-objectstorage.com`.
 
 ## Checks
 

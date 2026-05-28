@@ -127,6 +127,14 @@ TURNSTILE_SECRET_KEY='...'
 TURNSTILE_REQUIRED='1'
 TURNSTILE_ALLOWED_HOSTNAMES='adclare.eu,www.adclare.eu'
 NEXT_PUBLIC_SHOW_DEMO_REPO='0'
+OBJECT_STORAGE_ENDPOINT='https://fsn1.your-objectstorage.com'
+OBJECT_STORAGE_REGION='fsn1'
+OBJECT_STORAGE_BUCKET='adclare-assets'
+OBJECT_STORAGE_ACCESS_KEY_ID='...'
+OBJECT_STORAGE_SECRET_ACCESS_KEY='...'
+OBJECT_STORAGE_FORCE_PATH_STYLE='0'
+OBJECT_STORAGE_PUBLIC_BASE_URL=''
+MAX_AD_ASSET_UPLOAD_MB='50'
 STRIPE_SECRET_KEY='sk_live_...'
 STRIPE_WEBHOOK_SECRET='whsec_...'
 ```
@@ -136,6 +144,7 @@ Current behavior without those secrets:
 - Invitation e-mails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
 - Outbound transactional e-mail uses Cloudflare Email Service REST API, not Email Routing aliases. Email Routing remains useful for inbound aliases such as `hello@`, `billing@`, `support@` and `security@`.
 - Turnstile is required in production by default. Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` together and keep `TURNSTILE_ALLOWED_HOSTNAMES` limited to production hostnames. `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is kept only for backwards compatibility with older builds. A temporary `TURNSTILE_REQUIRED=0` override exists only to avoid locking login/signup before the secret is available.
+- Uploaded ad files use Hetzner Object Storage through the S3 API. Keep the bucket private unless a customer explicitly needs public asset URLs; authenticated downloads are served through `/api/app/ads/[code]/assets/[assetId]`.
 - Billing plan, discount, Stripe/invoice mode and invoice approval state are stored in `billing_accounts`.
 - Stripe Checkout and Customer Portal actions are disabled until `STRIPE_SECRET_KEY` is present. Subscription state sync is disabled until `STRIPE_WEBHOOK_SECRET` is present and the Stripe webhook points to `https://adclare.eu/api/stripe/webhook`. Webhook event IDs are stored in `stripe_webhook_events` so repeated Stripe deliveries are idempotent.
 

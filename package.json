@@ -19,6 +19,7 @@
     "seed": "node prisma/seed.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1055.0",
     "@prisma/client": "6.19.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.16.0",

@@ -27,6 +27,9 @@ const signupRoute = read("src/app/api/signup/route.ts");
 const marketingPage = read("src/app/[locale]/page.tsx");
 const turnstileField = read("src/app/TurnstileField.tsx");
 const turnstileLib = read("src/lib/turnstile.ts");
+const schema = read("prisma/schema.prisma");
+const objectStorage = read("src/lib/object-storage.ts");
+const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
@@ -40,6 +43,11 @@ check(inviteRoute.includes("verifyTurnstileToken"), "Invite acceptance route sho
 check(signupRoute.includes("createSignupTrial") && signupRoute.includes("verifyTurnstileToken"), "Signup route should create trials and verify Turnstile when configured.");
 check(!turnstileField.includes("process.env"), "Turnstile client component must receive the site key as a prop.");
 check(turnstileLib.includes("TURNSTILE_SITE_KEY"), "Turnstile site key should be readable from a server runtime variable.");
+check(schema.includes("model AdAsset"), "Ad asset storage model is missing.");
+check(objectStorage.includes("@aws-sdk/client-s3") && objectStorage.includes("uploadAdAssetObject"), "S3 object storage upload helper is missing.");
+check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/route.ts")), "App ad asset upload route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/[assetId]/route.ts")), "App ad asset download route is missing.");
+check(appWorkspace.includes("Soubory materiálu") && appWorkspace.includes("onUpload"), "Workspace should expose ad asset upload controls.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");

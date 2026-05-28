@@ -105,6 +105,7 @@ model Tenant {
   emailMessages     EmailMessage[]
   adVersions        AdVersion[]
   approvals         Approval[]
+  adAssets          AdAsset[]
 
   @@map("tenants")
 }
@@ -294,6 +295,7 @@ model Ad {
   auditLogs AuditLog[]
   versions  AdVersion[]
   approvals Approval[]
+  assets    AdAsset[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -337,6 +339,31 @@ model Approval {
   @@index([tenantId, status])
   @@index([adId, createdAt])
   @@map("approvals")
+}
+
+model AdAsset {
+  id               String   @id @default(cuid())
+  tenantId         String
+  adId             String
+  fileName         String
+  originalName     String
+  contentType      String
+  byteSize         Int
+  storageProvider  String   @default("s3")
+  storageBucket    String
+  storageKey       String   @unique
+  publicUrl        String   @default("")
+  checksumSha256   String   @default("")
+  uploadedBy       String   @default("")
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ad     Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([adId, createdAt])
+  @@map("ad_assets")
 }
 
 model AuditLog {

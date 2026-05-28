@@ -125,6 +125,22 @@ CLOUDFLARE_EMAIL_API_TOKEN='...'
 
 Cloudflare Email Service requires Cloudflare DNS and a token with permission to send emails. Until these values are present, invitations are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
 
+## Hetzner Object Storage
+
+Ad files are uploaded through the application server into a private S3-compatible bucket. Configure these values in production `.env` after creating a bucket and S3 access keys in Hetzner Console:
+
+```bash
+OBJECT_STORAGE_ENDPOINT=https://fsn1.your-objectstorage.com
+OBJECT_STORAGE_REGION=fsn1
+OBJECT_STORAGE_BUCKET=adclare-assets
+OBJECT_STORAGE_ACCESS_KEY_ID=...
+OBJECT_STORAGE_SECRET_ACCESS_KEY=...
+OBJECT_STORAGE_FORCE_PATH_STYLE=0
+MAX_AD_ASSET_UPLOAD_MB=50
+```
+
+Use the location shown in Hetzner Console, for example `fsn1`, `nbg1` or `hel1`, in the endpoint and region fields.
+
 ## How To Provide The Token Locally
 
 Preferred local-only approach:

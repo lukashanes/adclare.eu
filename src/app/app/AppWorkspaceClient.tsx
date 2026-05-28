@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, CreditCard, Download, Edit3, FileArchive, Plus, RefreshCw, Save, Search, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, CreditCard, Download, Edit3, FileArchive, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
 import type { AdRecord, AppWorkspacePayload, EditableAdInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
@@ -129,6 +129,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [form, setForm] = useState<EditableAdInput>(() => blankForm(initialWorkspace));
   const [saving, setSaving] = useState(false);
   const [actioning, setActioning] = useState("");
+  const [uploading, setUploading] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
@@ -252,6 +253,37 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       );
     } finally {
       setActioning("");
+    }
+  }
+
+  async function uploadAsset(ad: AdRecord, file: File | null) {
+    if (!file || !writable || uploading) {
+      return;
+    }
+
+    setUploading(ad.id);
+    setError("");
+
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+
+      const response = await fetch(`/api/app/ads/${encodeURIComponent(ad.id)}/assets?locale=cs`, {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => ({}))) as { ad?: AdRecord; error?: string };
+
+      if (!response.ok || !payload.ad) {
+        throw new Error(payload.error || `Upload failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => workspaceWithAd(current, payload.ad as AdRecord));
+      setSelectedId(payload.ad.id);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Soubor se nepodařilo nahrát.");
+    } finally {
+      setUploading("");
     }
   }
 
@@ -431,7 +463,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           writable={writable}
           reviewable={reviewable}
           actioning={actioning}
+          uploading={uploading}
+          storage={workspace.storage}
           onEdit={openEdit}
+          onUpload={uploadAsset}
           onApprove={(ad) => runWorkflowAction(ad, "approve")}
           onPublish={(ad) => runWorkflowAction(ad, "publish")}
         />
@@ -640,7 +675,10 @@ function DetailPanel({
   writable,
   reviewable,
   actioning,
+  uploading,
+  storage,
   onEdit,
+  onUpload,
   onApprove,
   onPublish,
 }: {
@@ -648,7 +686,10 @@ function DetailPanel({
   writable: boolean;
   reviewable: boolean;
   actioning: string;
+  uploading: string;
+  storage: AppWorkspacePayload["storage"];
   onEdit: (ad: AdRecord) => void;
+  onUpload: (ad: AdRecord, file: File | null) => void;
   onApprove: (ad: AdRecord) => void;
   onPublish: (ad: AdRecord) => void;
 }) {
@@ -669,6 +710,7 @@ function DetailPanel({
     ["Období", ad.period || "chybí"],
     ["Oblast", ad.distributionArea || "chybí"],
     ["Cílení", ad.isTargeted ? ad.targetAudience || "chybí publikum" : "nepoužito"],
+    ["Soubory", ad.assetCount ? `${ad.assetCount} nahráno` : "zatím žádný"],
     ["Verze", `v${ad.version}${ad.locked ? " · zamčeno" : ""}`],
   ];
 
@@ -702,6 +744,51 @@ function DetailPanel({
           Povinné údaje jsou kompletní.
         </div>
       )}
+      <div className="mx-4 mt-3 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-black">Soubory materiálu</div>
+            <div className="mt-1 text-xs leading-5 text-[#68707a]">
+              {storage.configured ? `Ukládá se do ${storage.provider}. Limit ${storage.maxUploadSizeMb} MB.` : "Úložiště čeká na nastavení Hetzner Object Storage."}
+            </div>
+          </div>
+          <label
+            className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
+              writable && storage.configured && !uploading ? "cursor-pointer bg-[#11161c] text-white" : "cursor-not-allowed bg-[#c9cdd3] text-white"
+            }`}
+          >
+            <Upload size={15} />
+            {uploading === ad.id ? "Nahrávám" : "Nahrát"}
+            <input
+              type="file"
+              className="sr-only"
+              disabled={!writable || !storage.configured || Boolean(uploading)}
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,video/mp4,video/quicktime"
+              onChange={(event) => {
+                onUpload(ad, event.target.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
+        {ad.assets.length ? (
+          <div className="mt-3 grid gap-2">
+            {ad.assets.map((asset) => (
+              <a
+                key={asset.id}
+                href={asset.downloadUrl}
+                className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]"
+              >
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <Paperclip size={15} className="shrink-0 text-[#68707a]" />
+                  <span className="truncate">{asset.originalName}</span>
+                </span>
+                <span className="shrink-0 text-xs text-[#68707a]">{asset.sizeLabel}</span>
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
       <div className="grid gap-2 p-4">
         <button
           type="button"
