@@ -23,13 +23,26 @@ fi
 
 cd "$APP_DIR"
 
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
-fi
+env_value() {
+  key="$1"
 
+  if [ ! -f .env ]; then
+    return 0
+  fi
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = substr($0, index($0, "=") + 1)
+      gsub(/^'\''|'\''$/, "", value)
+      gsub(/^"|"$/, "", value)
+      print value
+      exit
+    }
+  ' .env
+}
+
+POSTGRES_USER="${POSTGRES_USER:-$(env_value POSTGRES_USER)}"
+POSTGRES_DB="${POSTGRES_DB:-$(env_value POSTGRES_DB)}"
 POSTGRES_USER="${POSTGRES_USER:-adclare}"
 POSTGRES_DB="${POSTGRES_DB:-adclare_prod}"
 
