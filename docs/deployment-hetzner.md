@@ -148,6 +148,20 @@ Current behavior without those secrets:
 - Billing plan, discount, Stripe/invoice mode and invoice approval state are stored in `billing_accounts`.
 - Stripe Checkout and Customer Portal actions are disabled until `STRIPE_SECRET_KEY` is present. Subscription state sync is disabled until `STRIPE_WEBHOOK_SECRET` is present and the Stripe webhook points to `https://adclare.eu/api/stripe/webhook`. Webhook event IDs are stored in `stripe_webhook_events` so repeated Stripe deliveries are idempotent.
 
+## Backups
+
+Production PostgreSQL backups run through `scripts/backup-postgres.sh`. Recommended cron:
+
+```cron
+17 2 * * * root APP_DIR=/srv/apps/adclare BACKUP_DIR=/srv/backups/adclare/postgres RETENTION_DAYS=30 /srv/apps/adclare/scripts/backup-postgres.sh >> /var/log/adclare-postgres-backup.log 2>&1
+```
+
+Restore is guarded by `CONFIRM_RESTORE=adclare-prod`:
+
+```bash
+CONFIRM_RESTORE=adclare-prod RESTORE_FILE=/srv/backups/adclare/postgres/adclare-YYYYMMDDTHHMMSSZ.dump /srv/apps/adclare/scripts/restore-postgres.sh
+```
+
 ## Update
 
 ```bash

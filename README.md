@@ -117,6 +117,12 @@ PostgreSQL backups can be created with:
 APP_DIR=/srv/apps/adclare BACKUP_DIR=/srv/backups/adclare/postgres scripts/backup-postgres.sh
 ```
 
+Production restore is intentionally guarded:
+
+```bash
+CONFIRM_RESTORE=adclare-prod RESTORE_FILE=/srv/backups/adclare/postgres/adclare-YYYYMMDDTHHMMSSZ.dump scripts/restore-postgres.sh
+```
+
 The root `docker-compose.yml` also includes Caddy for a standalone fresh server:
 
 ```bash
