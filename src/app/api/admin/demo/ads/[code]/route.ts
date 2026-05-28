@@ -1,6 +1,6 @@
 import { requireAdminRequest } from "@/lib/admin-auth";
 import { normalizeLocale, updateDemoAd } from "@/lib/admin-demo-db";
-import type { EditableAdInput } from "@/lib/admin-demo-types";
+import { parseEditableAdInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
   ]);
 
   try {
-    const input = (await request.json()) as EditableAdInput;
+    const input = parseEditableAdInput(await request.json());
     const ad = await updateDemoAd(decodeURIComponent(code), input, locale);
 
     if (!ad) {
@@ -27,6 +27,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
 
     return Response.json({ ad });
   } catch (error) {
+    const validation = validationErrorResponse(error);
+
+    if (validation) {
+      return validation;
+    }
+
     console.error(error);
     return Response.json({ error: "Demo database update failed." }, { status: 503 });
   }

@@ -1,6 +1,6 @@
 import { requireAdminRequest } from "@/lib/admin-auth";
 import { createDemoAd, getDemoAdsPayload, normalizeLocale } from "@/lib/admin-demo-db";
-import type { EditableAdInput } from "@/lib/admin-demo-types";
+import { parseEditableAdInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,10 +33,16 @@ export async function POST(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
-    const input = (await request.json()) as EditableAdInput;
+    const input = parseEditableAdInput(await request.json());
     const ad = await createDemoAd(input, locale);
     return Response.json({ ad }, { status: 201 });
   } catch (error) {
+    const validation = validationErrorResponse(error);
+
+    if (validation) {
+      return validation;
+    }
+
     console.error(error);
     return Response.json({ error: "Demo database create failed." }, { status: 503 });
   }

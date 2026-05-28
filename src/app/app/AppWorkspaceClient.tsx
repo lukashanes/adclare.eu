@@ -20,6 +20,33 @@ function canManageAds(workspace: AppWorkspacePayload) {
   return workspace.membership.roleKey !== "READONLY_AUDITOR" && workspace.membership.roleKey !== "CENTRAL_REVIEWER";
 }
 
+function canReviewAds(workspace: AppWorkspacePayload) {
+  const role = workspace.membership.roleKey;
+  return role === "SUPER_ADMIN" || role === "PARTY_ADMIN" || role === "CENTRAL_REVIEWER" || role === "LOCAL_ADMIN";
+}
+
+function countsForAds(ads: AdRecord[]): AppWorkspacePayload["counts"] {
+  return {
+    all: ads.length,
+    needsData: ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA").length,
+    review: ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW").length,
+    approved: ads.filter((ad) => ad.workflowStatus === "APPROVED").length,
+    published: ads.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
+    blocked: ads.filter((ad) => ad.status === "blocked").length,
+  };
+}
+
+function workspaceWithAd(workspace: AppWorkspacePayload, nextAd: AdRecord) {
+  const exists = workspace.ads.some((ad) => ad.id === nextAd.id);
+  const ads = exists ? workspace.ads.map((ad) => (ad.id === nextAd.id ? nextAd : ad)) : [nextAd, ...workspace.ads];
+
+  return {
+    ...workspace,
+    ads,
+    counts: countsForAds(ads),
+  };
+}
+
 function toInputDate(value: string) {
   const parts = value.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);
 
@@ -101,11 +128,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [mode, setMode] = useState<EditorMode | null>(null);
   const [form, setForm] = useState<EditableAdInput>(() => blankForm(initialWorkspace));
   const [saving, setSaving] = useState(false);
+  const [actioning, setActioning] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const selectedAd = workspace.ads.find((ad) => ad.id === selectedId) ?? workspace.ads[0] ?? null;
   const writable = canManageAds(workspace);
+  const reviewable = canReviewAds(workspace);
   const billing = workspace.billing;
   const filteredAds = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -171,36 +200,58 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         },
         body: JSON.stringify(form),
       });
+      const payload = (await response.json().catch(() => ({}))) as { ad?: AdRecord; error?: string };
 
-      if (!response.ok) {
-        throw new Error(`Save failed with ${response.status}`);
+      if (!response.ok || !payload.ad) {
+        throw new Error(payload.error || `Save failed with ${response.status}`);
       }
 
-      const payload = (await response.json()) as { ad: AdRecord };
-      setWorkspace((current) => {
-        const exists = current.ads.some((ad) => ad.id === payload.ad.id);
-        const ads = exists ? current.ads.map((ad) => (ad.id === payload.ad.id ? payload.ad : ad)) : [payload.ad, ...current.ads];
-
-        return {
-          ...current,
-          ads,
-          counts: {
-            ...current.counts,
-            all: ads.length,
-            needsData: ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA").length,
-            review: ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW").length,
-            approved: ads.filter((ad) => ad.workflowStatus === "APPROVED").length,
-            published: ads.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
-            blocked: ads.filter((ad) => ad.status === "blocked").length,
-          },
-        };
-      });
-      setSelectedId(payload.ad.id);
+      const savedAd = payload.ad;
+      setWorkspace((current) => workspaceWithAd(current, savedAd));
+      setSelectedId(savedAd.id);
       setMode(null);
-    } catch {
-      setError("Záznam se nepodařilo uložit. Zkontrolujte povinná pole a zkuste to znovu.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Záznam se nepodařilo uložit. Zkontrolujte povinná pole a zkuste to znovu.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runWorkflowAction(ad: AdRecord, action: "approve" | "publish") {
+    if (!reviewable || actioning) {
+      return;
+    }
+
+    if (action === "publish" && !window.confirm("Publikovat a uzamknout tuto verzi reklamy? Další úpravy vytvoří novou verzi.")) {
+      return;
+    }
+
+    setActioning(`${action}:${ad.id}`);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/app/ads/${encodeURIComponent(ad.id)}/${action}?locale=cs`, {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { ad?: AdRecord; error?: string };
+
+      if (!response.ok || !payload.ad) {
+        throw new Error(payload.error || `Workflow action failed with ${response.status}`);
+      }
+
+      const nextAd = payload.ad;
+      setWorkspace((current) => workspaceWithAd(current, nextAd));
+      setSelectedId(nextAd.id);
+    } catch (workflowError) {
+      setError(
+        workflowError instanceof Error
+          ? workflowError.message
+          : action === "approve"
+            ? "Reklamu se nepodařilo schválit. Zkontrolujte povinné údaje a oprávnění."
+            : "Reklamu se nepodařilo publikovat. Zkontrolujte povinné údaje a oprávnění.",
+      );
+    } finally {
+      setActioning("");
     }
   }
 
@@ -214,10 +265,16 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
               : `Zkušební přístup běží ještě ${billing.trialDaysLeft} ${billing.trialDaysLeft === 1 ? "den" : billing.trialDaysLeft < 5 ? "dny" : "dní"}.`}
             <span className="ml-1 font-normal">Po skončení se pracovní přístupy uzamknou, dokud účet nebude aktivní.</span>
           </div>
-          <Link href="/app/activate" className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 font-semibold text-white">
-            <CreditCard size={15} />
-            Aktivovat účet
-          </Link>
+          {billing.canManageBilling ? (
+            <Link href="/app/activate" className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 font-semibold text-white">
+              <CreditCard size={15} />
+              Aktivovat účet
+            </Link>
+          ) : (
+            <span className="inline-flex items-center justify-center rounded-md border border-orange-200 bg-white px-3 py-2 font-semibold">
+              Aktivaci řeší admin strany
+            </span>
+          )}
         </div>
       ) : null}
 
@@ -306,7 +363,9 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <MobileAdCards ads={filteredAds} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-[#f7f7f8] text-xs text-[#68707a]">
                 <tr>
@@ -367,7 +426,15 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           </div>
         </div>
 
-        <DetailPanel ad={selectedAd} writable={writable} onEdit={openEdit} />
+        <DetailPanel
+          ad={selectedAd}
+          writable={writable}
+          reviewable={reviewable}
+          actioning={actioning}
+          onEdit={openEdit}
+          onApprove={(ad) => runWorkflowAction(ad, "approve")}
+          onPublish={(ad) => runWorkflowAction(ad, "publish")}
+        />
       </section>
     </section>
   );
@@ -390,21 +457,50 @@ function Editor({
   onChange: (form: EditableAdInput) => void;
   onSave: () => void;
 }) {
-  const fields = [
-    ["title", "Název reklamy", "text"],
-    ["branch", "Pobočka / oblast", "text"],
-    ["owner", "Zadavatel", "text"],
-    ["type", "Typ materiálu", "text"],
-    ["publicationDate", "Datum zveřejnění", "date"],
-    ["period", "Období šíření", "text"],
-    ["distributionArea", "Oblast šíření", "text"],
-    ["payer", "Plátce", "text"],
-    ["supplier", "Dodavatel", "text"],
-    ["amount", "Náklady / rozpočet", "text"],
-    ["fundingSource", "Původ financí", "text"],
-    ["language", "Jazyk", "text"],
-    ["targeting", "Cílení", "text"],
-    ["targetAudience", "Cílové publikum", "text"],
+  const requiredFields = new Set<keyof EditableAdInput>([
+    "title",
+    "branch",
+    "owner",
+    "type",
+    "publicationDate",
+    "period",
+    "distributionArea",
+    "payer",
+    "supplier",
+    "amount",
+    "fundingSource",
+    "language",
+  ]);
+  const fieldGroups = [
+    {
+      title: "Materiál",
+      fields: [
+        ["title", "Název reklamy", "text"],
+        ["branch", "Pobočka / oblast", "text"],
+        ["type", "Typ materiálu", "text"],
+        ["publicationDate", "Datum zveřejnění", "date"],
+        ["period", "Období šíření", "text"],
+        ["language", "Jazyk", "text"],
+      ],
+    },
+    {
+      title: "Povinné údaje oznámení",
+      fields: [
+        ["owner", "Zadavatel", "text"],
+        ["payer", "Plátce", "text"],
+        ["supplier", "Dodavatel", "text"],
+        ["amount", "Náklady / rozpočet", "text"],
+        ["fundingSource", "Původ financí", "text"],
+        ["distributionArea", "Oblast šíření", "text"],
+      ],
+    },
+    {
+      title: "Cílení",
+      fields: [
+        ["targeting", "Popis cílení", "text"],
+        ["targetAudience", "Cílové publikum", "text"],
+      ],
+    },
   ] as const;
 
   return (
@@ -431,8 +527,8 @@ function Editor({
         </div>
       </div>
 
-      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
-        <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+      <div className="grid gap-4 p-4">
+        <label className="grid gap-1.5 text-sm font-semibold text-[#20242a] sm:max-w-xs">
           Online / offline
           <select
             value={form.channel}
@@ -443,18 +539,37 @@ function Editor({
             <option value="online">Online</option>
           </select>
         </label>
-        {fields.map(([key, label, type]) => (
-          <label key={key} className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
-            {label}
-            <input
-              type={type}
-              value={form[key]}
-              onChange={(event) => onChange({ ...form, [key]: event.target.value })}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
-            />
-          </label>
+
+        {fieldGroups.map((group) => (
+          <div key={group.title} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+            <h3 className="text-sm font-semibold text-black">{group.title}</h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {group.fields.map(([key, label, type]) => {
+                const required = requiredFields.has(key);
+                const empty = required && !String(form[key] ?? "").trim();
+
+                return (
+                  <label key={key} className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+                    <span className="flex items-center gap-2">
+                      {label}
+                      {required ? <span className={empty ? "text-xs text-red-700" : "text-xs text-[#68707a]"}>povinné</span> : null}
+                    </span>
+                    <input
+                      type={type}
+                      value={form[key]}
+                      onChange={(event) => onChange({ ...form, [key]: event.target.value })}
+                      className={`rounded-md border bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] ${
+                        empty ? "border-red-300" : "border-black/10"
+                      }`}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         ))}
-        <label className="flex items-center gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]">
+
+        <label className="flex items-center gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] sm:max-w-sm">
           <input
             type="checkbox"
             checked={form.isTargeted}
@@ -468,7 +583,75 @@ function Editor({
   );
 }
 
-function DetailPanel({ ad, writable, onEdit }: { ad: AdRecord | null; writable: boolean; onEdit: (ad: AdRecord) => void }) {
+function MobileAdCards({
+  ads,
+  selectedId,
+  writable,
+  onSelect,
+  onEdit,
+}: {
+  ads: AdRecord[];
+  selectedId: string;
+  writable: boolean;
+  onSelect: (id: string) => void;
+  onEdit: (ad: AdRecord) => void;
+}) {
+  return (
+    <div className="grid gap-3 p-3 md:hidden">
+      {ads.map((ad) => (
+        <article key={ad.id} className={`rounded-md border p-3 ${selectedId === ad.id ? "border-[#f45d1f] bg-orange-50/55" : "border-black/10 bg-white"}`}>
+          <button type="button" onClick={() => onSelect(ad.id)} className="block w-full text-left">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
+                <h3 className="mt-1 text-base font-semibold leading-6 text-black">{ad.title}</h3>
+                <p className="mt-1 text-sm text-[#59616b]">{ad.branch} · {ad.campaign}</p>
+              </div>
+              <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-sm text-[#59616b]">
+              {deadlineIcon(ad)}
+              <span>{ad.publicationDate} · {ad.deadlineLabel}</span>
+            </div>
+            {ad.missing.length ? <p className="mt-2 text-sm font-semibold text-red-700">Chybí: {ad.missing.join(", ")}</p> : null}
+          </button>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => onEdit(ad)}
+              disabled={!writable}
+              className="inline-flex flex-1 justify-center rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+            >
+              Upravit
+            </button>
+            <a className="inline-flex flex-1 justify-center rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
+              Otevřít
+            </a>
+          </div>
+        </article>
+      ))}
+      {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">V tomto rozsahu zatím nejsou žádné reklamy.</div> : null}
+    </div>
+  );
+}
+
+function DetailPanel({
+  ad,
+  writable,
+  reviewable,
+  actioning,
+  onEdit,
+  onApprove,
+  onPublish,
+}: {
+  ad: AdRecord | null;
+  writable: boolean;
+  reviewable: boolean;
+  actioning: string;
+  onEdit: (ad: AdRecord) => void;
+  onApprove: (ad: AdRecord) => void;
+  onPublish: (ad: AdRecord) => void;
+}) {
   if (!ad) {
     return (
       <aside className="rounded-md border border-black/10 bg-white p-5 text-sm text-[#59616b]">
@@ -529,6 +712,28 @@ function DetailPanel({ ad, writable, onEdit }: { ad: AdRecord | null; writable: 
           <Edit3 size={15} />
           Upravit údaje
         </button>
+        {ad.canApprove ? (
+          <button
+            type="button"
+            onClick={() => onApprove(ad)}
+            disabled={!reviewable || actioning === `approve:${ad.id}`}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+          >
+            <CheckCircle2 size={15} />
+            {actioning === `approve:${ad.id}` ? "Schvaluji" : "Schválit"}
+          </button>
+        ) : null}
+        {ad.canPublish ? (
+          <button
+            type="button"
+            onClick={() => onPublish(ad)}
+            disabled={!reviewable || actioning === `publish:${ad.id}`}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-[#f45d1f]/30 bg-[#fff4ef] px-4 py-3 text-sm font-semibold text-[#d94410] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+          >
+            <ArrowUpRight size={15} />
+            {actioning === `publish:${ad.id}` ? "Publikuji" : "Publikovat"}
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={!ad.canDownloadQr}

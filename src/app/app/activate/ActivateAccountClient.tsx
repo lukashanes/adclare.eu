@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, FileText, Loader2 } from "lucide-react";
+import { ArrowRight, CreditCard, FileText, Loader2 } from "lucide-react";
 import type { BillingStatusKey } from "@/lib/admin-demo-types";
 
 type BillingAccessView = {
@@ -14,10 +14,12 @@ type BillingAccessView = {
   canUseApp: boolean;
   invoicePending: boolean;
   stripeCheckoutConfigured: boolean;
+  stripePortalAvailable: boolean;
+  canManageBilling: boolean;
 };
 
 export function ActivateAccountClient({ billing }: { billing: BillingAccessView }) {
-  const [loading, setLoading] = useState<"" | "stripe" | "invoice">("");
+  const [loading, setLoading] = useState<"" | "stripe" | "invoice" | "portal">("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -66,29 +68,67 @@ export function ActivateAccountClient({ billing }: { billing: BillingAccessView 
     }
   }
 
+  async function openPortal() {
+    setLoading("portal");
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/app/billing/portal", {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || "Správu platby se nepodařilo otevřít.");
+      }
+
+      window.location.href = payload.url;
+    } catch (portalError) {
+      setError(portalError instanceof Error ? portalError.message : "Správu platby se nepodařilo otevřít.");
+      setLoading("");
+    }
+  }
+
   return (
     <div className="grid gap-3">
-      <button
-        type="button"
-        onClick={startCheckout}
-        disabled={loading !== "" || !billing.stripeCheckoutConfigured}
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-4 text-sm font-semibold text-white transition hover:bg-[#d94410] disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-      >
-        {loading === "stripe" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight size={16} />}
-        Zaplatit kartou
-      </button>
+      {billing.status !== "ACTIVE" ? (
+        <>
+          <button
+            type="button"
+            onClick={startCheckout}
+            disabled={loading !== "" || !billing.stripeCheckoutConfigured}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-4 text-sm font-semibold text-white transition hover:bg-[#d94410] disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+          >
+            {loading === "stripe" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight size={16} />}
+            Zaplatit kartou
+          </button>
 
-      <button
-        type="button"
-        onClick={requestInvoice}
-        disabled={loading !== ""}
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-[#25282d] transition hover:border-[#f45d1f]"
-      >
-        {loading === "invoice" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText size={16} />}
-        Požádat o platbu na fakturu
-      </button>
+          <button
+            type="button"
+            onClick={requestInvoice}
+            disabled={loading !== ""}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-[#25282d] transition hover:border-[#f45d1f]"
+          >
+            {loading === "invoice" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText size={16} />}
+            Požádat o platbu na fakturu
+          </button>
+        </>
+      ) : null}
 
-      {!billing.stripeCheckoutConfigured ? (
+      {billing.stripePortalAvailable ? (
+        <button
+          type="button"
+          onClick={openPortal}
+          disabled={loading !== ""}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-[#25282d] transition hover:border-[#f45d1f]"
+        >
+          {loading === "portal" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard size={16} />}
+          Spravovat platbu
+        </button>
+      ) : null}
+
+      {billing.status !== "ACTIVE" && !billing.stripeCheckoutConfigured ? (
         <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
           Platba kartou teď není dostupná. Zvolte platbu na fakturu nebo kontaktujte podporu.
         </div>

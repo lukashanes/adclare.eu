@@ -217,6 +217,7 @@ export type AppWorkspacePayload = {
     activationRequired: boolean;
     invoicePending: boolean;
     stripeCheckoutConfigured: boolean;
+    canManageBilling: boolean;
   } | null;
   ads: AdRecord[];
   counts: {

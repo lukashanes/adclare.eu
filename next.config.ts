@@ -73,7 +73,51 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/signup",
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow, noarchive",
+          },
+          {
+            key: "Cache-Control",
+            value: "private, no-store, max-age=0",
+          },
+        ],
+      },
+      {
+        source: "/invite/:path*",
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow, noarchive",
+          },
+          {
+            key: "Cache-Control",
+            value: "private, no-store, max-age=0",
+          },
+        ],
+      },
+      {
         source: "/api/login/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "private, no-store, max-age=0",
+          },
+        ],
+      },
+      {
+        source: "/api/signup",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "private, no-store, max-age=0",
+          },
+        ],
+      },
+      {
+        source: "/api/invite/:path*",
         headers: [
           {
             key: "Cache-Control",

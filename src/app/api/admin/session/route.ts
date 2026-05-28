@@ -8,39 +8,13 @@ import {
   serializeAdminSessionCookie,
   verifyAdminPassword,
 } from "@/lib/admin-auth";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type LoginAttempt = {
-  count: number;
-  resetAt: number;
-};
-
 const attemptWindowMs = 10 * 60 * 1000;
 const maxAttempts = 8;
-const globalForAttempts = globalThis as typeof globalThis & {
-  __adclareAdminLoginAttempts?: Map<string, LoginAttempt>;
-};
-const attempts = globalForAttempts.__adclareAdminLoginAttempts ?? new Map<string, LoginAttempt>();
-globalForAttempts.__adclareAdminLoginAttempts = attempts;
-
-function getAttempt(ip: string, now = Date.now()) {
-  const attempt = attempts.get(ip);
-
-  if (!attempt || attempt.resetAt < now) {
-    const next = { count: 0, resetAt: now + attemptWindowMs };
-    attempts.set(ip, next);
-    return next;
-  }
-
-  return attempt;
-}
-
-function recordFailedAttempt(ip: string) {
-  const attempt = getAttempt(ip);
-  attempt.count += 1;
-}
 
 async function readPassword(request: Request) {
   try {
@@ -61,20 +35,25 @@ export async function POST(request: Request) {
   }
 
   const ip = getRequestIp(request);
-  const attempt = getAttempt(ip);
+  const attempt = await checkRateLimit({
+    scope: "admin-login",
+    identifier: ip,
+    limit: maxAttempts,
+    windowMs: attemptWindowMs,
+  });
 
-  if (attempt.count >= maxAttempts) {
-    return Response.json({ error: "Too many login attempts." }, { status: 429, headers: adminNoStoreHeaders() });
+  if (!attempt.allowed) {
+    return Response.json(
+      { error: "Too many login attempts." },
+      { status: 429, headers: { ...adminNoStoreHeaders(), ...rateLimitHeaders(attempt) } },
+    );
   }
 
   const password = await readPassword(request);
 
   if (!verifyAdminPassword(password)) {
-    recordFailedAttempt(ip);
     return Response.json({ error: "Invalid password." }, { status: 401, headers: adminNoStoreHeaders() });
   }
-
-  attempts.delete(ip);
 
   return Response.json(
     { ok: true },

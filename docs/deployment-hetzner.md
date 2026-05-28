@@ -6,7 +6,7 @@ Production target for `adclare.eu`:
 - Domain: `adclare.eu`
 - Runtime: Docker Compose
 - Reverse proxy: system Nginx
-- Public TLS: Cloudflare proxy in front of the Nginx origin
+- Public TLS: Cloudflare proxy in front of the Nginx origin, with Full strict SSL once the origin certificate is installed
 
 Do not publish the server IP on the public website. It is operational documentation only.
 
@@ -21,10 +21,10 @@ Create these records:
 
 Recommended Cloudflare settings:
 
-- SSL/TLS mode: Full currently; switch to Full strict after installing a Cloudflare Origin Certificate or publicly trusted certificate on Nginx.
+- SSL/TLS mode: Full strict. Install a Cloudflare Origin Certificate or a publicly trusted certificate on Nginx before switching traffic.
 - Always Use HTTPS: enabled.
 - WAF/managed rules: enabled.
-- Turnstile: use later for public forms and signup.
+- Turnstile: add site key and secret to production `.env` to protect login and invitation forms.
 
 See `docs/cloudflare-setup.md` for the temporary API token permissions and the Cloudflare setup checklist.
 
@@ -79,7 +79,7 @@ mkdir -p /srv/apps/adclare
 rsync -az --delete --exclude '.env' --exclude '.admin-access' --exclude 'node_modules' --exclude '.next' ./ root@46.224.66.79:/srv/apps/adclare/
 ssh root@46.224.66.79 'cd /srv/apps/adclare && test -f .env || {
   PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
-  printf "POSTGRES_DB=adclare_prod\nPOSTGRES_USER=adclare\nPOSTGRES_PASSWORD=%s\nDATABASE_URL=postgresql://adclare:%s@db:5432/adclare_prod?schema=public\nNEXT_PUBLIC_APP_URL=https://adclare.eu\nNEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAADWL1GxcsZgXYZe1\n" "$PASS" "$PASS" > .env
+  printf "POSTGRES_DB=adclare_prod\nPOSTGRES_USER=adclare\nPOSTGRES_PASSWORD=%s\nDATABASE_URL=postgresql://adclare:%s@db:5432/adclare_prod?schema=public\nNEXT_PUBLIC_APP_URL=https://adclare.eu\n" "$PASS" "$PASS" > .env
 }'
 ssh root@46.224.66.79 'cd /srv/apps/adclare && docker compose -f docker-compose.prod.yml up -d db'
 ssh root@46.224.66.79 'cd /srv/apps/adclare && docker compose -f docker-compose.prod.yml --profile tools build migrate'
@@ -96,8 +96,7 @@ nginx -t
 systemctl reload nginx
 ```
 
-For Cloudflare SSL mode `Full`, a local origin certificate can be self-signed.
-Switch Cloudflare to `Full strict` only after installing a Cloudflare Origin Certificate or a publicly trusted certificate for `adclare.eu`.
+For Cloudflare SSL mode `Full strict`, install a Cloudflare Origin Certificate or a publicly trusted certificate for `adclare.eu` on Nginx. Avoid `Full` in production because it does not verify the origin certificate.
 
 Current production status:
 
@@ -112,7 +111,7 @@ Current production status:
 - Public demo repository: `https://adclare.eu/repo/demo-party`
 - Public demo repository JSON: `https://adclare.eu/api/repo/demo-party/ads?locale=cs`
 - `www.adclare.eu` redirects to `https://adclare.eu/`
-- Docker healthcheck is enabled and checks `/cs`.
+- Docker healthcheck is enabled and checks `/api/health`.
 
 ## Production Secrets Still Needed
 
@@ -122,6 +121,11 @@ Add these to `/srv/apps/adclare/.env` when the external services are ready:
 EMAIL_FROM='Adclare <noreply@adclare.eu>'
 CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
 CLOUDFLARE_EMAIL_API_TOKEN='...'
+NEXT_PUBLIC_TURNSTILE_SITE_KEY='...'
+TURNSTILE_SECRET_KEY='...'
+TURNSTILE_REQUIRED='1'
+TURNSTILE_ALLOWED_HOSTNAMES='adclare.eu,www.adclare.eu'
+NEXT_PUBLIC_SHOW_DEMO_REPO='0'
 STRIPE_SECRET_KEY='sk_live_...'
 STRIPE_WEBHOOK_SECRET='whsec_...'
 ```
@@ -130,8 +134,9 @@ Current behavior without those secrets:
 
 - Invitation e-mails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
 - Outbound transactional e-mail uses Cloudflare Email Service REST API, not Email Routing aliases. Email Routing remains useful for inbound aliases such as `hello@`, `billing@`, `support@` and `security@`.
+- Turnstile is required in production by default. Set both `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` together and keep `TURNSTILE_ALLOWED_HOSTNAMES` limited to production hostnames. A temporary `TURNSTILE_REQUIRED=0` override exists only to avoid locking login/signup before the secret is available.
 - Billing plan, discount, Stripe/invoice mode and invoice approval state are stored in `billing_accounts`.
-- Stripe Checkout and Customer Portal actions are disabled until `STRIPE_SECRET_KEY` is present. Subscription state sync is disabled until `STRIPE_WEBHOOK_SECRET` is present and the Stripe webhook points to `https://adclare.eu/api/stripe/webhook`.
+- Stripe Checkout and Customer Portal actions are disabled until `STRIPE_SECRET_KEY` is present. Subscription state sync is disabled until `STRIPE_WEBHOOK_SECRET` is present and the Stripe webhook points to `https://adclare.eu/api/stripe/webhook`. Webhook event IDs are stored in `stripe_webhook_events` so repeated Stripe deliveries are idempotent.
 
 ## Update
 

@@ -51,6 +51,9 @@ const content = {
       privacy: "Ochrana osobních údajů",
       cookies: "Cookies",
       terms: "Podmínky a právní informace",
+      dpa: "Zpracování osobních údajů",
+      subprocessors: "Subdodavatelé",
+      security: "Bezpečnost",
     },
     heroMarker: "Nařízení (EU) 2024/900",
     heroTitle: "Politická reklama pod kontrolou",
@@ -181,7 +184,7 @@ const content = {
       "Politická reklama vyžaduje kontrolu nad přístupy, soubory a historií změn. Adclare odděluje data podle organizace, omezuje přístupy podle role a drží dohledatelnou stopu pro interní i externí kontrolu.",
     securityCards: [
       ["Role a omezené přístupy", "Centrála, pobočky, kandidáti, grafici a auditoři vidí jen data, ke kterým mají oprávnění."],
-      ["2FA pro administrátory", "Správci, schvalovatelé a billing role mohou mít povinné dvoufaktorové ověření."],
+      ["Přístup přes e-mail a role", "Přihlášení běží přes časově omezené odkazy, relace jsou chráněné a rozsah přístupu určuje role."],
       ["Auditní stopa změn", "Každé doplnění údajů, schválení, export a změna publikované reklamy zůstává v historii."],
       ["Archiv a exporty", "Podklady, QR, oznámení a důkazní balíčky lze exportovat a uchovat po zákonně požadovanou dobu."],
       ["Ochrana veřejných formulářů", "Veřejné formuláře a přístupy jsou chráněné proti automatizovanému zneužití a nadměrnému provozu."],
@@ -193,7 +196,7 @@ const content = {
     companyIds: "IČO 28534395, DIČ CZ28534395",
     footerText:
       "Online nástroj pro evidenci, označování, schvalování a archiv politické reklamy podle nařízení (EU) 2024/900.",
-    footerSecurity: "Role, 2FA, audit a ochrana formulářů",
+    footerSecurity: "Role, audit, relace a ochrana formulářů",
     footerWorkflow: "Faktury, pobočky, QR, archiv a exporty",
   },
   en: {
@@ -207,6 +210,9 @@ const content = {
       privacy: "Privacy Policy",
       cookies: "Cookies",
       terms: "Terms and Legal Notice",
+      dpa: "Data Processing",
+      subprocessors: "Subprocessors",
+      security: "Security",
     },
     heroMarker: "Regulation (EU) 2024/900",
     heroTitle: "Political advertising under control",
@@ -337,7 +343,7 @@ const content = {
       "Political advertising needs control over access, files and change history. Adclare separates data by organization, limits access by role and keeps a traceable record for internal and external review.",
     securityCards: [
       ["Roles and scoped access", "Headquarters, branches, candidates, designers and auditors only see the data they are allowed to access."],
-      ["2FA for administrators", "Admins, reviewers and billing roles can require two-factor authentication."],
+      ["Email access and roles", "Sign-in runs through time-limited links, sessions are protected and each role limits what the user can reach."],
       ["Change audit trail", "Every data update, approval, export and published-ad change stays in history."],
       ["Archive and exports", "Assets, QR codes, notices and proof packages can be exported and retained for the legally required period."],
       ["Public form protection", "Public forms and access points are protected against automated abuse and excessive traffic."],
@@ -349,7 +355,7 @@ const content = {
     companyIds: "Company ID 28534395, VAT CZ28534395",
     footerText:
       "Online tool for recording, labelling, approving and archiving political advertising under Regulation (EU) 2024/900.",
-    footerSecurity: "Roles, 2FA, audit and form protection",
+    footerSecurity: "Roles, audit, sessions and form protection",
     footerWorkflow: "Invoices, branches, QR, archive and exports",
   },
 } as const;
@@ -484,12 +490,12 @@ function Header({
           <Link className="hidden px-3 py-2 text-sm font-medium text-[#25282d] sm:inline-flex" href="/login">
             {t.login}
           </Link>
-          <a
-            href="#pricing"
+          <Link
+            href="/signup"
             className="hidden rounded-md bg-[#f45d1f] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#d94410] sm:inline-flex"
           >
             {t.cta}
-          </a>
+          </Link>
           <details className="group relative lg:hidden">
             <summary
               aria-label={t.menu}
@@ -520,13 +526,13 @@ function Header({
                 >
                   {t.login}
                 </Link>
-                <a
-                  href="#pricing"
+                <Link
+                  href="/signup"
                   className="inline-flex items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#d94410]"
                 >
                   {t.cta}
                   <ArrowRight size={16} />
-                </a>
+                </Link>
               </div>
             </div>
           </details>
@@ -623,13 +629,13 @@ function Hero({ t }: { t: (typeof content)[Locale] }) {
             ))}
           </ul>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <a
-              href="#pricing"
+            <Link
+              href="/signup"
               className="inline-flex items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-5 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#d94410]"
             >
               {t.cta}
               <ArrowRight size={18} />
-            </a>
+            </Link>
             <a
               href="#workflow"
               className="inline-flex items-center justify-center gap-2 rounded-md border border-[#f45d1f] bg-white px-5 py-3 text-base font-semibold text-[#d94410] transition hover:bg-orange-50"
@@ -951,7 +957,7 @@ function Billing({ t }: { t: (typeof content)[Locale] }) {
                 </div>
 
                 <a
-                  href="#contact"
+                  href={plan.name.includes("Custom") || plan.name.includes("Custom solution") ? "#contact" : `/signup?plan=${index === 0 ? "small" : "large"}`}
                   className={`mt-7 inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition ${
                     isHighlighted
                       ? "bg-[#f45d1f] text-white hover:bg-[#d94410]"
@@ -1088,6 +1094,15 @@ function Footer({ t, locale }: { t: (typeof content)[Locale]; locale: Locale }) 
             </Link>
             <Link className="font-medium text-[#25282d] hover:text-[#d94410]" href={`/${locale}/terms`}>
               {t.legalLinks.terms}
+            </Link>
+            <Link className="font-medium text-[#25282d] hover:text-[#d94410]" href={`/${locale}/dpa`}>
+              {t.legalLinks.dpa}
+            </Link>
+            <Link className="font-medium text-[#25282d] hover:text-[#d94410]" href={`/${locale}/subprocessors`}>
+              {t.legalLinks.subprocessors}
+            </Link>
+            <Link className="font-medium text-[#25282d] hover:text-[#d94410]" href={`/${locale}/security`}>
+              {t.legalLinks.security}
             </Link>
           </div>
         </div>

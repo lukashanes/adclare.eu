@@ -288,49 +288,91 @@ export async function handleStripeWebhook(rawBody: string, signature: string | n
 
   const stripe = stripeClient();
   const event = stripe.webhooks.constructEvent(rawBody, signature, secret);
+  const webhookEvent = await prisma.stripeWebhookEvent.upsert({
+    where: {
+      id: event.id,
+    },
+    update: {
+      type: event.type,
+    },
+    create: {
+      id: event.id,
+      type: event.type,
+      status: "processing",
+    },
+  });
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const subscriptionId = stripeId(session.subscription);
-    const customerId = stripeId(session.customer);
-    const billingAccountId = session.metadata?.billingAccountId;
-
-    if (billingAccountId) {
-      await prisma.billingAccount.updateMany({
-        where: {
-          id: billingAccountId,
-        },
-        data: {
-          method: BillingMethod.STRIPE,
-          status: BillingStatus.ACTIVE,
-          stripeCustomerId: customerId,
-          stripeSubscriptionId: subscriptionId,
-        },
-      });
-    }
-
-    if (subscriptionId) {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      await syncSubscription(subscription);
-    }
+  if (webhookEvent.status === "processed") {
+    return {
+      received: true,
+      duplicate: true,
+      type: event.type,
+    };
   }
 
-  if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
-    await syncSubscription(event.data.object as Stripe.Subscription);
-  }
+  try {
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const subscriptionId = stripeId(session.subscription);
+      const customerId = stripeId(session.customer);
+      const billingAccountId = session.metadata?.billingAccountId;
 
-  if (event.type === "invoice.payment_succeeded" || event.type === "invoice.payment_failed") {
-    const invoice = event.data.object as Stripe.Invoice;
-    const subscriptionId = subscriptionIdFromInvoice(invoice);
-
-    if (subscriptionId) {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      await syncSubscription(subscription);
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        await syncSubscription(subscription);
+      } else if (billingAccountId && customerId) {
+        await prisma.billingAccount.updateMany({
+          where: {
+            id: billingAccountId,
+          },
+          data: {
+            method: BillingMethod.STRIPE,
+            stripeCustomerId: customerId,
+          },
+        });
+      }
     }
-  }
 
-  return {
-    received: true,
-    type: event.type,
-  };
+    if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      await syncSubscription(event.data.object as Stripe.Subscription);
+    }
+
+    if (event.type === "invoice.payment_succeeded" || event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = subscriptionIdFromInvoice(invoice);
+
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        await syncSubscription(subscription);
+      }
+    }
+
+    await prisma.stripeWebhookEvent.update({
+      where: {
+        id: event.id,
+      },
+      data: {
+        status: "processed",
+        processedAt: new Date(),
+        error: "",
+      },
+    });
+
+    return {
+      received: true,
+      type: event.type,
+    };
+  } catch (error) {
+    await prisma.stripeWebhookEvent.update({
+      where: {
+        id: event.id,
+      },
+      data: {
+        status: "failed",
+        error: error instanceof Error ? error.message : "Unknown Stripe webhook error.",
+      },
+    });
+
+    throw error;
+  }
 }

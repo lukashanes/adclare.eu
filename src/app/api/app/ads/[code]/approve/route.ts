@@ -1,13 +1,12 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
 import { getUserBillingAccess } from "@/lib/billing-access";
-import { normalizeLocale, updateAppAd } from "@/lib/admin-demo-db";
-import { parseEditableAdInput, validationErrorResponse } from "@/lib/request-validation";
+import { approveAppAd, normalizeLocale } from "@/lib/admin-demo-db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function PATCH(request: Request, context: { params: Promise<{ code: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ code: string }> }) {
   const session = await getAppSession(request.headers.get("cookie"));
 
   if (!session) {
@@ -29,22 +28,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
   }
 
   try {
-    const input = parseEditableAdInput(await request.json());
-    const ad = await updateAppAd(session.userId, decodeURIComponent(code), input, locale);
+    const ad = await approveAppAd(session.userId, decodeURIComponent(code), locale);
 
     if (!ad) {
-      return Response.json({ error: "Ad not found or not editable for this user." }, { status: 404 });
+      return Response.json({ error: "Ad not found or not reviewable for this user." }, { status: 404 });
     }
 
     return Response.json({ ad });
   } catch (error) {
-    const validation = validationErrorResponse(error);
-
-    if (validation) {
-      return validation;
-    }
-
-    console.error(error);
-    return Response.json({ error: "Ad update failed." }, { status: 400 });
+    return Response.json({ error: error instanceof Error ? error.message : "Ad approval failed." }, { status: 409 });
   }
 }

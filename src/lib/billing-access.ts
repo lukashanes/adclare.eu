@@ -1,4 +1,4 @@
-import { BillingInterval, BillingMethod, BillingPlan, BillingStatus, EmailStatus, MembershipStatus } from "@prisma/client";
+import { BillingInterval, BillingMethod, BillingPlan, BillingStatus, EmailStatus, MembershipStatus, UserRole } from "@prisma/client";
 import type { Locale } from "@/lib/admin-demo-types";
 import { prisma } from "@/lib/prisma";
 
@@ -90,6 +90,10 @@ function effectiveBillingPrice(account: { interval: BillingInterval; yearlyPrice
   const suffix = account.interval === BillingInterval.YEARLY ? (locale === "cs" ? " / rok" : " / year") : (locale === "cs" ? " / měsíc" : " / month");
 
   return `${amount} EUR${suffix}`;
+}
+
+function canManageBillingRole(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
 }
 
 export async function ensureTenantBillingAccount(tenantId: string) {
@@ -224,6 +228,8 @@ export async function getUserBillingAccess(userId: string, locale: Locale) {
     ...access,
     userEmail: membership.user.email,
     userName: membership.user.name,
+    roleKey: membership.role,
+    canManageBilling: canManageBillingRole(membership.role),
   };
 }
 
@@ -294,6 +300,10 @@ export async function requestInvoiceActivation(userId: string, locale: Locale) {
 
   if (!access) {
     return null;
+  }
+
+  if (!access.canManageBilling) {
+    throw new Error("Billing can be managed only by a party admin.");
   }
 
   const account = await prisma.billingAccount.update({

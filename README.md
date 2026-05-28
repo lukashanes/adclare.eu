@@ -24,12 +24,17 @@ Adclare gives a paying political party or organization one workflow to:
 - Czech and English routes: `/cs`, `/en`.
 - Cloudflare-inspired visual direction: clear typography, white surface, dark product UI, orange accent.
 - Product dashboard preview with compliance statuses, deadlines, approval queue and billing state.
+- Public signup at `/signup` creates a 14-day trial tenant, first party admin, default headquarters and first campaign.
 - Password-protected database-backed admin preview at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
 - Database-backed members and invitation flow with secure invite links and public invite acceptance pages.
 - Invitation e-mail outbox with Cloudflare Email Service REST API send path when Cloudflare e-mail credentials are configured.
 - Database-backed billing account state for plan, interval, Stripe/invoice mode, status and admin discount.
 - Expanded ad records with online/offline channel, supplier, distribution area, language, targeting flag, target audience and deadline-based missing-data status.
+- Authenticated workspace at `/app` for scoped users to add/edit ads, download QR packages, approve/publish ads when their role allows it and activate/manage billing.
 - Public repository at `/repo/demo-party` with filters and JSON endpoint at `/api/repo/demo-party/ads`.
+- Public QR/transparency URLs keep a stable pending page until the ad is published; public repository output is limited to published/archived ads.
+- Cloudflare Turnstile server validation on public login and invitation forms when Turnstile secrets are configured.
+- Health endpoint at `/api/health` for production container checks.
 - Sections for workflow, modules, pricing, security and operator footer.
 
 ## Planned SaaS Stack
@@ -86,6 +91,7 @@ For billing, set `STRIPE_SECRET_KEY` to enable hosted Stripe Checkout and Custom
 ```bash
 npm run lint
 npm run build
+npm run test
 ```
 
 ## Deployment
@@ -100,6 +106,8 @@ docker compose -f docker-compose.prod.yml --profile tools build migrate
 docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 ```
+
+Demo seed data is intentionally not part of the production migrator. Run `npm run db:seed` only in local development or when you explicitly want to restore demo records.
 
 PostgreSQL backups can be created with:
 
@@ -117,10 +125,10 @@ See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for DNS, firewall a
 
 ## Next Product Steps
 
-1. Replace the temporary admin password with real account login, magic links and 2FA.
+1. Replace the temporary admin password with tenant admin login, passwordless access and optional 2FA.
 2. Add real signup and tenant onboarding outside the demo tenant.
 3. Add tenant onboarding: organization details, billing mode and custom naming for branches.
 4. Replace demo admin scope with tenant-aware authenticated app shell.
-5. Add Cloudflare Turnstile to public forms.
-6. Add deadline, approval and billing e-mail templates on top of the existing outbox.
-7. Add real file uploads to object storage for ad assets and generated exports.
+5. Add deadline, approval and billing e-mail templates on top of the existing outbox.
+6. Add real file uploads to object storage for ad assets and generated exports.
+7. Replace the demo tenant shortcuts with full tenant provisioning from checkout/invoice approval.

@@ -7,7 +7,7 @@ FROM deps AS migrator
 WORKDIR /app
 COPY prisma ./prisma
 RUN npm run db:generate
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run db:seed"]
+CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM node:22-alpine AS builder
 WORKDIR /app

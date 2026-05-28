@@ -19,6 +19,16 @@ function firstValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
+function errorMessage(error: string) {
+  const messages: Record<string, string> = {
+    invalid: "Přihlašovací odkaz je neplatný nebo expiroval. Vyžádejte si nový.",
+    session: "Přístup se nepodařilo ověřit. Přihlaste se znovu přes e-mail.",
+    expired: "Relace vypršela. Pošlete si nový přihlašovací odkaz.",
+  };
+
+  return messages[error] || "";
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -51,9 +61,9 @@ export default async function LoginPage({
           <div className="mt-6">
             <LoginClient defaultEmail={email} />
           </div>
-          {error === "invalid" ? (
+          {errorMessage(error) ? (
             <div className="mt-4 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
-              Přihlašovací odkaz je neplatný nebo expiroval. Vyžádejte si nový.
+              {errorMessage(error)}
             </div>
           ) : null}
         </aside>

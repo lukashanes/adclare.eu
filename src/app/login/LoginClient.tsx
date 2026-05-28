@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
+import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 
 export function LoginClient({ defaultEmail = "" }: { defaultEmail?: string }) {
   const [email, setEmail] = useState(defaultEmail);
@@ -9,6 +10,7 @@ export function LoginClient({ defaultEmail = "" }: { defaultEmail?: string }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
 
     if (state === "sending" || !email.trim()) {
       return;
@@ -22,7 +24,10 @@ export function LoginClient({ defaultEmail = "" }: { defaultEmail?: string }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          turnstileToken: turnstileTokenFromForm(form),
+        }),
       });
 
       setState(response.ok ? "sent" : "error");
@@ -41,10 +46,12 @@ export function LoginClient({ defaultEmail = "" }: { defaultEmail?: string }) {
           autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="napr. jana@strana.cz"
+          placeholder="např. jana@strana.cz"
           className="h-12 rounded-md border border-black/10 bg-white px-3 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
         />
       </label>
+
+      <TurnstileField />
 
       <button
         type="submit"

@@ -86,7 +86,11 @@ export default async function ActivateAccountPage() {
             {accessText}
           </div>
 
-          {billing.status !== "ACTIVE" ? (
+          {!billing.canManageBilling ? (
+            <div className="mt-5 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
+              Aktivaci účtu může spustit jen admin strany.
+            </div>
+          ) : billing.status !== "ACTIVE" || billing.stripePortalAvailable ? (
             <div className="mt-5">
               <ActivateAccountClient billing={billing} />
             </div>

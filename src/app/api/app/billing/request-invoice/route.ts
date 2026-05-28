@@ -26,6 +26,10 @@ export async function POST(request: Request) {
     return Response.json({ billing });
   } catch (error) {
     console.error(error);
+    if (error instanceof Error && error.message.includes("party admin")) {
+      return Response.json({ error: "Billing can be managed only by a party admin." }, { status: 403 });
+    }
+
     return Response.json({ error: "Invoice request failed." }, { status: 400 });
   }
 }

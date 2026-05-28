@@ -1,7 +1,7 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
 import { getUserBillingAccess } from "@/lib/billing-access";
-import { createTenantCheckoutSession } from "@/lib/stripe-billing";
+import { createTenantPortalSession } from "@/lib/stripe-billing";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -27,11 +27,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "Billing can be managed only by a party admin." }, { status: 403 });
   }
 
+  if (!billingAccess.stripePortalAvailable) {
+    return Response.json({ error: "Stripe customer portal is not available for this account." }, { status: 400 });
+  }
+
   try {
-    return Response.json(await createTenantCheckoutSession(billingAccess.tenantId, "cs", billingAccess.userEmail));
+    return Response.json(await createTenantPortalSession(billingAccess.tenantId));
   } catch (error) {
     console.error(error);
-    const message = error instanceof Error && error.message.includes("STRIPE_SECRET_KEY") ? "Platba kartou teď není dostupná." : "Platbu kartou se nepodařilo otevřít.";
-    return Response.json({ error: message }, { status: 400 });
+    return Response.json({ error: "Správu platby se nepodařilo otevřít." }, { status: 400 });
   }
 }

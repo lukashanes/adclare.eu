@@ -115,14 +115,16 @@ async function deliverLoginEmail(tenantId: string, toEmail: string, loginUrl: st
     <p><a href="${safeLoginUrl}">Přihlásit se do Adclare</a></p>
     <p>Odkaz je platný 15 minut. Pokud jste si přihlášení nevyžádali, e-mail ignorujte.</p>
   `;
+  const storedBodyText = bodyText.replace(loginUrl, "[one-time login link redacted]");
+  const storedBodyHtml = bodyHtml.replace(safeLoginUrl, "#");
 
   const email = await prisma.emailMessage.create({
     data: {
       tenantId,
       toEmail,
       subject,
-      bodyText,
-      bodyHtml,
+      bodyText: storedBodyText,
+      bodyHtml: storedBodyHtml,
       provider: "cloudflare_email_service",
       status: EmailStatus.PENDING_PROVIDER,
       error: isCloudflareEmailConfigured() ? "" : "CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are not configured.",

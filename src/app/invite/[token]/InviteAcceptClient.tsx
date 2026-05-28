@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { CheckCircle2, CircleAlert, UserPlus } from "lucide-react";
+import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 import type { InvitationNotice } from "@/lib/admin-demo-types";
 
 export function InviteAcceptClient({ invitation }: { invitation: InvitationNotice }) {
@@ -10,6 +11,7 @@ export function InviteAcceptClient({ invitation }: { invitation: InvitationNotic
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
 
     if (status === "saving" || invitation.status !== "PENDING") {
       return;
@@ -23,7 +25,10 @@ export function InviteAcceptClient({ invitation }: { invitation: InvitationNotic
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          turnstileToken: turnstileTokenFromForm(form),
+        }),
       });
 
       setStatus(response.ok ? "accepted" : "error");
@@ -70,6 +75,7 @@ export function InviteAcceptClient({ invitation }: { invitation: InvitationNotic
           className="rounded-md border border-black/10 bg-white px-3 py-3 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
         />
       </label>
+      <TurnstileField />
       <button
         type="submit"
         disabled={status === "saving"}

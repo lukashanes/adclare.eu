@@ -1,7 +1,7 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
-import { requestAppLoginLink } from "@/lib/app-auth";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
-import { parseLoginRequestInput, validationErrorResponse } from "@/lib/request-validation";
+import { parseSignupInput, validationErrorResponse } from "@/lib/request-validation";
+import { createSignupTrial } from "@/lib/signup";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +13,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = parseLoginRequestInput(await request.json());
+    const body = parseSignupInput(await request.json());
     const limit = await checkRateLimit({
-      scope: "login-link",
+      scope: "signup",
       identifier: `${requestIp(request)}:${body.email}`,
-      limit: 8,
+      limit: 5,
       windowMs: 60 * 60 * 1000,
     });
 
@@ -31,8 +31,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "Verification failed." }, { status: 403 });
     }
 
-    await requestAppLoginLink(body.email);
-    return Response.json({ ok: true });
+    const signup = await createSignupTrial({
+      organizationName: body.organizationName,
+      name: body.name,
+      email: body.email,
+      plan: body.plan,
+    });
+
+    return Response.json(signup, { status: signup.created ? 201 : 200 });
   } catch (error) {
     const validation = validationErrorResponse(error);
 
@@ -41,6 +47,6 @@ export async function POST(request: Request) {
     }
 
     console.error(error);
-    return Response.json({ error: "Login link request failed." }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : "Signup failed." }, { status: 400 });
   }
 }

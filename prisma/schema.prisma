@@ -344,9 +344,14 @@ model AuditLog {
   tenantId  String
   adId      String?
   actor     String
+  actorUserId String?
   action    String
   messageCs String
   messageEn String
+  ipAddress String   @default("")
+  userAgent String   @default("")
+  requestId String   @default("")
+  metadata  Json?
   createdAt DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -354,6 +359,7 @@ model AuditLog {
 
   @@index([tenantId, createdAt])
   @@index([adId, createdAt])
+  @@index([actorUserId])
   @@map("audit_logs")
 }
 
@@ -407,4 +413,33 @@ model EmailMessage {
   @@index([tenantId, status])
   @@index([invitationId])
   @@map("email_messages")
+}
+
+model RateLimitBucket {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  scope      String
+  identifier String
+  count      Int      @default(0)
+  resetAt    DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([scope, identifier])
+  @@index([resetAt])
+  @@map("rate_limit_buckets")
+}
+
+model StripeWebhookEvent {
+  id          String    @id
+  type        String
+  status      String
+  processedAt DateTime?
+  error       String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@map("stripe_webhook_events")
 }
