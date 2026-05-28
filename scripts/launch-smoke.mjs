@@ -33,6 +33,8 @@ const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
+check(composeProd.includes("storage-check:"), "Production compose should include an object storage check tool.");
+check(dockerfile.includes("AS storage-check"), "Dockerfile should include an object storage check target.");
 check(existsSync(resolve(root, "src/app/api/health/route.ts")), "Health route is missing.");
 check(adminDb.includes("publicWorkflowStatuses"), "Public workflow status allowlist is missing.");
 check(adminDb.includes("in: publicWorkflowStatuses"), "Public repository should only query public workflow statuses.");
@@ -45,6 +47,7 @@ check(!turnstileField.includes("process.env"), "Turnstile client component must 
 check(turnstileLib.includes("TURNSTILE_SITE_KEY"), "Turnstile site key should be readable from a server runtime variable.");
 check(schema.includes("model AdAsset"), "Ad asset storage model is missing.");
 check(objectStorage.includes("@aws-sdk/client-s3") && objectStorage.includes("uploadAdAssetObject"), "S3 object storage upload helper is missing.");
+check(existsSync(resolve(root, "scripts/check-object-storage.mjs")), "Object storage validation script is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/route.ts")), "App ad asset upload route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/[assetId]/route.ts")), "App ad asset download route is missing.");
 check(appWorkspace.includes("Soubory materiálu") && appWorkspace.includes("onUpload"), "Workspace should expose ad asset upload controls.");

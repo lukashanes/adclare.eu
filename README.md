@@ -88,6 +88,19 @@ For billing, set `STRIPE_SECRET_KEY` to enable hosted Stripe Checkout and Custom
 
 For uploaded ad files, set `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID` and `OBJECT_STORAGE_SECRET_ACCESS_KEY`. Hetzner Object Storage uses an S3-compatible endpoint such as `https://fsn1.your-objectstorage.com`.
 
+After setting storage credentials, verify the bucket before asking users to upload production files:
+
+```bash
+npm run storage:check
+```
+
+On production, use the Docker tool service so the host does not need local `node_modules`:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile tools build storage-check
+docker compose -f docker-compose.prod.yml --profile tools run --rm storage-check
+```
+
 ## Checks
 
 ```bash

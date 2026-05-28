@@ -9,6 +9,11 @@ COPY prisma ./prisma
 RUN npm run db:generate
 CMD ["npx", "prisma", "migrate", "deploy"]
 
+FROM deps AS storage-check
+WORKDIR /app
+COPY scripts ./scripts
+CMD ["npm", "run", "storage:check"]
+
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -9,6 +9,7 @@
     "test": "npm run test:launch",
     "test:launch": "node scripts/launch-smoke.mjs",
     "lint": "eslint",
+    "storage:check": "node scripts/check-object-storage.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
