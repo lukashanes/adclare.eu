@@ -164,6 +164,67 @@ function reviewEventClass(status: AdRecord["reviewEvents"][number]["status"]) {
   return "border-sky-200 bg-sky-50 text-sky-800";
 }
 
+function setupProgress(workspace: AppWorkspacePayload) {
+  const items = [
+    {
+      key: "branches",
+      title: "Pobočky jsou připravené",
+      text: workspace.branches.length > 0 ? `${workspace.branches.length} poboček nebo oblastí v seznamu.` : "Založte první pobočku nebo oblast.",
+      done: workspace.branches.length > 0,
+      href: "#branches",
+      action: "Spravovat pobočky",
+      visible: workspace.permissions.canManageBranches,
+    },
+    {
+      key: "people",
+      title: "Lidé dostali přístup",
+      text:
+        workspace.users.members.length > 1 || workspace.users.invitations.length > 0
+          ? `${workspace.users.members.length} aktivních lidí, ${workspace.users.invitations.length} pozvánek.`
+          : "Pozvěte pobočku, kandidáta nebo grafika.",
+      done: workspace.users.members.length > 1 || workspace.users.invitations.length > 0,
+      href: "#people",
+      action: "Pozvat lidi",
+      visible: workspace.permissions.canManageUsers,
+    },
+    {
+      key: "ads",
+      title: "První reklama je v evidenci",
+      text: workspace.ads.length > 0 ? `${workspace.ads.length} reklam v seznamu.` : "Přidejte první reklamu a její termín zveřejnění.",
+      done: workspace.ads.length > 0,
+      href: "#ads",
+      action: "Přidat reklamu",
+      visible: workspace.permissions.canCreateAds,
+    },
+    {
+      key: "missing",
+      title: "Chybějící údaje jsou pod kontrolou",
+      text: workspace.counts.needsData > 0 ? `${workspace.counts.needsData} reklam ještě potřebuje doplnit.` : "Žádná reklama teď neblokuje povinné údaje.",
+      done: workspace.ads.length > 0 && workspace.counts.needsData === 0,
+      href: workspace.counts.needsData > 0 ? "#missing-data" : "#ads",
+      action: workspace.counts.needsData > 0 ? "Doplnit údaje" : "Zobrazit reklamy",
+      visible: true,
+    },
+    {
+      key: "review",
+      title: "Kontrola a výstupy běží",
+      text:
+        workspace.counts.review + workspace.counts.approved + workspace.counts.published > 0
+          ? "Máte reklamy ke kontrole, schválené nebo publikované."
+          : "Po doplnění údajů pošlete reklamu ke kontrole.",
+      done: workspace.counts.review + workspace.counts.approved + workspace.counts.published > 0,
+      href: workspace.counts.review > 0 ? "#review" : "#ads",
+      action: workspace.counts.review > 0 ? "Otevřít kontrolu" : "Pokračovat",
+      visible: true,
+    },
+  ].filter((item) => item.visible);
+
+  return {
+    items,
+    done: items.filter((item) => item.done).length,
+  };
+}
+
 export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: AppWorkspacePayload }) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [query, setQuery] = useState("");
@@ -188,6 +249,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const writable = canManageAds(workspace);
   const reviewable = canReviewAds(workspace);
   const billing = workspace.billing;
+  const progress = setupProgress(workspace);
   const filteredAds = useMemo(() => {
     const normalized = query.trim().toLowerCase();
 
@@ -549,12 +611,14 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         ))}
       </section>
 
+      <OnboardingPanel progress={progress} onCreateAd={openCreate} />
+
       {mode ? (
         <Editor mode={mode} form={form} branches={workspace.branches} saving={saving} writable={writable} onCancel={() => setMode(null)} onChange={setForm} onSave={saveAd} />
       ) : null}
 
       {workspace.permissions.canManageBranches ? (
-        <section className="rounded-md border border-black/10 bg-white p-4">
+        <section id="branches" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-black">Pobočky a oblasti</h2>
@@ -615,7 +679,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
       {reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <section id="ads" className="grid scroll-mt-6 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="overflow-hidden rounded-md border border-black/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-black/10 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -948,6 +1012,66 @@ function MobileAdCards({
   );
 }
 
+function OnboardingPanel({
+  progress,
+  onCreateAd,
+}: {
+  progress: ReturnType<typeof setupProgress>;
+  onCreateAd: () => void;
+}) {
+  const percent = Math.round((progress.done / Math.max(1, progress.items.length)) * 100);
+
+  return (
+    <section className="rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Rychlý start</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
+            Tohle je krátký postup, aby se strana dostala od prázdného účtu k první reklamě s QR kódem, kontrolou a podklady pro případnou kontrolu.
+          </p>
+        </div>
+        <div className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#25282d]">
+          {progress.done}/{progress.items.length} hotovo
+        </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eceff3]">
+        <div className="h-full rounded-full bg-[#f45d1f]" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="mt-4 grid gap-2 lg:grid-cols-5">
+        {progress.items.map((item) => (
+          <article key={item.key} className={`rounded-md border p-3 ${item.done ? "border-emerald-200 bg-emerald-50" : "border-black/10 bg-white"}`}>
+            <div className="flex items-start gap-2">
+              {item.done ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /> : <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-orange-700" />}
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-black">{item.title}</h3>
+                <p className="mt-1 text-xs leading-5 text-[#59616b]">{item.text}</p>
+              </div>
+            </div>
+            {item.key === "ads" && !item.done ? (
+              <button
+                type="button"
+                onClick={onCreateAd}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white"
+              >
+                <Plus size={15} />
+                {item.action}
+              </button>
+            ) : (
+              <a
+                href={item.href}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d]"
+              >
+                {item.action}
+                <ArrowUpRight size={14} />
+              </a>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PeoplePanel({
   users,
   form,
@@ -970,7 +1094,7 @@ function PeoplePanel({
   const roleNeedsBranch = form.role !== "PARTY_ADMIN" && form.role !== "CENTRAL_REVIEWER";
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <section id="people" className="grid scroll-mt-6 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <article className="rounded-md border border-black/10 bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1125,7 +1249,7 @@ function MissingDataQueue({
   }
 
   return (
-    <section className="rounded-md border border-orange-200 bg-orange-50/55 p-4">
+    <section id="missing-data" className="scroll-mt-6 rounded-md border border-orange-200 bg-orange-50/55 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-black">Co je potřeba doplnit</h2>
@@ -1187,7 +1311,7 @@ function ReviewInbox({
   const reviewAds = ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW");
 
   return (
-    <section className="rounded-md border border-sky-200 bg-sky-50/55 p-4">
+    <section id="review" className="scroll-mt-6 rounded-md border border-sky-200 bg-sky-50/55 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-black">Ke kontrole</h2>
