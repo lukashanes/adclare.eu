@@ -32,6 +32,9 @@ const objectStorage = read("src/lib/object-storage.ts");
 const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
 const adminAuth = read("src/lib/admin-auth.ts");
 const adminPage = read("src/app/[locale]/admin/page.tsx");
+const appBillingCheckoutRoute = read("src/app/api/app/billing/checkout/route.ts");
+const appBillingPortalRoute = read("src/app/api/app/billing/portal/route.ts");
+const appBillingInvoiceRoute = read("src/app/api/app/billing/request-invoice/route.ts");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
@@ -69,6 +72,10 @@ check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), 
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/request-changes/route.ts")), "App request changes route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/audit-export/route.ts")), "App audit export route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/billing/portal/route.ts")), "App billing portal route is missing.");
+check(
+  appBillingCheckoutRoute.includes("billing-checkout") && appBillingPortalRoute.includes("billing-portal") && appBillingInvoiceRoute.includes("billing-invoice-request"),
+  "App billing actions should be rate limited.",
+);
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
 check(adminDb.includes("requestAppAdChanges"), "Review change request handler is missing.");
 check(appWorkspace.includes("Ke kontrole") && appWorkspace.includes("Vrátit k doplnění"), "Workspace should expose review inbox and change requests.");

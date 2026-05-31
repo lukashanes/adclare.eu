@@ -1,6 +1,7 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
 import { getUserBillingAccess } from "@/lib/billing-access";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { createTenantPortalSession } from "@/lib/stripe-billing";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,17 @@ export async function POST(request: Request) {
 
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const limit = await checkRateLimit({
+    scope: "billing-portal",
+    identifier: session.userId,
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!limit.allowed) {
+    return Response.json({ error: "Too many requests." }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
   const billingAccess = await getUserBillingAccess(session.userId, "cs");

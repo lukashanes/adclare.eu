@@ -1,6 +1,7 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
 import { requestInvoiceActivation } from "@/lib/billing-access";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,6 +15,17 @@ export async function POST(request: Request) {
 
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const limit = await checkRateLimit({
+    scope: "billing-invoice-request",
+    identifier: session.userId,
+    limit: 3,
+    windowMs: 24 * 60 * 60 * 1000,
+  });
+
+  if (!limit.allowed) {
+    return Response.json({ error: "Too many requests." }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
   try {
