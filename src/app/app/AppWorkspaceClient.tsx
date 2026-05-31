@@ -329,10 +329,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         workflowError instanceof Error
           ? workflowError.message
           : action === "approve"
-            ? "Reklamu se nepodařilo schválit. Zkontrolujte povinné údaje a oprávnění."
+            ? "Reklamu se nepodařilo schválit. Zkontrolujte povinné údaje a svůj přístup."
             : action === "publish"
-              ? "Reklamu se nepodařilo publikovat. Zkontrolujte povinné údaje a oprávnění."
-              : "Reklamu se nepodařilo vrátit k doplnění. Doplňte komentář a zkontrolujte oprávnění.",
+              ? "Reklamu se nepodařilo publikovat. Zkontrolujte povinné údaje a svůj přístup."
+              : "Reklamu se nepodařilo vrátit k doplnění. Doplňte komentář a zkontrolujte svůj přístup.",
       );
     } finally {
       setActioning("");
@@ -395,10 +395,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <article className="rounded-md border border-black/10 bg-white p-5">
-          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Pracovní plocha</p>
-          <h1 className="mt-2 text-3xl font-semibold text-black">Reklamy, které jsou ve vašem rozsahu</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Správa reklam</p>
+          <h1 className="mt-2 text-3xl font-semibold text-black">Všechny reklamy na jednom místě</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#59616b]">
-            Přidávejte a upravujte záznamy na jednom místě. Pokud chybí povinné údaje, stav se propíše do semaforu a QR balíček zůstane zablokovaný.
+            Nahrajte materiál, doplňte údaje, pošlete reklamu ke kontrole a stáhněte QR balíček. Pokud něco chybí, reklama se označí a nejde omylem pustit dál.
           </p>
           {error ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
         </article>
@@ -413,7 +413,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
               <span className="font-semibold text-[#20242a]">{workspace.membership.role}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="text-[#68707a]">Rozsah</span>
+              <span className="text-[#68707a]">Vidí reklamy pro</span>
               <span className="text-right font-semibold text-[#20242a]">{workspace.membership.scope}</span>
             </div>
             <div className="flex justify-between gap-3">
@@ -423,10 +423,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           </div>
           <div className="mt-4 flex flex-wrap gap-1.5">
             {([
-              ["evidence", workspace.permissions.canEditAds],
-              ["upload", workspace.permissions.canUploadAssets],
-              ["schválení", workspace.permissions.canApproveAds],
-              ["publikace", workspace.permissions.canPublishAds],
+              ["údaje", workspace.permissions.canEditAds],
+              ["soubory", workspace.permissions.canUploadAssets],
+              ["kontrola", workspace.permissions.canApproveAds],
+              ["zveřejnění", workspace.permissions.canPublishAds],
             ] satisfies Array<[string, boolean]>).map(([label, enabled]) => (
               <span
                 key={label}
@@ -511,7 +511,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         <div className="overflow-hidden rounded-md border border-black/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-black/10 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-black">Databáze reklam</h2>
+              <h2 className="text-lg font-semibold text-black">Seznam reklam</h2>
               <p className="mt-1 text-sm text-[#59616b]">
                 Tarif: {workspace.billing?.effectivePrice ?? "-"} · Platba: {workspace.billing?.methodLabel ?? "-"}
               </p>
@@ -548,7 +548,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-[#f7f7f8] text-xs text-[#68707a]">
                 <tr>
-                  {["Kód", "Materiál", "Pobočka", "Kampaň", "Termín", "Chybí", "Workflow", "Akce"].map((head) => (
+                  {["Kód", "Materiál", "Pobočka", "Kampaň", "Termín", "Chybí", "Stav", "Akce"].map((head) => (
                     <th key={head} className="px-4 py-3 font-semibold">
                       {head}
                     </th>
@@ -596,7 +596,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
                 {filteredAds.length === 0 ? (
                   <tr>
                     <td className="px-4 py-8 text-center text-[#59616b]" colSpan={8}>
-                      V tomto rozsahu zatím nejsou žádné reklamy.
+                      Zatím tu nejsou žádné reklamy.
                     </td>
                   </tr>
                 ) : null}
@@ -696,7 +696,7 @@ function Editor({
       <div className="flex flex-col gap-3 border-b border-black/10 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-black">{mode === "create" ? "Nová reklama" : `Úprava reklamy ${form.code}`}</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Uložení ihned přepočítá chybějící údaje, workflow stav a dostupnost QR balíčku.</p>
+          <p className="mt-1 text-sm text-[#59616b]">Po uložení hned uvidíte, co ještě chybí a jestli už jde stáhnout QR balíček.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={onCancel} className="inline-flex items-center gap-2 rounded-md border border-black/10 px-3 py-2 text-sm font-semibold">
@@ -835,7 +835,7 @@ function MobileAdCards({
           </div>
         </article>
       ))}
-      {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">V tomto rozsahu zatím nejsou žádné reklamy.</div> : null}
+      {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">Zatím tu nejsou žádné reklamy.</div> : null}
     </div>
   );
 }
@@ -855,8 +855,8 @@ function ReviewInbox({
     <section className="rounded-md border border-sky-200 bg-sky-50/55 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-black">Fronta kontroly</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Reklamy s kompletními údaji čekají na rychlou kontrolu, schválení nebo vrácení k doplnění.</p>
+          <h2 className="text-lg font-semibold text-black">Ke kontrole</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Tyto reklamy už mají vyplněné údaje. Můžete je schválit, nebo je s komentářem vrátit k doplnění.</p>
         </div>
         <span className="inline-flex w-fit rounded-md border border-sky-200 bg-white px-3 py-1.5 text-sm font-semibold text-sky-800">
           {reviewAds.length} ke kontrole
@@ -944,7 +944,7 @@ function DetailPanel({
   return (
     <aside className="rounded-md border border-black/10 bg-white">
       <div className="border-b border-black/10 p-4">
-        <div className="text-sm font-semibold text-[#68707a]">Vybraný záznam</div>
+        <div className="text-sm font-semibold text-[#68707a]">Detail reklamy</div>
         <h2 className="mt-1 text-xl font-semibold text-black">{ad.title}</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
@@ -968,7 +968,7 @@ function DetailPanel({
         </div>
       ) : (
         <div className="mx-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-          Povinné údaje jsou kompletní.
+          Reklama má vyplněné povinné údaje.
         </div>
       )}
       <div className="mx-4 mt-3 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
@@ -1018,7 +1018,7 @@ function DetailPanel({
       </div>
       {ad.reviewEvents.length ? (
         <div className="mx-4 mt-3 rounded-md border border-black/10 bg-white p-3">
-          <div className="text-sm font-semibold text-black">Kontrolní záznam</div>
+          <div className="text-sm font-semibold text-black">Historie kontroly</div>
           <div className="mt-3 grid gap-2">
             {ad.reviewEvents.map((event) => (
               <div key={event.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
