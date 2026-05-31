@@ -3074,6 +3074,147 @@ export async function getAppAdRecord(userId: string, code: string, locale: Local
   return mapAd(ad, locale);
 }
 
+export async function prepareAppAuditExport(userId: string, code: string) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context) {
+    return false;
+  }
+
+  const ad = await prisma.ad.findUnique({
+    where: {
+      tenantId_code: {
+        tenantId: context.membership.tenantId,
+        code,
+      },
+    },
+  });
+
+  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+    return false;
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: context.membership.tenantId,
+      adId: ad.id,
+      actor: context.membership.user.email,
+      actorUserId: context.membership.userId,
+      action: "prepare_audit_export",
+      messageCs: `Připraven auditní export pro reklamu ${ad.code}.`,
+      messageEn: `Audit export prepared for ad ${ad.code}.`,
+    },
+  });
+
+  return true;
+}
+
+export async function getAppAuditPackage(userId: string, code: string, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context) {
+    return null;
+  }
+
+  const ad = await prisma.ad.findUnique({
+    where: {
+      tenantId_code: {
+        tenantId: context.membership.tenantId,
+        code,
+      },
+    },
+    include: {
+      orgUnit: true,
+      campaign: true,
+      tenant: true,
+      auditLogs: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      versions: {
+        orderBy: {
+          version: "asc",
+        },
+      },
+      approvals: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      assets: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
+  });
+
+  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+    return null;
+  }
+
+  const typedAd = ad as AuditPackageAd;
+
+  return {
+    exportedAt: new Date().toISOString(),
+    tenant: {
+      id: context.membership.tenant.id,
+      slug: context.membership.tenant.slug,
+      name: locale === "cs" ? context.membership.tenant.nameCs : context.membership.tenant.nameEn,
+    },
+    campaign: {
+      id: typedAd.campaign.id,
+      slug: typedAd.campaign.slug,
+      name: locale === "cs" ? typedAd.campaign.nameCs : typedAd.campaign.nameEn,
+      election: typedAd.campaign.election,
+      startsAt: typedAd.campaign.startsAt.toISOString(),
+      endsAt: typedAd.campaign.endsAt.toISOString(),
+    },
+    ad: mapAd(typedAd, locale),
+    notice: {
+      publicUrl: `${appUrl()}/ad/${typedAd.publicToken}`,
+      lastUpdated: typedAd.updatedAt.toISOString(),
+      missing: locale === "cs" ? typedAd.missingCs : typedAd.missingEn,
+      workflowStatus: typedAd.workflowStatus,
+      version: typedAd.version,
+      lockedAt: typedAd.lockedAt?.toISOString() ?? null,
+    },
+    versions: typedAd.versions.map((version) => ({
+      version: version.version,
+      reason: version.reason,
+      createdAt: version.createdAt.toISOString(),
+      snapshot: version.snapshot,
+    })),
+    approvals: typedAd.approvals.map((approval) => ({
+      actor: approval.actor,
+      status: approval.status,
+      note: locale === "cs" ? approval.noteCs : approval.noteEn,
+      createdAt: approval.createdAt.toISOString(),
+    })),
+    assets: typedAd.assets.map((asset) => ({
+      id: asset.id,
+      fileName: asset.fileName,
+      originalName: asset.originalName,
+      contentType: asset.contentType,
+      byteSize: asset.byteSize,
+      checksumSha256: asset.checksumSha256,
+      storageProvider: asset.storageProvider,
+      storageBucket: asset.storageBucket,
+      storageKey: asset.storageKey,
+      uploadedBy: asset.uploadedBy,
+      createdAt: asset.createdAt.toISOString(),
+    })),
+    auditLogs: typedAd.auditLogs.map((log) => ({
+      id: log.id,
+      actor: log.actor,
+      action: log.action,
+      message: locale === "cs" ? log.messageCs : log.messageEn,
+      createdAt: log.createdAt.toISOString(),
+    })),
+  };
+}
+
 type StoredAdAssetInput = {
   bucket: string;
   key: string;

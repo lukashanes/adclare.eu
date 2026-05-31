@@ -1364,6 +1364,16 @@ function DetailPanel({
           <Download size={15} />
           Stáhnout QR balíček
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = `/api/app/ads/${encodeURIComponent(ad.id)}/audit-export?locale=cs`;
+          }}
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#25282d]"
+        >
+          <FileArchive size={15} />
+          Stáhnout auditní balíček
+        </button>
         <a className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
           Otevřít oznámení
           <ArrowUpRight size={15} />
