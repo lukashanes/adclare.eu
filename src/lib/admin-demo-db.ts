@@ -2249,12 +2249,41 @@ function isTenantWideRole(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.READONLY_AUDITOR;
 }
 
-function canManageAppAds(role: UserRole) {
-  return role !== UserRole.READONLY_AUDITOR && role !== UserRole.CENTRAL_REVIEWER;
+function canCreateAppAds(role: UserRole) {
+  return (
+    role === UserRole.SUPER_ADMIN ||
+    role === UserRole.PARTY_ADMIN ||
+    role === UserRole.LOCAL_ADMIN ||
+    role === UserRole.CAMPAIGN_MANAGER ||
+    role === UserRole.CANDIDATE
+  );
 }
 
-function canReviewAppAds(role: UserRole) {
-  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.LOCAL_ADMIN;
+function canEditAppAds(role: UserRole) {
+  return canCreateAppAds(role);
+}
+
+function canUploadAppAssets(role: UserRole) {
+  return canEditAppAds(role) || role === UserRole.DESIGNER;
+}
+
+function canApproveAppAds(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER;
+}
+
+function canPublishAppAds(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER;
+}
+
+function appRolePermissions(role: UserRole) {
+  return {
+    canCreateAds: canCreateAppAds(role),
+    canEditAds: canEditAppAds(role),
+    canUploadAssets: canUploadAppAssets(role),
+    canApproveAds: canApproveAppAds(role),
+    canPublishAds: canPublishAppAds(role),
+    canManageBilling: role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN,
+  };
 }
 
 async function getAppAccessContext(userId: string) {
@@ -2340,6 +2369,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   }
 
   const { membership, tenantWideRole } = context;
+  const permissions = appRolePermissions(membership.role);
   const [ads, billingAccess] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
@@ -2382,6 +2412,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       scope: membershipScope,
       status: membershipStatusLabel(membership.status, locale),
     },
+    permissions,
     billing: billingAccess
       ? {
           plan: billingAccess.plan,
@@ -2395,7 +2426,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           activationRequired: billingAccess.activationRequired,
           invoicePending: billingAccess.invoicePending,
           stripeCheckoutConfigured: billingAccess.stripeCheckoutConfigured,
-          canManageBilling: membership.role === UserRole.SUPER_ADMIN || membership.role === UserRole.PARTY_ADMIN,
+          canManageBilling: permissions.canManageBilling,
         }
       : null,
     storage: objectStorageStatus(),
@@ -2414,7 +2445,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
 export async function createAppAd(userId: string, input: EditableAdInput, locale: Locale) {
   const context = await getAppAccessContext(userId);
 
-  if (!context || !canManageAppAds(context.membership.role)) {
+  if (!context || !canCreateAppAds(context.membership.role)) {
     return null;
   }
 
@@ -2519,7 +2550,7 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
 export async function updateAppAd(userId: string, code: string, input: EditableAdInput, locale: Locale) {
   const context = await getAppAccessContext(userId);
 
-  if (!context || !canManageAppAds(context.membership.role)) {
+  if (!context || !canEditAppAds(context.membership.role)) {
     return null;
   }
 
@@ -2714,7 +2745,7 @@ type StoredAdAssetInput = {
 export async function getAppAdUploadTarget(userId: string, code: string) {
   const context = await getAppAccessContext(userId);
 
-  if (!context || !canManageAppAds(context.membership.role)) {
+  if (!context || !canUploadAppAssets(context.membership.role)) {
     return null;
   }
 
@@ -2845,7 +2876,7 @@ export async function getAppAdAssetDownload(userId: string, code: string, assetI
 export async function approveAppAd(userId: string, code: string, locale: Locale) {
   const context = await getAppAccessContext(userId);
 
-  if (!context || !canReviewAppAds(context.membership.role)) {
+  if (!context || !canApproveAppAds(context.membership.role)) {
     return null;
   }
 
@@ -2939,7 +2970,7 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
 export async function publishAppAd(userId: string, code: string, locale: Locale) {
   const context = await getAppAccessContext(userId);
 
-  if (!context || !canReviewAppAds(context.membership.role)) {
+  if (!context || !canPublishAppAds(context.membership.role)) {
     return null;
   }
 

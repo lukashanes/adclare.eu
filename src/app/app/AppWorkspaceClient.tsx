@@ -17,12 +17,11 @@ const workflowClass: Record<AdRecord["workflowStatus"], string> = {
 };
 
 function canManageAds(workspace: AppWorkspacePayload) {
-  return workspace.membership.roleKey !== "READONLY_AUDITOR" && workspace.membership.roleKey !== "CENTRAL_REVIEWER";
+  return workspace.permissions.canEditAds;
 }
 
 function canReviewAds(workspace: AppWorkspacePayload) {
-  const role = workspace.membership.roleKey;
-  return role === "SUPER_ADMIN" || role === "PARTY_ADMIN" || role === "CENTRAL_REVIEWER" || role === "LOCAL_ADMIN";
+  return workspace.permissions.canApproveAds || workspace.permissions.canPublishAds;
 }
 
 function countsForAds(ads: AdRecord[]): AppWorkspacePayload["counts"] {
@@ -338,6 +337,23 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
               <span className="text-right font-semibold text-[#20242a]">{workspace.billing?.statusLabel ?? "nenastaveno"}</span>
             </div>
           </div>
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {([
+              ["evidence", workspace.permissions.canEditAds],
+              ["upload", workspace.permissions.canUploadAssets],
+              ["schválení", workspace.permissions.canApproveAds],
+              ["publikace", workspace.permissions.canPublishAds],
+            ] satisfies Array<[string, boolean]>).map(([label, enabled]) => (
+              <span
+                key={label}
+                className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                  enabled ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-black/10 bg-[#fbfbfc] text-[#8b929b]"
+                }`}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
         </aside>
       </div>
 
@@ -386,7 +402,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
               <button
                 type="button"
                 onClick={openCreate}
-                disabled={!writable}
+                disabled={!workspace.permissions.canCreateAds}
                 className="inline-flex h-10 items-center gap-2 rounded-md bg-[#f45d1f] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
               >
                 <Plus size={15} />
@@ -462,6 +478,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           ad={selectedAd}
           writable={writable}
           reviewable={reviewable}
+          uploadable={workspace.permissions.canUploadAssets}
           actioning={actioning}
           uploading={uploading}
           storage={workspace.storage}
@@ -674,6 +691,7 @@ function DetailPanel({
   ad,
   writable,
   reviewable,
+  uploadable,
   actioning,
   uploading,
   storage,
@@ -685,6 +703,7 @@ function DetailPanel({
   ad: AdRecord | null;
   writable: boolean;
   reviewable: boolean;
+  uploadable: boolean;
   actioning: string;
   uploading: string;
   storage: AppWorkspacePayload["storage"];
@@ -754,7 +773,7 @@ function DetailPanel({
           </div>
           <label
             className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
-              writable && storage.configured && !uploading ? "cursor-pointer bg-[#11161c] text-white" : "cursor-not-allowed bg-[#c9cdd3] text-white"
+              uploadable && storage.configured && !uploading ? "cursor-pointer bg-[#11161c] text-white" : "cursor-not-allowed bg-[#c9cdd3] text-white"
             }`}
           >
             <Upload size={15} />
@@ -762,7 +781,7 @@ function DetailPanel({
             <input
               type="file"
               className="sr-only"
-              disabled={!writable || !storage.configured || Boolean(uploading)}
+              disabled={!uploadable || !storage.configured || Boolean(uploading)}
               accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,video/mp4,video/quicktime"
               onChange={(event) => {
                 onUpload(ad, event.target.files?.[0] ?? null);

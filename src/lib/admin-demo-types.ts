@@ -219,6 +219,14 @@ export type AppWorkspacePayload = {
     scope: string;
     status: string;
   };
+  permissions: {
+    canCreateAds: boolean;
+    canEditAds: boolean;
+    canUploadAssets: boolean;
+    canApproveAds: boolean;
+    canPublishAds: boolean;
+    canManageBilling: boolean;
+  };
   billing: {
     plan: BillingPlanKey;
     status: BillingStatusKey;

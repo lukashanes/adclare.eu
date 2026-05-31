@@ -53,6 +53,9 @@ check(existsSync(resolve(root, "scripts/check-object-storage.mjs")), "Object sto
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/route.ts")), "App ad asset upload route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/[assetId]/route.ts")), "App ad asset download route is missing.");
 check(appWorkspace.includes("Soubory materiálu") && appWorkspace.includes("onUpload"), "Workspace should expose ad asset upload controls.");
+check(schema.includes("DESIGNER") && adminDb.includes("canUploadAppAssets"), "Designer upload permission should be explicit.");
+check(adminDb.includes("canApproveAppAds") && adminDb.includes("canPublishAppAds"), "Approval and publishing permissions should be explicit.");
+check(appWorkspace.includes("workspace.permissions.canCreateAds"), "Workspace should use API permissions for create actions.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");
