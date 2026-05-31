@@ -61,6 +61,7 @@ type AdWithUnit = Ad & {
   campaign: Campaign;
   tenant?: Tenant;
   assets?: AdAsset[];
+  approvals?: Approval[];
 };
 type AdWithRepositoryRelations = AdWithUnit;
 type MembershipWithUserAndUnit = TenantMembership & {
@@ -98,6 +99,16 @@ function formatDate(date: Date, locale: Locale) {
     day: "numeric",
     month: locale === "cs" ? "numeric" : "short",
     year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(date: Date, locale: Locale) {
+  return new Intl.DateTimeFormat(locale === "cs" ? "cs-CZ" : "en-GB", {
+    day: "numeric",
+    month: locale === "cs" ? "numeric" : "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -163,6 +174,18 @@ function workflowLabel(status: AdWorkflowStatus, locale: Locale) {
   return labels[status][locale];
 }
 
+function approvalStatusLabel(status: ApprovalStatus, locale: Locale) {
+  const labels: Record<ApprovalStatus, Record<Locale, string>> = {
+    REQUESTED: { cs: "předáno ke kontrole", en: "review requested" },
+    APPROVED: { cs: "schváleno", en: "approved" },
+    CHANGES_REQUESTED: { cs: "vráceno k doplnění", en: "changes requested" },
+    REJECTED: { cs: "zamítnuto", en: "rejected" },
+    PUBLISHED: { cs: "publikováno", en: "published" },
+  };
+
+  return labels[status][locale];
+}
+
 function formatBytes(bytes: number, locale: Locale) {
   return new Intl.NumberFormat(locale === "cs" ? "cs-CZ" : "en-GB", {
     maximumFractionDigits: bytes >= 1024 * 1024 ? 1 : 0,
@@ -183,6 +206,19 @@ function mapAsset(asset: AdAsset, adCode: string, locale: Locale) {
   };
 }
 
+function mapReviewEvent(event: Approval, locale: Locale) {
+  const isCs = locale === "cs";
+
+  return {
+    id: event.id,
+    status: event.status,
+    statusLabel: approvalStatusLabel(event.status, locale),
+    actor: event.actor,
+    note: isCs ? event.noteCs : event.noteEn,
+    createdAt: formatDateTime(event.createdAt, locale),
+  };
+}
+
 function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
   const isCs = locale === "cs";
   const missing = missingForAd(ad, locale);
@@ -190,6 +226,7 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
   const workflowStatus = workflowStatusForAd(ad, missing);
   const state = deadlineState(ad, missing);
   const assets = (ad.assets ?? []).map((asset) => mapAsset(asset, ad.code, locale));
+  const reviewEvents = (ad.approvals ?? []).map((event) => mapReviewEvent(event, locale));
 
   return {
     id: ad.code,
@@ -239,6 +276,7 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     canDownloadQr: missing.length === 0 && workflowStatus !== AdWorkflowStatus.ARCHIVED && workflowStatus !== AdWorkflowStatus.NEEDS_DATA,
     assetCount: assets.length,
     assets,
+    reviewEvents,
   };
 }
 
@@ -1030,6 +1068,12 @@ export async function getDemoAdsPayload(locale: Locale) {
           orderBy: {
             createdAt: "desc",
           },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 5,
         },
       },
       orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
@@ -2047,7 +2091,27 @@ export async function approveDemoAd(code: string, locale: Locale) {
       },
     });
 
-    return approved;
+    return tx.ad.findUniqueOrThrow({
+      where: {
+        id: approved.id,
+      },
+      include: {
+        orgUnit: true,
+        campaign: true,
+        tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 5,
+        },
+      },
+    });
   });
 
   return mapAd(updated, locale);
@@ -2409,6 +2473,12 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           orderBy: {
             createdAt: "desc",
           },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 5,
         },
       },
       orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
@@ -2827,6 +2897,12 @@ export async function getAppAdRecord(userId: string, code: string, locale: Local
           createdAt: "desc",
         },
       },
+      approvals: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 5,
+      },
     },
   });
 
@@ -3067,7 +3143,27 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
       },
     });
 
-    return approved;
+    return tx.ad.findUniqueOrThrow({
+      where: {
+        id: approved.id,
+      },
+      include: {
+        orgUnit: true,
+        campaign: true,
+        tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 5,
+        },
+      },
+    });
   });
 
   return mapAd(updated, locale);
@@ -3155,7 +3251,27 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
       },
     });
 
-    return returned;
+    return tx.ad.findUniqueOrThrow({
+      where: {
+        id: returned.id,
+      },
+      include: {
+        orgUnit: true,
+        campaign: true,
+        tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 5,
+        },
+      },
+    });
   });
 
   return mapAd(updated, locale);
@@ -3251,7 +3367,27 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
       },
     });
 
-    return published;
+    return tx.ad.findUniqueOrThrow({
+      where: {
+        id: published.id,
+      },
+      include: {
+        orgUnit: true,
+        campaign: true,
+        tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        approvals: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 5,
+        },
+      },
+    });
   });
 
   return mapAd(updated, locale);

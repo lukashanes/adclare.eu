@@ -66,6 +66,7 @@ check(existsSync(resolve(root, "src/app/api/app/billing/portal/route.ts")), "App
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
 check(adminDb.includes("requestAppAdChanges"), "Review change request handler is missing.");
 check(appWorkspace.includes("Fronta kontroly") && appWorkspace.includes("Vrátit k doplnění"), "Workspace should expose review inbox and change requests.");
+check(appWorkspace.includes("Kontrolní záznam") && adminDb.includes("mapReviewEvent"), "Workspace should expose review decision history.");
 check(!marketingPage.includes("2FA"), "Marketing page should not claim 2FA before it is implemented.");
 check(adminAuth.includes("isDemoAdminEnabled"), "Demo admin feature flag is missing.");
 check(adminAuth.includes('process.env.NODE_ENV !== "production"'), "Demo admin should default to disabled in production.");

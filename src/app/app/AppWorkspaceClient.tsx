@@ -134,6 +134,18 @@ function deadlineIcon(ad: AdRecord) {
   return <CircleDot className="h-4 w-4 text-orange-700" aria-hidden="true" />;
 }
 
+function reviewEventClass(status: AdRecord["reviewEvents"][number]["status"]) {
+  if (status === "APPROVED" || status === "PUBLISHED") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+
+  if (status === "CHANGES_REQUESTED" || status === "REJECTED") {
+    return "border-orange-200 bg-orange-50 text-orange-800";
+  }
+
+  return "border-sky-200 bg-sky-50 text-sky-800";
+}
+
 export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: AppWorkspacePayload }) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [query, setQuery] = useState("");
@@ -926,6 +938,7 @@ function DetailPanel({
     ["Cílení", ad.isTargeted ? ad.targetAudience || "chybí publikum" : "nepoužito"],
     ["Soubory", ad.assetCount ? `${ad.assetCount} nahráno` : "zatím žádný"],
     ["Verze", `v${ad.version}${ad.locked ? " · zamčeno" : ""}`],
+    ...(ad.statusNote ? ([["Poznámka", ad.statusNote]] as const) : []),
   ];
 
   return (
@@ -1003,6 +1016,23 @@ function DetailPanel({
           </div>
         ) : null}
       </div>
+      {ad.reviewEvents.length ? (
+        <div className="mx-4 mt-3 rounded-md border border-black/10 bg-white p-3">
+          <div className="text-sm font-semibold text-black">Kontrolní záznam</div>
+          <div className="mt-3 grid gap-2">
+            {ad.reviewEvents.map((event) => (
+              <div key={event.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${reviewEventClass(event.status)}`}>{event.statusLabel}</span>
+                  <span className="text-xs font-semibold text-[#68707a]">{event.createdAt}</span>
+                </div>
+                <div className="mt-2 text-xs text-[#68707a]">{event.actor}</div>
+                {event.note ? <p className="mt-1 text-sm font-semibold leading-5 text-[#20242a]">{event.note}</p> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-2 p-4">
         <button
           type="button"

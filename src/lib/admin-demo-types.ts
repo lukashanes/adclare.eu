@@ -31,6 +31,15 @@ export type AdAssetRecord = {
   checksumSha256: string;
 };
 
+export type AdReviewEventRecord = {
+  id: string;
+  status: "REQUESTED" | "APPROVED" | "CHANGES_REQUESTED" | "REJECTED" | "PUBLISHED";
+  statusLabel: string;
+  actor: string;
+  note: string;
+  createdAt: string;
+};
+
 export type AdRecord = {
   id: string;
   publicUrl: string;
@@ -79,6 +88,7 @@ export type AdRecord = {
   canDownloadQr: boolean;
   assetCount: number;
   assets: AdAssetRecord[];
+  reviewEvents: AdReviewEventRecord[];
 };
 
 export type AdminAdsPayload = {
