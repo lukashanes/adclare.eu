@@ -165,6 +165,13 @@ Production PostgreSQL backups run through `scripts/backup-postgres.sh`. Recommen
 17 2 * * * root APP_DIR=/srv/apps/adclare BACKUP_DIR=/srv/backups/adclare/postgres RETENTION_DAYS=30 /srv/apps/adclare/scripts/backup-postgres.sh >> /var/log/adclare-postgres-backup.log 2>&1
 ```
 
+Install log rotation for the backup log:
+
+```bash
+cp deploy/logrotate/adclare-postgres-backup /etc/logrotate.d/adclare-postgres-backup
+logrotate -d /etc/logrotate.d/adclare-postgres-backup
+```
+
 Restore is guarded by `CONFIRM_RESTORE=adclare-prod`:
 
 ```bash
