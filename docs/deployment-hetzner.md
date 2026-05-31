@@ -108,8 +108,7 @@ Current production status:
 - Local app port: `127.0.0.1:13310`
 - Nginx vhost: `/etc/nginx/sites-enabled/adclare.eu`
 - Public URLs: `https://adclare.eu/cs`, `https://adclare.eu/en`
-- Public demo repository: `https://adclare.eu/repo/demo-party`
-- Public demo repository JSON: `https://adclare.eu/api/repo/demo-party/ads?locale=cs`
+- Public demo repository is disabled by default. It is available only when `NEXT_PUBLIC_SHOW_DEMO_REPO=1`.
 - `www.adclare.eu` redirects to `https://adclare.eu/`
 - Docker healthcheck is enabled and checks `/api/health`.
 

@@ -292,6 +292,10 @@ function appUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://adclare.eu").replace(/\/$/, "");
 }
 
+function isDemoPublicRepositoryEnabled() {
+  return process.env.NEXT_PUBLIC_SHOW_DEMO_REPO === "1";
+}
+
 function emailFrom() {
   return process.env.EMAIL_FROM || "Adclare <noreply@adclare.eu>";
 }
@@ -1104,6 +1108,10 @@ export async function getPublicRepositoryPayload(
   locale: Locale,
   inputFilters: Partial<PublicRepositoryFilters> = {},
 ): Promise<PublicRepositoryPayload | null> {
+  if (requestedTenantSlug === tenantSlug && !isDemoPublicRepositoryEnabled()) {
+    return null;
+  }
+
   const tenant = await prisma.tenant.findUnique({
     where: {
       slug: requestedTenantSlug,

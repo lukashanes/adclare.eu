@@ -79,6 +79,7 @@ check(adminAuth.includes("isDemoAdminEnabled"), "Demo admin feature flag is miss
 check(adminAuth.includes('process.env.NODE_ENV !== "production"'), "Demo admin should default to disabled in production.");
 check(adminPage.includes("isDemoAdminEnabled") && adminPage.includes("notFound()"), "Demo admin page should 404 when disabled.");
 check(composeProd.includes("ENABLE_DEMO_ADMIN: ${ENABLE_DEMO_ADMIN:-0}"), "Production compose should disable demo admin by default.");
+check(adminDb.includes("isDemoPublicRepositoryEnabled") && adminDb.includes("NEXT_PUBLIC_SHOW_DEMO_REPO"), "Public demo repository should require an explicit feature flag.");
 
 for (const path of [
   "src/app/[locale]/privacy/page.tsx",
