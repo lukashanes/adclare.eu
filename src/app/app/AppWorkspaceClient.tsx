@@ -3,9 +3,19 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, CreditCard, Download, Edit3, FileArchive, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
-import type { AdRecord, AppWorkspacePayload, EditableAdInput } from "@/lib/admin-demo-types";
+import type { AdRecord, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
+
+const inviteRoles: Array<{ value: InviteInput["role"]; label: string }> = [
+  { value: "LOCAL_ADMIN", label: "Správce pobočky" },
+  { value: "CAMPAIGN_MANAGER", label: "Kampaňový manažer" },
+  { value: "DESIGNER", label: "Grafik nebo agentura" },
+  { value: "CANDIDATE", label: "Kandidát" },
+  { value: "CENTRAL_REVIEWER", label: "Kontrola" },
+  { value: "READONLY_AUDITOR", label: "Pouze náhled" },
+  { value: "PARTY_ADMIN", label: "Správce strany" },
+];
 
 const workflowClass: Record<AdRecord["workflowStatus"], string> = {
   DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
@@ -55,6 +65,14 @@ function workspaceWithAd(workspace: AppWorkspacePayload, nextAd: AdRecord) {
     ...workspace,
     ads,
     counts: countsForAds(ads),
+  };
+}
+
+function blankInviteForm(workspace: AppWorkspacePayload): InviteInput {
+  return {
+    email: "",
+    role: "LOCAL_ADMIN",
+    branchId: workspace.branches[0]?.id ?? "",
   };
 }
 
@@ -159,6 +177,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [branchName, setBranchName] = useState("");
   const [branchKind, setBranchKind] = useState("oblast");
   const [branchSaving, setBranchSaving] = useState(false);
+  const [inviteForm, setInviteForm] = useState<InviteInput>(() => blankInviteForm(initialWorkspace));
+  const [inviteSaving, setInviteSaving] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [retryingInviteId, setRetryingInviteId] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [error, setError] = useState("");
 
@@ -232,6 +254,77 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       setError(branchError instanceof Error ? branchError.message : "Pobočku se nepodařilo založit.");
     } finally {
       setBranchSaving(false);
+    }
+  }
+
+  async function createInvitation() {
+    if (!workspace.permissions.canManageUsers || inviteSaving || !inviteForm.email.trim()) {
+      return;
+    }
+
+    setInviteSaving(true);
+    setError("");
+    setInviteMessage("");
+
+    try {
+      const response = await fetch("/api/app/users?locale=cs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(inviteForm),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string };
+
+      if (!response.ok || !payload.invitation) {
+        throw new Error(payload.error || `Invite failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        users: {
+          ...current.users,
+          invitations: [payload.invitation as AppWorkspacePayload["users"]["invitations"][number], ...current.users.invitations.filter((item) => item.id !== payload.invitation?.id)],
+        },
+      }));
+      setInviteForm((current) => ({ ...blankInviteForm(workspace), role: current.role }));
+      setInviteMessage(payload.invitation.inviteUrl);
+    } catch (inviteError) {
+      setError(inviteError instanceof Error ? inviteError.message : "Pozvánku se nepodařilo vytvořit.");
+    } finally {
+      setInviteSaving(false);
+    }
+  }
+
+  async function retryInvitationEmail(invitationId: string) {
+    if (!workspace.permissions.canManageUsers || retryingInviteId) {
+      return;
+    }
+
+    setRetryingInviteId(invitationId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/app/users/${encodeURIComponent(invitationId)}/retry-email?locale=cs`, {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string };
+
+      if (!response.ok || !payload.invitation) {
+        throw new Error(payload.error || `Invite email retry failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        users: {
+          ...current.users,
+          invitations: current.users.invitations.map((item) => (item.id === payload.invitation?.id ? payload.invitation : item)),
+        },
+      }));
+    } catch (inviteError) {
+      setError(inviteError instanceof Error ? inviteError.message : "Pozvánku se nepodařilo znovu odeslat.");
+    } finally {
+      setRetryingInviteId("");
     }
   }
 
@@ -503,6 +596,19 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
             ))}
           </div>
         </section>
+      ) : null}
+
+      {workspace.permissions.canManageUsers ? (
+        <PeoplePanel
+          users={workspace.users}
+          form={inviteForm}
+          saving={inviteSaving}
+          retryingInviteId={retryingInviteId}
+          message={inviteMessage}
+          onChange={setInviteForm}
+          onCreate={createInvitation}
+          onRetryEmail={retryInvitationEmail}
+        />
       ) : null}
 
       {reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
@@ -837,6 +943,163 @@ function MobileAdCards({
       ))}
       {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">Zatím tu nejsou žádné reklamy.</div> : null}
     </div>
+  );
+}
+
+function PeoplePanel({
+  users,
+  form,
+  saving,
+  retryingInviteId,
+  message,
+  onChange,
+  onCreate,
+  onRetryEmail,
+}: {
+  users: AppWorkspacePayload["users"];
+  form: InviteInput;
+  saving: boolean;
+  retryingInviteId: string;
+  message: string;
+  onChange: (form: InviteInput) => void;
+  onCreate: () => void;
+  onRetryEmail: (invitationId: string) => void;
+}) {
+  const roleNeedsBranch = form.role !== "PARTY_ADMIN" && form.role !== "CENTRAL_REVIEWER";
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <article className="rounded-md border border-black/10 bg-white p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-black">Lidé a pozvánky</h2>
+            <p className="mt-1 text-sm text-[#59616b]">Pozvěte pobočku, kandidáta nebo externí grafiky. Každý dostane vlastní přístup a uvidí jen práci, kterou má řešit.</p>
+          </div>
+          <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
+            {users.members.length} aktivních
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          <div>
+            <h3 className="text-sm font-semibold text-[#68707a]">Aktivní lidé</h3>
+            <div className="mt-2 grid gap-2">
+              {users.members.slice(0, 6).map((member) => (
+                <div key={member.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                  <div className="font-semibold text-black">{member.name}</div>
+                  <div className="mt-1 break-all text-sm text-[#59616b]">{member.email}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
+                    <span className="rounded-md border border-black/10 bg-white px-2 py-1">{member.role}</span>
+                    <span className="rounded-md border border-black/10 bg-white px-2 py-1">{member.scope}</span>
+                  </div>
+                </div>
+              ))}
+              {users.members.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není přidaný žádný člověk.</div> : null}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-[#68707a]">Poslední pozvánky</h3>
+            <div className="mt-2 grid gap-2">
+              {users.invitations.slice(0, 6).map((invitation) => (
+                <div key={invitation.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="break-all font-semibold text-black">{invitation.email}</div>
+                      <div className="mt-1 text-sm text-[#59616b]">{invitation.role} · {invitation.scope}</div>
+                    </div>
+                    <span className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-[#25282d]">{invitation.status}</span>
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-[#68707a]">{invitation.emailStatus} · do {invitation.expiresAt}</div>
+                  <a className="mt-2 block break-all text-xs font-semibold text-[#d94410]" href={invitation.inviteUrl}>
+                    {invitation.inviteUrl}
+                  </a>
+                  {invitation.emailStatusKey !== "SENT" ? (
+                    <button
+                      type="button"
+                      onClick={() => onRetryEmail(invitation.id)}
+                      disabled={Boolean(retryingInviteId)}
+                      className="mt-2 inline-flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+                    >
+                      <RefreshCw size={15} />
+                      {retryingInviteId === invitation.id ? "Odesílám" : "Zkusit odeslat znovu"}
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              {users.invitations.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím nebyla odeslaná žádná pozvánka.</div> : null}
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <aside className="rounded-md border border-black/10 bg-white p-4">
+        <h2 className="text-lg font-semibold text-black">Pozvat člověka</h2>
+        <div className="mt-3 grid gap-3">
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            E-mail
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) => onChange({ ...form, email: event.target.value })}
+              placeholder="napr. grafik@example.cz"
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
+            />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            Role
+            <select
+              value={form.role}
+              onChange={(event) => onChange({ ...form, role: event.target.value as InviteInput["role"] })}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
+            >
+              {inviteRoles.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            Pobočka nebo oblast
+            <select
+              value={form.branchId ?? ""}
+              onChange={(event) => onChange({ ...form, branchId: event.target.value })}
+              disabled={!roleNeedsBranch}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]"
+            >
+              <option value="">{roleNeedsBranch ? "Vyberte pobočku" : "Celá strana"}</option>
+              {users.branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={saving || !form.email.trim() || (roleNeedsBranch && !form.branchId)}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+          >
+            <Plus size={15} />
+            {saving ? "Posílám" : "Poslat pozvánku"}
+          </button>
+
+          {message ? (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+              Pozvánka je připravená.
+              <a className="mt-1 block break-all text-[#166534]" href={message}>
+                {message}
+              </a>
+            </div>
+          ) : null}
+        </div>
+      </aside>
+    </section>
   );
 }
 

@@ -58,6 +58,9 @@ check(adminDb.includes("canApproveAppAds") && adminDb.includes("canPublishAppAds
 check(appWorkspace.includes("workspace.permissions.canCreateAds"), "Workspace should use API permissions for create actions.");
 check(adminDb.includes("createAppBranch") && existsSync(resolve(root, "src/app/api/app/branches/route.ts")), "App branch management route is missing.");
 check(appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type === "branch"'), "Workspace should use controlled branch management.");
+check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/users/[invitationId]/retry-email/route.ts")), "App invitation retry route is missing.");
+check(appWorkspace.includes("Lidé a pozvánky") && appWorkspace.includes("Poslat pozvánku"), "Workspace should expose people and invitation management.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");

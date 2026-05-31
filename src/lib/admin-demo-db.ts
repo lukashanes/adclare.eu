@@ -2354,6 +2354,10 @@ function canManageAppBranches(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
 }
 
+function canManageAppUsers(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
+}
+
 function appRolePermissions(role: UserRole) {
   return {
     canCreateAds: canCreateAppAds(role),
@@ -2362,6 +2366,7 @@ function appRolePermissions(role: UserRole) {
     canApproveAds: canApproveAppAds(role),
     canPublishAds: canPublishAppAds(role),
     canManageBranches: canManageAppBranches(role),
+    canManageUsers: canManageAppUsers(role),
     canManageBilling: role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN,
   };
 }
@@ -2462,7 +2467,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
 
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
-  const [ads, branches, billingAccess] = await Promise.all([
+  const [ads, branches, memberships, invitations, billingAccess] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
@@ -2490,6 +2495,38 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       },
       orderBy: [{ kind: "asc" }, { nameCs: "asc" }],
     }),
+    permissions.canManageUsers
+      ? prisma.tenantMembership.findMany({
+          where: {
+            tenantId: membership.tenantId,
+          },
+          include: {
+            user: true,
+            orgUnit: true,
+          },
+          orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+        })
+      : Promise.resolve([]),
+    permissions.canManageUsers
+      ? prisma.invitation.findMany({
+          where: {
+            tenantId: membership.tenantId,
+          },
+          include: {
+            orgUnit: true,
+            emailMessages: {
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 1,
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 20,
+        })
+      : Promise.resolve([]),
     getTenantBillingAccess(membership.tenantId, locale),
   ]);
 
@@ -2522,6 +2559,14 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       name: locale === "cs" ? branch.nameCs : branch.nameEn,
     })),
     permissions,
+    users: {
+      members: memberships.map((member) => mapMember(member, locale)),
+      invitations: invitations.map((invitation) => mapInvitation(invitation, locale)),
+      branches: branches.map((branch) => ({
+        id: branch.id,
+        name: locale === "cs" ? branch.nameCs : branch.nameEn,
+      })),
+    },
     billing: billingAccess
       ? {
           plan: billingAccess.plan,
@@ -2616,6 +2661,122 @@ export async function createAppBranch(userId: string, input: AppBranchInput, loc
     id: branch.id,
     name: locale === "cs" ? branch.nameCs : branch.nameEn,
   };
+}
+
+export async function createAppInvitation(userId: string, input: InviteInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppUsers(context.membership.role)) {
+    return null;
+  }
+
+  const email = normalizeEmail(input.email);
+
+  if (!isValidEmail(email)) {
+    throw new Error("Zadejte platný e-mail.");
+  }
+
+  const role = normalizeInviteRole(input.role);
+  const orgUnit =
+    input.branchId && role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER
+      ? await prisma.organizationUnit.findFirst({
+          where: {
+            id: input.branchId,
+            tenantId: context.membership.tenantId,
+          },
+        })
+      : null;
+
+  if (role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER && !orgUnit) {
+    throw new Error("Vyberte pobočku pro člověka, který nemá pracovat s celou stranou.");
+  }
+
+  await prisma.invitation.updateMany({
+    where: {
+      tenantId: context.membership.tenantId,
+      email,
+      status: InvitationStatus.PENDING,
+    },
+    data: {
+      status: InvitationStatus.REVOKED,
+    },
+  });
+
+  const invitation = await prisma.invitation.create({
+    data: {
+      tenantId: context.membership.tenantId,
+      orgUnitId: orgUnit?.id,
+      email,
+      role,
+      token: createInviteToken(),
+      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      invitedByUserId: context.membership.userId,
+    },
+    include: {
+      tenant: true,
+      orgUnit: true,
+    },
+  });
+
+  const emailMessage = await sendInvitationEmail(invitation);
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: context.membership.tenantId,
+      actor: context.membership.user.email,
+      actorUserId: context.membership.userId,
+      action: "create_invitation",
+      messageCs: `Pozván ${email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
+      messageEn: `Invited ${email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
+    },
+  });
+
+  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
+}
+
+export async function retryAppInvitationEmail(userId: string, invitationId: string, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppUsers(context.membership.role)) {
+    return null;
+  }
+
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      id: invitationId,
+      tenantId: context.membership.tenantId,
+    },
+    include: {
+      tenant: true,
+      orgUnit: true,
+      emailMessages: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!invitation) {
+    return null;
+  }
+
+  const latestEmail = invitation.emailMessages[0];
+  const emailMessage = latestEmail?.status === EmailStatus.SENT ? latestEmail : await sendInvitationEmail(invitation);
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: context.membership.tenantId,
+      actor: context.membership.user.email,
+      actorUserId: context.membership.userId,
+      action: "retry_invitation_email",
+      messageCs: `Znovu zpracováno odeslání pozvánky pro ${invitation.email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
+      messageEn: `Retried invitation email for ${invitation.email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
+    },
+  });
+
+  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
 }
 
 export async function createAppAd(userId: string, input: EditableAdInput, locale: Locale) {

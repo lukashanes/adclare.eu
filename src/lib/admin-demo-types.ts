@@ -247,6 +247,7 @@ export type AppWorkspacePayload = {
     canApproveAds: boolean;
     canPublishAds: boolean;
     canManageBranches: boolean;
+    canManageUsers: boolean;
     canManageBilling: boolean;
   };
   billing: {
@@ -269,6 +270,7 @@ export type AppWorkspacePayload = {
     bucket: string;
     maxUploadSizeMb: number;
   };
+  users: AdminUsersPayload;
   ads: AdRecord[];
   counts: {
     all: number;
