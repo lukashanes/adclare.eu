@@ -57,10 +57,12 @@ function toInputDate(value: string) {
 }
 
 function blankForm(workspace: AppWorkspacePayload): EditableAdInput {
+  const defaultBranch = workspace.branches[0]?.name || (workspace.membership.scope === "celá strana" ? "" : workspace.membership.scope);
+
   return {
     code: "",
     title: "",
-    branch: workspace.membership.scope === "celá strana" ? "" : workspace.membership.scope,
+    branch: defaultBranch,
     owner: workspace.tenant.name,
     type: "plakát",
     channel: "offline",
@@ -130,6 +132,9 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [actioning, setActioning] = useState("");
   const [uploading, setUploading] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [branchName, setBranchName] = useState("");
+  const [branchKind, setBranchKind] = useState("oblast");
+  const [branchSaving, setBranchSaving] = useState(false);
   const [error, setError] = useState("");
 
   const selectedAd = workspace.ads.find((ad) => ad.id === selectedId) ?? workspace.ads[0] ?? null;
@@ -168,6 +173,40 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       setError("Data se nepodařilo načíst. Zkuste obnovit stránku.");
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function createBranch() {
+    if (!workspace.permissions.canManageBranches || !branchName.trim()) {
+      return;
+    }
+
+    setBranchSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/app/branches?locale=cs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: branchName,
+          kind: branchKind,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error || `Branch create failed with ${response.status}`);
+      }
+
+      setBranchName("");
+      await refreshWorkspace();
+    } catch (branchError) {
+      setError(branchError instanceof Error ? branchError.message : "Pobočku se nepodařilo založit.");
+    } finally {
+      setBranchSaving(false);
     }
   }
 
@@ -373,7 +412,52 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       </section>
 
       {mode ? (
-        <Editor mode={mode} form={form} saving={saving} writable={writable} onCancel={() => setMode(null)} onChange={setForm} onSave={saveAd} />
+        <Editor mode={mode} form={form} branches={workspace.branches} saving={saving} writable={writable} onCancel={() => setMode(null)} onChange={setForm} onSave={saveAd} />
+      ) : null}
+
+      {workspace.permissions.canManageBranches ? (
+        <section className="rounded-md border border-black/10 bg-white p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-black">Pobočky a oblasti</h2>
+              <p className="mt-1 text-sm text-[#59616b]">Nové reklamy vybírají pobočku z tohoto seznamu, takže nevznikají duplicity z překlepů.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-[150px_minmax(180px,1fr)_auto]">
+              <select
+                value={branchKind}
+                onChange={(event) => setBranchKind(event.target.value)}
+                className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold outline-none focus:border-[#f45d1f]"
+              >
+                <option value="centrala">Centrála</option>
+                <option value="kraj">Kraj</option>
+                <option value="oblast">Oblast</option>
+                <option value="pobočka">Pobočka</option>
+              </select>
+              <input
+                value={branchName}
+                onChange={(event) => setBranchName(event.target.value)}
+                placeholder="Název pobočky"
+                className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]"
+              />
+              <button
+                type="button"
+                onClick={createBranch}
+                disabled={branchSaving || !branchName.trim()}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+              >
+                <Plus size={15} />
+                {branchSaving ? "Ukládám" : "Přidat"}
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {workspace.branches.map((branch) => (
+              <span key={branch.id} className="rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-xs font-semibold text-[#25282d]">
+                {branch.name}
+              </span>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -495,6 +579,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 function Editor({
   form,
   mode,
+  branches,
   saving,
   writable,
   onCancel,
@@ -503,6 +588,7 @@ function Editor({
 }: {
   form: EditableAdInput;
   mode: EditorMode;
+  branches: AppWorkspacePayload["branches"];
   saving: boolean;
   writable: boolean;
   onCancel: () => void;
@@ -528,7 +614,7 @@ function Editor({
       title: "Materiál",
       fields: [
         ["title", "Název reklamy", "text"],
-        ["branch", "Pobočka / oblast", "text"],
+        ["branch", "Pobočka / oblast", "branch"],
         ["type", "Typ materiálu", "text"],
         ["publicationDate", "Datum zveřejnění", "date"],
         ["period", "Období šíření", "text"],
@@ -606,14 +692,31 @@ function Editor({
                       {label}
                       {required ? <span className={empty ? "text-xs text-red-700" : "text-xs text-[#68707a]"}>povinné</span> : null}
                     </span>
-                    <input
-                      type={type}
-                      value={form[key]}
-                      onChange={(event) => onChange({ ...form, [key]: event.target.value })}
-                      className={`rounded-md border bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] ${
-                        empty ? "border-red-300" : "border-black/10"
-                      }`}
-                    />
+                    {type === "branch" ? (
+                      <select
+                        value={form.branch}
+                        onChange={(event) => onChange({ ...form, branch: event.target.value })}
+                        className={`rounded-md border bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] ${
+                          empty ? "border-red-300" : "border-black/10"
+                        }`}
+                      >
+                        {branches.length === 0 ? <option value="">Nejdřív založte pobočku</option> : null}
+                        {branches.map((branch) => (
+                          <option key={branch.id} value={branch.name}>
+                            {branch.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={type}
+                        value={form[key]}
+                        onChange={(event) => onChange({ ...form, [key]: event.target.value })}
+                        className={`rounded-md border bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] ${
+                          empty ? "border-red-300" : "border-black/10"
+                        }`}
+                      />
+                    )}
                   </label>
                 );
               })}

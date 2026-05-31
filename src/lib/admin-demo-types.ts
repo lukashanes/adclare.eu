@@ -158,6 +158,11 @@ export type AdminBranchOption = {
   name: string;
 };
 
+export type AppBranchInput = {
+  name: string;
+  kind: string;
+};
+
 export type AdminMemberRecord = {
   id: string;
   name: string;
@@ -219,12 +224,14 @@ export type AppWorkspacePayload = {
     scope: string;
     status: string;
   };
+  branches: AdminBranchOption[];
   permissions: {
     canCreateAds: boolean;
     canEditAds: boolean;
     canUploadAssets: boolean;
     canApproveAds: boolean;
     canPublishAds: boolean;
+    canManageBranches: boolean;
     canManageBilling: boolean;
   };
   billing: {

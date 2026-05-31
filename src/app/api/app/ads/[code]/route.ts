@@ -45,6 +45,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
     }
 
     console.error(error);
-    return Response.json({ error: "Ad update failed." }, { status: 400 });
+    return Response.json({ error: error instanceof Error ? error.message : "Ad update failed." }, { status: 400 });
   }
 }

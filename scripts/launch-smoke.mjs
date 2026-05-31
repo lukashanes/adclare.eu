@@ -56,6 +56,8 @@ check(appWorkspace.includes("Soubory materiálu") && appWorkspace.includes("onUp
 check(schema.includes("DESIGNER") && adminDb.includes("canUploadAppAssets"), "Designer upload permission should be explicit.");
 check(adminDb.includes("canApproveAppAds") && adminDb.includes("canPublishAppAds"), "Approval and publishing permissions should be explicit.");
 check(appWorkspace.includes("workspace.permissions.canCreateAds"), "Workspace should use API permissions for create actions.");
+check(adminDb.includes("createAppBranch") && existsSync(resolve(root, "src/app/api/app/branches/route.ts")), "App branch management route is missing.");
+check(appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type === "branch"'), "Workspace should use controlled branch management.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");

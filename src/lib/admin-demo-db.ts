@@ -30,6 +30,7 @@ import type {
   AdChannel,
   AdminAdsPayload,
   AdminBillingPayload,
+  AppBranchInput,
   AppWorkspacePayload,
   AdminInvitationRecord,
   AdminMemberRecord,
@@ -2275,6 +2276,10 @@ function canPublishAppAds(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER;
 }
 
+function canManageAppBranches(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
+}
+
 function appRolePermissions(role: UserRole) {
   return {
     canCreateAds: canCreateAppAds(role),
@@ -2282,6 +2287,7 @@ function appRolePermissions(role: UserRole) {
     canUploadAssets: canUploadAppAssets(role),
     canApproveAds: canApproveAppAds(role),
     canPublishAds: canPublishAppAds(role),
+    canManageBranches: canManageAppBranches(role),
     canManageBilling: role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN,
   };
 }
@@ -2351,7 +2357,19 @@ async function getAppUnitForInput(
     return context.membership.orgUnit;
   }
 
-  return findOrCreateUnit(context.membership.tenantId, input.branch);
+  const branch = input.branch.trim();
+  const unit = await prisma.organizationUnit.findFirst({
+    where: {
+      tenantId: context.membership.tenantId,
+      OR: [{ id: branch }, { slug: slugify(branch) }, { nameCs: branch }, { nameEn: branch }],
+    },
+  });
+
+  if (!unit) {
+    throw new Error("Vyberte existující pobočku nebo ji nejdřív založte.");
+  }
+
+  return unit;
 }
 
 function scopedAdWhere(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>) {
@@ -2370,7 +2388,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
 
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
-  const [ads, billingAccess] = await Promise.all([
+  const [ads, branches, billingAccess] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
@@ -2384,6 +2402,13 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
         },
       },
       orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
+    }),
+    prisma.organizationUnit.findMany({
+      where: {
+        tenantId: membership.tenantId,
+        ...(tenantWideRole ? {} : { id: membership.orgUnitId || "__missing_org_scope__" }),
+      },
+      orderBy: [{ kind: "asc" }, { nameCs: "asc" }],
     }),
     getTenantBillingAccess(membership.tenantId, locale),
   ]);
@@ -2412,6 +2437,10 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       scope: membershipScope,
       status: membershipStatusLabel(membership.status, locale),
     },
+    branches: branches.map((branch) => ({
+      id: branch.id,
+      name: locale === "cs" ? branch.nameCs : branch.nameEn,
+    })),
     permissions,
     billing: billingAccess
       ? {
@@ -2439,6 +2468,73 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       published: mappedAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
       blocked: mappedAds.filter((ad) => ad.status === "blocked").length,
     },
+  };
+}
+
+export async function createAppBranch(userId: string, input: AppBranchInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppBranches(context.membership.role)) {
+    return null;
+  }
+
+  const name = input.name.trim();
+  const kind = input.kind.trim() || "oblast";
+  const baseSlug = slugify(name);
+
+  if (!baseSlug) {
+    throw new Error("Branch name is required.");
+  }
+
+  let slug = baseSlug;
+  for (let index = 2; index < 50; index += 1) {
+    const existing = await prisma.organizationUnit.findUnique({
+      where: {
+        tenantId_slug: {
+          tenantId: context.membership.tenantId,
+          slug,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing) {
+      break;
+    }
+
+    slug = `${baseSlug}-${index}`;
+  }
+
+  const branch = await prisma.$transaction(async (tx) => {
+    const created = await tx.organizationUnit.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        slug,
+        kind,
+        nameCs: name,
+        nameEn: name,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "create_branch",
+        messageCs: `Založena pobočka ${created.nameCs}.`,
+        messageEn: `Created branch ${created.nameEn}.`,
+      },
+    });
+
+    return created;
+  });
+
+  return {
+    id: branch.id,
+    name: locale === "cs" ? branch.nameCs : branch.nameEn,
   };
 }
 

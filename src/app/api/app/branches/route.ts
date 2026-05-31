@@ -1,8 +1,8 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
+import { createAppBranch, getAppWorkspacePayload, normalizeLocale } from "@/lib/admin-demo-db";
 import { getUserBillingAccess } from "@/lib/billing-access";
-import { createAppAd, getAppWorkspacePayload, normalizeLocale } from "@/lib/admin-demo-db";
-import { parseEditableAdInput, validationErrorResponse } from "@/lib/request-validation";
+import { parseAppBranchInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -31,11 +31,7 @@ export async function GET(request: Request) {
     return unauthorized();
   }
 
-  return Response.json(payload, {
-    headers: {
-      "Cache-Control": "private, no-store, max-age=0",
-    },
-  });
+  return Response.json({ branches: payload.branches, permissions: payload.permissions });
 }
 
 export async function POST(request: Request) {
@@ -57,14 +53,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const input = parseEditableAdInput(await request.json());
-    const ad = await createAppAd(session.userId, input, locale);
+    const input = parseAppBranchInput(await request.json());
+    const branch = await createAppBranch(session.userId, input, locale);
 
-    if (!ad) {
-      return Response.json({ error: "Ad could not be created for this user." }, { status: 403 });
+    if (!branch) {
+      return Response.json({ error: "Branch could not be created for this user." }, { status: 403 });
     }
 
-    return Response.json({ ad }, { status: 201 });
+    return Response.json({ branch }, { status: 201 });
   } catch (error) {
     const validation = validationErrorResponse(error);
 
@@ -73,6 +69,6 @@ export async function POST(request: Request) {
     }
 
     console.error(error);
-    return Response.json({ error: error instanceof Error ? error.message : "Ad create failed." }, { status: 400 });
+    return Response.json({ error: error instanceof Error ? error.message : "Branch create failed." }, { status: 400 });
   }
 }
