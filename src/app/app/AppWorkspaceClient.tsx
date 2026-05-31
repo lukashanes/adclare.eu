@@ -24,6 +24,18 @@ function canReviewAds(workspace: AppWorkspacePayload) {
   return workspace.permissions.canApproveAds || workspace.permissions.canPublishAds;
 }
 
+function initialSelectedAdId(workspace: AppWorkspacePayload) {
+  if (canReviewAds(workspace)) {
+    const reviewAd = workspace.ads.find((ad) => ad.workflowStatus === "READY_FOR_REVIEW");
+
+    if (reviewAd) {
+      return reviewAd.id;
+    }
+  }
+
+  return workspace.ads[0]?.id ?? "";
+}
+
 function countsForAds(ads: AdRecord[]): AppWorkspacePayload["counts"] {
   return {
     all: ads.length,
@@ -125,7 +137,7 @@ function deadlineIcon(ad: AdRecord) {
 export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: AppWorkspacePayload }) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(initialWorkspace.ads[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(initialSelectedAdId(initialWorkspace));
   const [mode, setMode] = useState<EditorMode | null>(null);
   const [form, setForm] = useState<EditableAdInput>(() => blankForm(initialWorkspace));
   const [saving, setSaving] = useState(false);
@@ -135,6 +147,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [branchName, setBranchName] = useState("");
   const [branchKind, setBranchKind] = useState("oblast");
   const [branchSaving, setBranchSaving] = useState(false);
+  const [reviewNote, setReviewNote] = useState("");
   const [error, setError] = useState("");
 
   const selectedAd = workspace.ads.find((ad) => ad.id === selectedId) ?? workspace.ads[0] ?? null;
@@ -168,7 +181,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
       const payload = (await response.json()) as AppWorkspacePayload;
       setWorkspace(payload);
-      setSelectedId((current) => (payload.ads.some((ad) => ad.id === current) ? current : payload.ads[0]?.id ?? ""));
+      setSelectedId((current) => (payload.ads.some((ad) => ad.id === current) ? current : initialSelectedAdId(payload)));
     } catch {
       setError("Data se nepodařilo načíst. Zkuste obnovit stránku.");
     } finally {
@@ -256,12 +269,17 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
   }
 
-  async function runWorkflowAction(ad: AdRecord, action: "approve" | "publish") {
+  async function runWorkflowAction(ad: AdRecord, action: "approve" | "publish" | "request-changes") {
     if (!reviewable || actioning) {
       return;
     }
 
     if (action === "publish" && !window.confirm("Publikovat a uzamknout tuto verzi reklamy? Další úpravy vytvoří novou verzi.")) {
+      return;
+    }
+
+    if (action === "request-changes" && !reviewNote.trim()) {
+      setError("Pro vrácení k doplnění napište krátký komentář.");
       return;
     }
 
@@ -271,6 +289,16 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     try {
       const response = await fetch(`/api/app/ads/${encodeURIComponent(ad.id)}/${action}?locale=cs`, {
         method: "POST",
+        ...(action === "request-changes"
+          ? {
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                note: reviewNote,
+              }),
+            }
+          : {}),
       });
       const payload = (await response.json().catch(() => ({}))) as { ad?: AdRecord; error?: string };
 
@@ -281,13 +309,18 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       const nextAd = payload.ad;
       setWorkspace((current) => workspaceWithAd(current, nextAd));
       setSelectedId(nextAd.id);
+      if (action === "request-changes") {
+        setReviewNote("");
+      }
     } catch (workflowError) {
       setError(
         workflowError instanceof Error
           ? workflowError.message
           : action === "approve"
             ? "Reklamu se nepodařilo schválit. Zkontrolujte povinné údaje a oprávnění."
-            : "Reklamu se nepodařilo publikovat. Zkontrolujte povinné údaje a oprávnění.",
+            : action === "publish"
+              ? "Reklamu se nepodařilo publikovat. Zkontrolujte povinné údaje a oprávnění."
+              : "Reklamu se nepodařilo vrátit k doplnění. Doplňte komentář a zkontrolujte oprávnění.",
       );
     } finally {
       setActioning("");
@@ -460,6 +493,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         </section>
       ) : null}
 
+      {reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
+
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="overflow-hidden rounded-md border border-black/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-black/10 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -566,10 +601,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           actioning={actioning}
           uploading={uploading}
           storage={workspace.storage}
+          reviewNote={reviewNote}
           onEdit={openEdit}
           onUpload={uploadAsset}
           onApprove={(ad) => runWorkflowAction(ad, "approve")}
           onPublish={(ad) => runWorkflowAction(ad, "publish")}
+          onRequestChanges={(ad) => runWorkflowAction(ad, "request-changes")}
+          onReviewNoteChange={setReviewNote}
         />
       </section>
     </section>
@@ -790,6 +828,54 @@ function MobileAdCards({
   );
 }
 
+function ReviewInbox({
+  ads,
+  selectedId,
+  onSelect,
+}: {
+  ads: AdRecord[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const reviewAds = ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW");
+
+  return (
+    <section className="rounded-md border border-sky-200 bg-sky-50/55 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Fronta kontroly</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Reklamy s kompletními údaji čekají na rychlou kontrolu, schválení nebo vrácení k doplnění.</p>
+        </div>
+        <span className="inline-flex w-fit rounded-md border border-sky-200 bg-white px-3 py-1.5 text-sm font-semibold text-sky-800">
+          {reviewAds.length} ke kontrole
+        </span>
+      </div>
+      {reviewAds.length ? (
+        <div className="mt-3 grid gap-2 lg:grid-cols-3">
+          {reviewAds.map((ad) => (
+            <button
+              key={ad.id}
+              type="button"
+              onClick={() => onSelect(ad.id)}
+              className={`rounded-md border p-3 text-left ${
+                selectedId === ad.id ? "border-[#f45d1f] bg-white shadow-sm" : "border-sky-200 bg-white/75 hover:bg-white"
+              }`}
+            >
+              <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
+              <div className="mt-1 line-clamp-2 text-sm font-semibold text-black">{ad.title}</div>
+              <div className="mt-2 text-xs text-[#59616b]">{ad.branch} · {ad.publicationDate}</div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3 rounded-md border border-sky-200 bg-white p-3 text-sm font-semibold text-[#59616b]">
+          Žádná reklama teď nečeká na kontrolu.
+        </div>
+      )}
+    </section>
+  );
+}
+
 function DetailPanel({
   ad,
   writable,
@@ -798,10 +884,13 @@ function DetailPanel({
   actioning,
   uploading,
   storage,
+  reviewNote,
   onEdit,
   onUpload,
   onApprove,
   onPublish,
+  onRequestChanges,
+  onReviewNoteChange,
 }: {
   ad: AdRecord | null;
   writable: boolean;
@@ -810,10 +899,13 @@ function DetailPanel({
   actioning: string;
   uploading: string;
   storage: AppWorkspacePayload["storage"];
+  reviewNote: string;
   onEdit: (ad: AdRecord) => void;
   onUpload: (ad: AdRecord, file: File | null) => void;
   onApprove: (ad: AdRecord) => void;
   onPublish: (ad: AdRecord) => void;
+  onRequestChanges: (ad: AdRecord) => void;
+  onReviewNoteChange: (value: string) => void;
 }) {
   if (!ad) {
     return (
@@ -931,6 +1023,31 @@ function DetailPanel({
             <CheckCircle2 size={15} />
             {actioning === `approve:${ad.id}` ? "Schvaluji" : "Schválit"}
           </button>
+        ) : null}
+        {ad.canRequestChanges ? (
+          <div className="grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+              Komentář pro doplnění
+              <textarea
+                value={reviewNote}
+                onChange={(event) => onReviewNoteChange(event.target.value)}
+                disabled={!reviewable || Boolean(actioning)}
+                rows={3}
+                maxLength={800}
+                placeholder="Například: Doplňte plátce a přesné období šíření."
+                className="resize-none rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => onRequestChanges(ad)}
+              disabled={!reviewable || !reviewNote.trim() || actioning === `request-changes:${ad.id}`}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+            >
+              <AlertTriangle size={15} />
+              {actioning === `request-changes:${ad.id}` ? "Vracím" : "Vrátit k doplnění"}
+            </button>
+          </div>
         ) : null}
         {ad.canPublish ? (
           <button

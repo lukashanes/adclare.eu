@@ -45,6 +45,7 @@ import type {
   PublicRepositoryFilters,
   PublicRepositoryOption,
   PublicRepositoryPayload,
+  ReviewDecisionInput,
   Status,
 } from "@/lib/admin-demo-types";
 import { getTenantBillingAccess } from "@/lib/billing-access";
@@ -234,7 +235,8 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     canRequestReview: missing.length === 0 && workflowStatus !== AdWorkflowStatus.READY_FOR_REVIEW && workflowStatus !== AdWorkflowStatus.APPROVED && workflowStatus !== AdWorkflowStatus.PUBLISHED,
     canApprove: missing.length === 0 && workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW,
     canPublish: missing.length === 0 && workflowStatus === AdWorkflowStatus.APPROVED,
-    canDownloadQr: missing.length === 0 && workflowStatus !== AdWorkflowStatus.ARCHIVED,
+    canRequestChanges: missing.length === 0 && (workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW || workflowStatus === AdWorkflowStatus.APPROVED),
+    canDownloadQr: missing.length === 0 && workflowStatus !== AdWorkflowStatus.ARCHIVED && workflowStatus !== AdWorkflowStatus.NEEDS_DATA,
     assetCount: assets.length,
     assets,
   };
@@ -806,12 +808,20 @@ function statusForAd(ad: Ad, missing: string[]) {
     return AdStatus.REVIEW;
   }
 
+  if (ad.workflowStatus === AdWorkflowStatus.NEEDS_DATA && missing.length === 0) {
+    return ad.status;
+  }
+
   return statusForMissing(missing, ad.publicationDate);
 }
 
 function workflowStatusForAd(ad: Ad, missing: string[]) {
   if (ad.workflowStatus === AdWorkflowStatus.ARCHIVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED) {
     return ad.workflowStatus;
+  }
+
+  if (ad.workflowStatus === AdWorkflowStatus.NEEDS_DATA) {
+    return AdWorkflowStatus.NEEDS_DATA;
   }
 
   if (missing.length > 0) {
@@ -3058,6 +3068,94 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
     });
 
     return approved;
+  });
+
+  return mapAd(updated, locale);
+}
+
+export async function requestAppAdChanges(userId: string, code: string, input: ReviewDecisionInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canApproveAppAds(context.membership.role)) {
+    return null;
+  }
+
+  const ad = await prisma.ad.findUnique({
+    where: {
+      tenantId_code: {
+        tenantId: context.membership.tenantId,
+        code,
+      },
+    },
+  });
+
+  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+    return null;
+  }
+
+  if (ad.workflowStatus === AdWorkflowStatus.PUBLISHED || ad.workflowStatus === AdWorkflowStatus.ARCHIVED) {
+    throw new Error("Published or archived ads cannot be returned for changes.");
+  }
+
+  if (ad.workflowStatus !== AdWorkflowStatus.READY_FOR_REVIEW && ad.workflowStatus !== AdWorkflowStatus.APPROVED) {
+    throw new Error("Ad is not in review.");
+  }
+
+  const note = input.note.trim();
+  const updated = await prisma.$transaction(async (tx) => {
+    const returned = await tx.ad.update({
+      where: {
+        tenantId_code: {
+          tenantId: context.membership.tenantId,
+          code,
+        },
+      },
+      data: {
+        status: AdStatus.WARNING,
+        statusLabelCs: "Vráceno",
+        statusLabelEn: "Changes requested",
+        workflowStatus: AdWorkflowStatus.NEEDS_DATA,
+        approvedAt: null,
+        reviewerName: context.membership.user.name,
+        statusNoteCs: `Vráceno k doplnění: ${note}`,
+        statusNoteEn: `Returned for changes: ${note}`,
+      },
+      include: {
+        orgUnit: true,
+        campaign: true,
+        tenant: true,
+        assets: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+      },
+    });
+
+    await tx.approval.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        adId: ad.id,
+        actor: context.membership.user.email,
+        status: ApprovalStatus.CHANGES_REQUESTED,
+        noteCs: note,
+        noteEn: note,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        adId: ad.id,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "request_ad_changes",
+        messageCs: `Reklama ${ad.code} vrácena k doplnění: ${note}`,
+        messageEn: `Ad ${ad.code} returned for changes: ${note}`,
+      },
+    });
+
+    return returned;
   });
 
   return mapAd(updated, locale);

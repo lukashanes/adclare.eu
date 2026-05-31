@@ -1,4 +1,4 @@
-import type { AppBranchInput, EditableAdInput, EditableBillingInput, InviteInput } from "@/lib/admin-demo-types";
+import type { AppBranchInput, EditableAdInput, EditableBillingInput, InviteInput, ReviewDecisionInput } from "@/lib/admin-demo-types";
 
 export class RequestValidationError extends Error {
   readonly status = 400;
@@ -126,6 +126,14 @@ export function parseAppBranchInput(value: unknown): AppBranchInput {
   return {
     name: text(body.name, "name", { required: true, max: 140 }),
     kind: text(body.kind, "kind", { max: 80 }) || "oblast",
+  };
+}
+
+export function parseReviewDecisionInput(value: unknown): ReviewDecisionInput {
+  const body = record(value);
+
+  return {
+    note: text(body.note, "note", { required: true, max: 800 }),
   };
 }
 

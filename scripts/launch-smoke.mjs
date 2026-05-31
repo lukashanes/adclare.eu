@@ -61,8 +61,11 @@ check(appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/ads/[code]/request-changes/route.ts")), "App request changes route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/billing/portal/route.ts")), "App billing portal route is missing.");
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
+check(adminDb.includes("requestAppAdChanges"), "Review change request handler is missing.");
+check(appWorkspace.includes("Fronta kontroly") && appWorkspace.includes("Vrátit k doplnění"), "Workspace should expose review inbox and change requests.");
 check(!marketingPage.includes("2FA"), "Marketing page should not claim 2FA before it is implemented.");
 check(adminAuth.includes("isDemoAdminEnabled"), "Demo admin feature flag is missing.");
 check(adminAuth.includes('process.env.NODE_ENV !== "production"'), "Demo admin should default to disabled in production.");

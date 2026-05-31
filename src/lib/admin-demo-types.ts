@@ -75,6 +75,7 @@ export type AdRecord = {
   canRequestReview: boolean;
   canApprove: boolean;
   canPublish: boolean;
+  canRequestChanges: boolean;
   canDownloadQr: boolean;
   assetCount: number;
   assets: AdAssetRecord[];
@@ -161,6 +162,10 @@ export type AdminBranchOption = {
 export type AppBranchInput = {
   name: string;
   kind: string;
+};
+
+export type ReviewDecisionInput = {
+  note: string;
 };
 
 export type AdminMemberRecord = {
