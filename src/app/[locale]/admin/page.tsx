@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { ADMIN_SESSION_COOKIE, isAdminAuthConfigured, isValidAdminSessionCookie } from "@/lib/admin-auth";
+import { ADMIN_SESSION_COOKIE, isAdminAuthConfigured, isDemoAdminEnabled, isValidAdminSessionCookie } from "@/lib/admin-auth";
 import { AdminDemoClient } from "./AdminDemoClient";
 import { AdminLogin } from "./AdminLogin";
 
@@ -55,6 +55,10 @@ export default async function AdminPage({
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) {
+    notFound();
+  }
+
+  if (!isDemoAdminEnabled()) {
     notFound();
   }
 

@@ -30,6 +30,8 @@ const turnstileLib = read("src/lib/turnstile.ts");
 const schema = read("prisma/schema.prisma");
 const objectStorage = read("src/lib/object-storage.ts");
 const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
+const adminAuth = read("src/lib/admin-auth.ts");
+const adminPage = read("src/app/[locale]/admin/page.tsx");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
@@ -57,6 +59,10 @@ check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), 
 check(existsSync(resolve(root, "src/app/api/app/billing/portal/route.ts")), "App billing portal route is missing.");
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
 check(!marketingPage.includes("2FA"), "Marketing page should not claim 2FA before it is implemented.");
+check(adminAuth.includes("isDemoAdminEnabled"), "Demo admin feature flag is missing.");
+check(adminAuth.includes('process.env.NODE_ENV !== "production"'), "Demo admin should default to disabled in production.");
+check(adminPage.includes("isDemoAdminEnabled") && adminPage.includes("notFound()"), "Demo admin page should 404 when disabled.");
+check(composeProd.includes("ENABLE_DEMO_ADMIN: ${ENABLE_DEMO_ADMIN:-0}"), "Production compose should disable demo admin by default.");
 
 for (const path of [
   "src/app/[locale]/privacy/page.tsx",

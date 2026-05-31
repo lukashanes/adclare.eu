@@ -3,6 +3,7 @@ import {
   createAdminSessionCookieValue,
   getRequestIp,
   isAdminAuthConfigured,
+  isDemoAdminEnabled,
   isSameOriginRequest,
   serializeAdminSessionClearCookie,
   serializeAdminSessionCookie,
@@ -26,6 +27,10 @@ async function readPassword(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!isDemoAdminEnabled()) {
+    return Response.json({ error: "Demo admin is disabled." }, { status: 404, headers: adminNoStoreHeaders() });
+  }
+
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403, headers: adminNoStoreHeaders() });
   }
@@ -67,6 +72,10 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
+  if (!isDemoAdminEnabled()) {
+    return Response.json({ ok: true }, { status: 404, headers: adminNoStoreHeaders() });
+  }
+
   return Response.json(
     { ok: true },
     {

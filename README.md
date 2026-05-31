@@ -81,6 +81,7 @@ Open `http://localhost:3000`. The root route redirects to `/cs`.
 The local database listens on `127.0.0.1:5433`. Use `npm run db:seed` to restore the demo admin records.
 
 For the temporary protected admin preview, set `ADMIN_ACCESS_PASSWORD` and a random `ADMIN_SESSION_SECRET` with at least 32 characters.
+The demo admin is enabled by default only outside production. Set `ENABLE_DEMO_ADMIN=1` only when you intentionally need the old `/cs/admin` preview.
 
 For invite e-mail sending, set `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`. Without those Cloudflare Email Service credentials, invitations are still created and stored in the outbox with status `PENDING_PROVIDER`.
 

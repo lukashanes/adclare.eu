@@ -7,6 +7,20 @@ const sessionTtlSeconds = 12 * 60 * 60;
 const minSecretLength = 32;
 const placeholderValues = new Set(["", "replace_with_generated_password", "replace_with_admin_password", "replace_with_admin_session_secret"]);
 
+export function isDemoAdminEnabled() {
+  const configured = process.env.ENABLE_DEMO_ADMIN?.trim();
+
+  if (configured === "1" || configured === "true") {
+    return true;
+  }
+
+  if (configured === "0" || configured === "false") {
+    return false;
+  }
+
+  return process.env.NODE_ENV !== "production";
+}
+
 function getAdminPassword() {
   return process.env.ADMIN_ACCESS_PASSWORD?.trim() ?? "";
 }
@@ -168,6 +182,10 @@ export function adminNoStoreHeaders() {
 }
 
 export function requireAdminRequest(request: Request, options: { mutating?: boolean } = {}) {
+  if (!isDemoAdminEnabled()) {
+    return Response.json({ error: "Demo admin is disabled." }, { status: 404, headers: adminNoStoreHeaders() });
+  }
+
   if (!isAdminRequestAuthenticated(request)) {
     return Response.json({ error: "Unauthorized." }, { status: 401, headers: adminNoStoreHeaders() });
   }
