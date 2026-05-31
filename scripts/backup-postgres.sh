@@ -3,7 +3,7 @@ set -eu
 
 APP_DIR="${APP_DIR:-/srv/apps/adclare}"
 BACKUP_DIR="${BACKUP_DIR:-/srv/backups/adclare/postgres}"
-RETENTION_DAYS="${RETENTION_DAYS:-14}"
+RETENTION_DAYS="${RETENTION_DAYS:-30}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 
 cd "$APP_DIR"
