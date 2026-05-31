@@ -308,6 +308,13 @@ function isCloudflareEmailConfigured() {
   return Boolean(cloudflareEmailAccountId() && cloudflareEmailApiToken());
 }
 
+function appEmailStatus() {
+  return {
+    configured: isCloudflareEmailConfigured(),
+    from: emailFrom(),
+  };
+}
+
 const cloudflareEmailMissingConfigError = "CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are not configured.";
 
 function escapeHtml(value: string) {
@@ -2531,6 +2538,23 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   ]);
 
   const mappedAds = ads.map((ad) => mapAd(ad, locale));
+  const mappedInvitations = invitations.map((invitation) => mapInvitation(invitation, locale));
+  const emailStats = mappedInvitations.reduce(
+    (stats, invitation) => {
+      if (invitation.emailStatusKey === EmailStatus.SENT) {
+        stats.sent += 1;
+      } else if (invitation.emailStatusKey === EmailStatus.FAILED) {
+        stats.failed += 1;
+      } else {
+        stats.pending += 1;
+      }
+
+      return stats;
+    },
+    { sent: 0, pending: 0, failed: 0 },
+  );
+  const storage = objectStorageStatus();
+  const email = appEmailStatus();
   const membershipScope = tenantWideRole
     ? scopeLabel(null, locale)
     : membership.orgUnit
@@ -2561,7 +2585,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
     permissions,
     users: {
       members: memberships.map((member) => mapMember(member, locale)),
-      invitations: invitations.map((invitation) => mapInvitation(invitation, locale)),
+      invitations: mappedInvitations,
       branches: branches.map((branch) => ({
         id: branch.id,
         name: locale === "cs" ? branch.nameCs : branch.nameEn,
@@ -2583,7 +2607,16 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           canManageBilling: permissions.canManageBilling,
         }
       : null,
-    storage: objectStorageStatus(),
+    storage,
+    operations: {
+      emailConfigured: email.configured,
+      emailFrom: email.from,
+      emailSent: emailStats.sent,
+      emailPending: emailStats.pending,
+      emailFailed: emailStats.failed,
+      stripeCheckoutConfigured: billingAccess.stripeCheckoutConfigured,
+      storageConfigured: storage.configured,
+    },
     ads: mappedAds,
     counts: {
       all: mappedAds.length,

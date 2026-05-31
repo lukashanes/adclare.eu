@@ -2,7 +2,26 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, CreditCard, Download, Edit3, FileArchive, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CheckCircle2,
+  CircleDot,
+  CreditCard,
+  Download,
+  Edit3,
+  FileArchive,
+  Mail,
+  Paperclip,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Server,
+  ShieldCheck,
+  Upload,
+  X,
+} from "lucide-react";
 import type { AdRecord, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
@@ -223,6 +242,53 @@ function setupProgress(workspace: AppWorkspacePayload) {
     items,
     done: items.filter((item) => item.done).length,
   };
+}
+
+function readinessChecks(workspace: AppWorkspacePayload) {
+  const billingActive = workspace.billing?.canUseApp ?? false;
+  const auditReady = workspace.ads.some((ad) => ad.canDownloadQr || ad.workflowStatus === "PUBLISHED" || ad.workflowStatus === "APPROVED");
+  const emailAttention = workspace.operations.emailFailed > 0 || (!workspace.operations.emailConfigured && workspace.users.invitations.length > 0);
+
+  return [
+    {
+      key: "storage",
+      title: "Nahrávání souborů",
+      text: workspace.operations.storageConfigured
+        ? `Materiály se ukládají do ${workspace.storage.provider}. Limit je ${workspace.storage.maxUploadSizeMb} MB.`
+        : "Chybí produkční úložiště pro grafiky, PDF a náhledy reklam.",
+      state: workspace.operations.storageConfigured ? "ready" : "blocked",
+      href: "#ads",
+      icon: Server,
+    },
+    {
+      key: "email",
+      title: "Pozvánky e-mailem",
+      text: workspace.operations.emailConfigured
+        ? `Odesílání je nastavené z adresy ${workspace.operations.emailFrom}.`
+        : "Pozvánky se vytvoří, ale bez nastaveného e-mailu se neodešlou automaticky.",
+      state: emailAttention ? "blocked" : workspace.operations.emailPending > 0 ? "warning" : "ready",
+      href: "#people",
+      icon: Mail,
+    },
+    {
+      key: "billing",
+      title: "Trial a platba",
+      text: billingActive
+        ? `${workspace.billing?.statusLabel ?? "Účet"}: ${workspace.billing?.effectivePrice ?? "tarif není nastavený"}.`
+        : "Pracovní přístupy se po skončení trialu uzamknou, dokud nebude účet aktivní.",
+      state: billingActive ? (workspace.operations.stripeCheckoutConfigured || workspace.billing?.invoicePending ? "ready" : "warning") : "blocked",
+      href: "/app/activate",
+      icon: CreditCard,
+    },
+    {
+      key: "audit",
+      title: "QR a auditní balíčky",
+      text: auditReady ? "U hotových reklam lze stáhnout QR a auditní podklady." : "Nejdřív doplňte reklamu a pošlete ji ke kontrole.",
+      state: auditReady ? "ready" : "warning",
+      href: "#ads",
+      icon: ShieldCheck,
+    },
+  ] as const;
 }
 
 export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: AppWorkspacePayload }) {
@@ -612,6 +678,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       </section>
 
       <OnboardingPanel progress={progress} onCreateAd={openCreate} />
+
+      <ReadinessPanel workspace={workspace} />
 
       {mode ? (
         <Editor mode={mode} form={form} branches={workspace.branches} saving={saving} writable={writable} onCancel={() => setMode(null)} onChange={setForm} onSave={saveAd} />
@@ -1067,6 +1135,64 @@ function OnboardingPanel({
             )}
           </article>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function ReadinessPanel({ workspace }: { workspace: AppWorkspacePayload }) {
+  const checks = readinessChecks(workspace);
+  const blocked = checks.filter((check) => check.state === "blocked").length;
+  const warnings = checks.filter((check) => check.state === "warning").length;
+  const ready = checks.length - blocked - warnings;
+
+  const stateClass = {
+    ready: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    warning: "border-orange-200 bg-orange-50 text-orange-800",
+    blocked: "border-red-200 bg-red-50 text-red-800",
+  } as const;
+  const stateLabel = {
+    ready: "připraveno",
+    warning: "zkontrolovat",
+    blocked: "blokuje spuštění",
+  } as const;
+
+  return (
+    <section className="rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Připravenost k provozu</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
+            Rychlá kontrola toho, jestli účet zvládne běžný provoz: pozvánky, soubory, platbu, QR výstupy a auditní podklady.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 overflow-hidden rounded-md border border-black/10 text-center text-xs font-semibold">
+          <div className="bg-emerald-50 px-3 py-2 text-emerald-800">{ready} hotovo</div>
+          <div className="border-x border-black/10 bg-orange-50 px-3 py-2 text-orange-800">{warnings} ověřit</div>
+          <div className="bg-red-50 px-3 py-2 text-red-800">{blocked} blokuje</div>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 lg:grid-cols-4">
+        {checks.map((check) => {
+          const Icon = check.icon;
+
+          return (
+            <a key={check.key} href={check.href} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3 transition hover:border-[#f45d1f] hover:bg-white">
+              <div className="flex items-start gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[#11161c] text-white">
+                  <Icon size={17} />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-black">{check.title}</h3>
+                    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${stateClass[check.state]}`}>{stateLabel[check.state]}</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-[#59616b]">{check.text}</p>
+                </div>
+              </div>
+            </a>
+          );
+        })}
       </div>
     </section>
   );

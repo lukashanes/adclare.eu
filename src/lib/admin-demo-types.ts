@@ -270,6 +270,15 @@ export type AppWorkspacePayload = {
     bucket: string;
     maxUploadSizeMb: number;
   };
+  operations: {
+    emailConfigured: boolean;
+    emailFrom: string;
+    emailSent: number;
+    emailPending: number;
+    emailFailed: number;
+    stripeCheckoutConfigured: boolean;
+    storageConfigured: boolean;
+  };
   users: AdminUsersPayload;
   ads: AdRecord[];
   counts: {
