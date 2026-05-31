@@ -611,6 +611,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
+      <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
+
       {reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -1103,6 +1105,76 @@ function PeoplePanel({
   );
 }
 
+function MissingDataQueue({
+  ads,
+  selectedId,
+  writable,
+  onSelect,
+  onEdit,
+}: {
+  ads: AdRecord[];
+  selectedId: string;
+  writable: boolean;
+  onSelect: (id: string) => void;
+  onEdit: (ad: AdRecord) => void;
+}) {
+  const missingAds = ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0);
+
+  if (missingAds.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-md border border-orange-200 bg-orange-50/55 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Co je potřeba doplnit</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Tyto reklamy nejdou posunout dál, dokud se nedoplní chybějící údaje nebo připomínky z kontroly.</p>
+        </div>
+        <span className="inline-flex w-fit rounded-md border border-orange-200 bg-white px-3 py-1.5 text-sm font-semibold text-orange-800">
+          {missingAds.length} k doplnění
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 lg:grid-cols-3">
+        {missingAds.slice(0, 6).map((ad) => (
+          <article key={ad.id} className={`rounded-md border bg-white p-3 ${selectedId === ad.id ? "border-[#f45d1f] shadow-sm" : "border-orange-200"}`}>
+            <button type="button" onClick={() => onSelect(ad.id)} className="block w-full text-left">
+              <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
+              <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-black">{ad.title}</h3>
+              <div className="mt-2 text-xs text-[#59616b]">{ad.branch} · {ad.publicationDate}</div>
+              {ad.missing.length ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {ad.missing.slice(0, 4).map((item) => (
+                    <span key={item} className="rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-semibold text-orange-800">
+                      {item}
+                    </span>
+                  ))}
+                  {ad.missing.length > 4 ? (
+                    <span className="rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-semibold text-orange-800">
+                      +{ad.missing.length - 4}
+                    </span>
+                  ) : null}
+                </div>
+              ) : ad.statusNote ? (
+                <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-orange-800">{ad.statusNote}</p>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => onEdit(ad)}
+              disabled={!writable}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+            >
+              <Edit3 size={15} />
+              Doplnit údaje
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ReviewInbox({
   ads,
   selectedId,
@@ -1227,7 +1299,14 @@ function DetailPanel({
       </div>
       {ad.missing.length ? (
         <div className="mx-4 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
-          Chybí: {ad.missing.join(", ")}
+          <div>Ještě doplnit:</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {ad.missing.map((item) => (
+              <span key={item} className="rounded-md border border-orange-200 bg-white px-2 py-1 text-xs font-semibold text-orange-800">
+                {item}
+              </span>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="mx-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">

@@ -61,6 +61,7 @@ check(appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type
 check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/users/[invitationId]/retry-email/route.ts")), "App invitation retry route is missing.");
 check(appWorkspace.includes("Lidé a pozvánky") && appWorkspace.includes("Poslat pozvánku"), "Workspace should expose people and invitation management.");
+check(appWorkspace.includes("Co je potřeba doplnit") && appWorkspace.includes("Doplnit údaje"), "Workspace should expose a missing data action queue.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");
