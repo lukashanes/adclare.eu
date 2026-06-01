@@ -3,14 +3,13 @@ import { MembershipStatus, UserRole } from "@prisma/client";
 import { requestAppLoginLink } from "@/lib/app-auth";
 import { prisma } from "@/lib/prisma";
 
-export type SignupPlan = "small" | "large";
-
 export type SignupInput = {
   organizationName: string;
   name: string;
   email: string;
-  plan: SignupPlan;
 };
+
+export type SignupMode = "first-run" | "open" | "disabled";
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -56,6 +55,41 @@ async function uniqueTenantSlug(value: string) {
   return `${base}-${randomBytes(4).toString("hex")}`;
 }
 
+export function signupMode(): SignupMode {
+  const value = process.env.SIGNUP_MODE?.trim().toLowerCase();
+
+  if (value === "open" || value === "disabled" || value === "first-run") {
+    return value;
+  }
+
+  return "first-run";
+}
+
+export async function getSignupAvailability() {
+  const mode = signupMode();
+
+  if (mode === "open") {
+    return {
+      mode,
+      canCreateWorkspace: true,
+    };
+  }
+
+  if (mode === "disabled") {
+    return {
+      mode,
+      canCreateWorkspace: false,
+    };
+  }
+
+  const tenantCount = await prisma.tenant.count();
+
+  return {
+    mode,
+    canCreateWorkspace: tenantCount === 0,
+  };
+}
+
 export async function createSignupWorkspace(input: SignupInput) {
   const organizationName = input.organizationName.trim();
   const name = input.name.trim();
@@ -93,6 +127,12 @@ export async function createSignupWorkspace(input: SignupInput) {
       tenantSlug: existingMembership.tenant.slug,
       email,
     };
+  }
+
+  const availability = await getSignupAvailability();
+
+  if (!availability.canCreateWorkspace) {
+    throw new Error("Workspace signup is closed on this instance. Ask an administrator for an invitation.");
   }
 
   const slug = await uniqueTenantSlug(organizationName);

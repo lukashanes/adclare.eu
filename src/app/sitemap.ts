@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 const baseUrl = "https://adclare.eu";
 const lastModified = new Date("2026-05-27");
 
-const localizedPages = ["", "/privacy", "/cookies", "/terms", "/dpa", "/subprocessors", "/security"] as const;
+const localizedPages = ["", "/help", "/privacy", "/cookies", "/terms", "/dpa", "/subprocessors", "/security"] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const marketingPages: MetadataRoute.Sitemap = localizedPages.flatMap((path) => [
@@ -33,15 +33,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ]);
 
-  const pages: MetadataRoute.Sitemap = [
-    ...marketingPages,
-    {
-      url: `${baseUrl}/signup`,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-  ];
+  const pages: MetadataRoute.Sitemap = [...marketingPages];
 
   if (process.env.NEXT_PUBLIC_SHOW_DEMO_REPO === "1") {
     pages.push({

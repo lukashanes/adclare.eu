@@ -8,16 +8,15 @@ import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 type SignupState = "idle" | "saving" | "done" | "error";
 
 export function SignupClient({
-  defaultPlan = "large",
+  canCreateWorkspace,
   turnstileSiteKey = "",
 }: {
-  defaultPlan?: "large" | "small";
+  canCreateWorkspace: boolean;
   turnstileSiteKey?: string;
 }) {
   const [organizationName, setOrganizationName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [plan] = useState<"large" | "small">(defaultPlan);
   const [state, setState] = useState<SignupState>("idle");
   const [error, setError] = useState("");
 
@@ -42,7 +41,6 @@ export function SignupClient({
           organizationName,
           name,
           email,
-          plan,
           turnstileToken: turnstileTokenFromForm(form),
         }),
       });
@@ -57,6 +55,18 @@ export function SignupClient({
       setState("error");
       setError(signupError instanceof Error ? signupError.message : "Účet se nepodařilo založit.");
     }
+  }
+
+  if (!canCreateWorkspace) {
+    return (
+      <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-5 text-sm text-[#59616b]">
+        <div className="font-semibold text-[#20242a]">První organizace už je v této instalaci vytvořená.</div>
+        <p className="mt-2 leading-6">Další lidé se přidávají přes pozvánky od správce. Pokud už přístup máte, pokračujte na přihlášení.</p>
+        <Link className="mt-4 inline-flex rounded-md bg-[#11161c] px-4 py-3 font-semibold text-white" href="/login">
+          Pokračovat na přihlášení
+        </Link>
+      </div>
+    );
   }
 
   if (state === "done") {

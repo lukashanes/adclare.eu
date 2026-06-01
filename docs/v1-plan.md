@@ -4,7 +4,7 @@
 
 Adclare is open source software for managing the full political advertising workflow required by the EU Transparency and Targeting of Political Advertising Regulation (TTPA), Regulation (EU) 2024/900.
 
-The application should be installable by a political party, candidate team, agency, civic technology supplier or compliance provider on its own infrastructure. It should not require a paid Adclare account, Stripe checkout, trial activation or central SaaS approval.
+The application should be installable by a political party, candidate team, agency, civic technology supplier or compliance provider on its own infrastructure. It should not require a paid Adclare account, checkout, trial activation or central hosted-service approval.
 
 ## Product Principles
 
@@ -103,11 +103,11 @@ The application should be installable by a political party, candidate team, agen
 
 ## Removed From Open Source Core
 
-- Stripe Billing.
+- Paid checkout.
 - Trial expiry.
 - Invoice approval as access control.
 - Paid plans and discounts.
-- SaaS customer lifecycle.
+- Central hosted-service customer lifecycle.
 - Hosted account activation.
 
 Commercial hosting, custom integrations, migration or support can exist outside the software itself and should point to `support@adclare.eu`.

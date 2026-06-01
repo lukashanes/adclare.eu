@@ -30,6 +30,7 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
       DATABASE_URL: postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public
+      SIGNUP_MODE: first-run
     networks:
       - adclare
 

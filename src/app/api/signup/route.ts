@@ -35,7 +35,6 @@ export async function POST(request: Request) {
       organizationName: body.organizationName,
       name: body.name,
       email: body.email,
-      plan: body.plan,
     });
 
     return Response.json(signup, { status: signup.created ? 201 : 200 });

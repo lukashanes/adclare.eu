@@ -55,7 +55,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-The current development seed creates a demo organization and demo users so the app can be explored immediately. The planned self-hosted first-run flow will replace this with a `/setup` screen that creates the first organization and administrator.
+The `/signup` screen creates the first organization and administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users should normally be invited from inside the app.
 
 ## Docker
 
@@ -83,7 +83,7 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 ```
 
-See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for the current Hetzner deployment notes. A vendor-neutral self-hosting guide is being split out into `docs/self-hosting.md`.
+See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide and [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for the current Hetzner deployment notes.
 
 ## Configuration
 
@@ -96,6 +96,7 @@ Important environment variables:
 - `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: optional Cloudflare Turnstile protection.
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.
 - `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.
+- `SIGNUP_MODE`: `first-run` by default; use `open` only when public workspace creation is intentional, or `disabled` for invite-only operation.
 
 Stripe, subscriptions, invoice approval and trial lock are not part of the default open source product.
 

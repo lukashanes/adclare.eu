@@ -1,0 +1,162 @@
+# Self-Hosting Adclare
+
+Adclare is an open source, self-hosted application for managing political advertising records and workflow under the EU Transparency and Targeting of Political Advertising Regulation (TTPA), Regulation (EU) 2024/900.
+
+This guide is vendor-neutral. It assumes Docker, PostgreSQL and a reverse proxy or TLS terminator.
+
+## Requirements
+
+- A Linux server or local machine with Docker and Docker Compose.
+- A DNS name for production, for example `adclare.example.org`.
+- PostgreSQL, provided by the included Compose database or by your own managed database.
+- Optional S3-compatible object storage for advert files.
+- Optional Cloudflare Turnstile for public forms.
+- Optional Cloudflare Email Service for magic links and invitations.
+
+## Quick Docker Start
+
+```bash
+git clone https://github.com/lukashanes/adclare.eu.git
+cd adclare.eu
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```bash
+NEXT_PUBLIC_APP_URL=https://adclare.example.org
+POSTGRES_DB=adclare_prod
+POSTGRES_USER=adclare
+POSTGRES_PASSWORD=change_this_to_a_long_random_value
+DATABASE_URL=postgresql://adclare:change_this_to_a_long_random_value@db:5432/adclare_prod?schema=public
+ADMIN_ACCESS_PASSWORD=change_this_admin_password
+ADMIN_SESSION_SECRET=change_this_to_at_least_32_random_characters
+SIGNUP_MODE=first-run
+```
+
+Run the database and migrations:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d db
+docker compose -f docker-compose.prod.yml --profile tools build migrate
+docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
+docker compose -f docker-compose.prod.yml up -d --build web
+```
+
+The production Compose file binds the app to `127.0.0.1:13310`. Put Nginx, Caddy, Traefik or another reverse proxy in front of it and serve HTTPS.
+
+For a single fresh server where Caddy can own ports `80` and `443`, the root `docker-compose.yml` can also be used, but update `deploy/caddy/Caddyfile` to your real domain first.
+
+## First Workspace
+
+By default, `SIGNUP_MODE=first-run`.
+
+That means:
+
+- `/signup` can create the first workspace when the database has no tenant.
+- after the first workspace exists, `/signup` stops creating new workspaces,
+- existing users should use `/login`,
+- new users should be invited from inside `/app`.
+
+Other modes:
+
+- `SIGNUP_MODE=open`: allow public creation of additional workspaces.
+- `SIGNUP_MODE=disabled`: disable workspace creation completely; use invitations only.
+
+For public production instances, keep `first-run` or `disabled` unless you explicitly want open multi-tenant registration.
+
+## Email
+
+Adclare can run without outbound email configured, but login links and invitations will be stored in the `email_messages` outbox with `PENDING_PROVIDER`.
+
+For transactional sending, configure:
+
+```bash
+EMAIL_FROM='Adclare <noreply@adclare.example.org>'
+CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
+CLOUDFLARE_EMAIL_API_TOKEN='...'
+```
+
+Cloudflare Email Routing is inbound forwarding only. It does not send application emails.
+
+## Turnstile
+
+For production, keep Turnstile enabled:
+
+```bash
+TURNSTILE_REQUIRED=1
+TURNSTILE_SITE_KEY='...'
+NEXT_PUBLIC_TURNSTILE_SITE_KEY='...'
+TURNSTILE_SECRET_KEY='...'
+TURNSTILE_ALLOWED_HOSTNAMES=adclare.example.org
+```
+
+For local development only, `TURNSTILE_REQUIRED=0` can be used.
+
+## Object Storage
+
+Uploaded advert files use S3-compatible object storage:
+
+```bash
+OBJECT_STORAGE_ENDPOINT=https://fsn1.your-objectstorage.com
+OBJECT_STORAGE_REGION=fsn1
+OBJECT_STORAGE_BUCKET=adclare-assets
+OBJECT_STORAGE_ACCESS_KEY_ID=...
+OBJECT_STORAGE_SECRET_ACCESS_KEY=...
+OBJECT_STORAGE_FORCE_PATH_STYLE=0
+MAX_AD_ASSET_UPLOAD_MB=50
+```
+
+Verify storage:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile tools build storage-check
+docker compose -f docker-compose.prod.yml --profile tools run --rm storage-check
+```
+
+The check writes, reads and deletes one `_health/` object.
+
+## Backups
+
+Use the included PostgreSQL backup script:
+
+```bash
+APP_DIR=/srv/apps/adclare BACKUP_DIR=/srv/backups/adclare/postgres scripts/backup-postgres.sh
+```
+
+Recommended daily cron:
+
+```cron
+17 2 * * * root APP_DIR=/srv/apps/adclare BACKUP_DIR=/srv/backups/adclare/postgres RETENTION_DAYS=30 /srv/apps/adclare/scripts/backup-postgres.sh >> /var/log/adclare-postgres-backup.log 2>&1
+```
+
+Restore is guarded:
+
+```bash
+CONFIRM_RESTORE=adclare-prod RESTORE_FILE=/srv/backups/adclare/postgres/adclare-YYYYMMDDTHHMMSSZ.dump scripts/restore-postgres.sh
+```
+
+## Updates
+
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d db
+docker compose -f docker-compose.prod.yml --profile tools build migrate
+docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
+docker compose -f docker-compose.prod.yml up -d --build web
+docker image prune -f
+```
+
+## Security Checklist
+
+- Use HTTPS.
+- Keep `SIGNUP_MODE=first-run` or `disabled` unless public registration is intentional.
+- Generate a long `ADMIN_SESSION_SECRET`.
+- Keep object storage private.
+- Back up PostgreSQL daily and test restore.
+- Limit server SSH access.
+- Keep Cloudflare, reverse proxy and Docker logs available for incident review.
+
+## Support
+
+For hosting, installation, migration, TTPA workflow design, integrations or production support from the Adclare team, contact `support@adclare.eu`.

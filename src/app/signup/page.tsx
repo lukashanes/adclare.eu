@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { getSignupAvailability } from "@/lib/signup";
 import { publicTurnstileSiteKey } from "@/lib/turnstile";
 import { SignupClient } from "./SignupClient";
 
@@ -11,17 +12,8 @@ export const metadata: Metadata = {
   description: "Založení pracovního prostoru pro evidenci a workflow politické reklamy podle TTPA.",
 };
 
-function firstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] || "" : value || "";
-}
-
-export default async function SignupPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const query = await searchParams;
-  const defaultPlan = firstValue(query.plan) === "small" ? "small" : "large";
+export default async function SignupPage() {
+  const availability = await getSignupAvailability();
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] px-4 py-8 text-[#11161c] sm:px-6 lg:px-8">
@@ -45,12 +37,12 @@ export default async function SignupPage({
         </div>
 
         <aside className="rounded-md border border-black/10 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-semibold text-black">Založit workspace</h2>
+          <h2 className="text-2xl font-semibold text-black">Založit pracovní prostor</h2>
           <p className="mt-2 text-sm leading-6 text-[#59616b]">
-            Lokální instalace Adclare běží bez paywallu. Formulář vytvoří první organizaci a administrátora.
+            Lokální instalace Adclare je připravená pro vlastní provoz. Ve výchozím režimu formulář vytvoří první organizaci a administrátora; další lidé přichází přes pozvánky.
           </p>
           <div className="mt-6">
-            <SignupClient defaultPlan={defaultPlan} turnstileSiteKey={publicTurnstileSiteKey()} />
+            <SignupClient canCreateWorkspace={availability.canCreateWorkspace} turnstileSiteKey={publicTurnstileSiteKey()} />
           </div>
         </aside>
       </section>

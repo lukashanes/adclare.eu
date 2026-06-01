@@ -81,13 +81,11 @@ export function parseEditableAdInput(value: unknown): EditableAdInput {
 
 export function parseSignupInput(value: unknown) {
   const body = record(value);
-  const plan: "small" | "large" = body.plan === "small" ? "small" : "large";
 
   return {
     organizationName: text(body.organizationName, "organizationName", { required: true, max: 160 }),
     name: text(body.name, "name", { required: true, max: 120 }),
     email: text(body.email, "email", { required: true, max: 240 }).toLowerCase(),
-    plan,
     turnstileToken: text(body.turnstileToken, "turnstileToken", { max: 2048 }),
   };
 }

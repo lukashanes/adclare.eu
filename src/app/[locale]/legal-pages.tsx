@@ -575,7 +575,7 @@ const legal = {
       terms: {
         title: "Terms of Service",
         intro:
-          "These terms govern the use of adclare.eu and Adclare. Specific pricing, customer settings scope mode, SLA, security terms and data processing terms may be further set by an order, agreement or separate addendum.",
+          "These terms govern the use of adclare.eu and Adclare. Adclare is available as open source software under the EUPL-1.2 licence; separate support, hosting, SLA or custom development may be agreed by contract.",
         sections: [
           {
             title: "Operator and intended use",
