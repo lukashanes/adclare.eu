@@ -32,9 +32,6 @@ const objectStorage = read("src/lib/object-storage.ts");
 const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
 const adminAuth = read("src/lib/admin-auth.ts");
 const adminPage = read("src/app/[locale]/admin/page.tsx");
-const appBillingCheckoutRoute = read("src/app/api/app/billing/checkout/route.ts");
-const appBillingPortalRoute = read("src/app/api/app/billing/portal/route.ts");
-const appBillingInvoiceRoute = read("src/app/api/app/billing/request-invoice/route.ts");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
@@ -47,7 +44,7 @@ check(adminDb.includes('status: "pending" as const'), "Transparency notice shoul
 check(transparencyPage.includes('notice.status === "pending"'), "Transparency page should handle unpublished QR links without exposing ad details.");
 check(loginRoute.includes("verifyTurnstileToken"), "Login link route should verify Turnstile when configured.");
 check(inviteRoute.includes("verifyTurnstileToken"), "Invite acceptance route should verify Turnstile when configured.");
-check(signupRoute.includes("createSignupTrial") && signupRoute.includes("verifyTurnstileToken"), "Signup route should create trials and verify Turnstile when configured.");
+check(signupRoute.includes("createSignupWorkspace") && signupRoute.includes("verifyTurnstileToken"), "Signup route should create a workspace and verify Turnstile when configured.");
 check(!turnstileField.includes("process.env"), "Turnstile client component must receive the site key as a prop.");
 check(turnstileLib.includes("TURNSTILE_SITE_KEY"), "Turnstile site key should be readable from a server runtime variable.");
 check(schema.includes("model AdAsset"), "Ad asset storage model is missing.");
@@ -71,11 +68,9 @@ check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), 
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/request-changes/route.ts")), "App request changes route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/audit-export/route.ts")), "App audit export route is missing.");
-check(existsSync(resolve(root, "src/app/api/app/billing/portal/route.ts")), "App billing portal route is missing.");
-check(
-  appBillingCheckoutRoute.includes("billing-checkout") && appBillingPortalRoute.includes("billing-portal") && appBillingInvoiceRoute.includes("billing-invoice-request"),
-  "App billing actions should be rate limited.",
-);
+check(!existsSync(resolve(root, "src/app/app/activate/page.tsx")), "Open source app should not include an activation paywall page.");
+check(!existsSync(resolve(root, "src/app/api/app/billing/portal/route.ts")), "Open source app should not include app billing portal routes.");
+check(!existsSync(resolve(root, "src/app/api/stripe/webhook/route.ts")), "Open source app should not include a Stripe webhook route.");
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
 check(adminDb.includes("requestAppAdChanges"), "Review change request handler is missing.");
 check(appWorkspace.includes("Ke kontrole") && appWorkspace.includes("Vrátit k doplnění"), "Workspace should expose review inbox and change requests.");

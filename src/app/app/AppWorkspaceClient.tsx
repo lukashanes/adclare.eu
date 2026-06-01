@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, CreditCard, Download, Edit3, FileArchive, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Download, Edit3, FileArchive, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
 import type { AdRecord, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
@@ -248,7 +247,6 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const selectedAd = workspace.ads.find((ad) => ad.id === selectedId) ?? workspace.ads[0] ?? null;
   const writable = canManageAds(workspace);
   const reviewable = canReviewAds(workspace);
-  const billing = workspace.billing;
   const progress = setupProgress(workspace);
   const filteredAds = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -527,27 +525,6 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
   return (
     <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:px-8">
-      {billing?.status === "TRIAL" || billing?.invoicePending ? (
-        <div className="flex flex-col gap-3 rounded-md border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900 sm:flex-row sm:items-center sm:justify-between">
-          <div className="font-semibold">
-            {billing.invoicePending
-              ? "Fakturace čeká na ruční schválení."
-              : `Zkušební přístup běží ještě ${billing.trialDaysLeft} ${billing.trialDaysLeft === 1 ? "den" : billing.trialDaysLeft < 5 ? "dny" : "dní"}.`}
-            <span className="ml-1 font-normal">Po skončení se pracovní přístupy uzamknou, dokud účet nebude aktivní.</span>
-          </div>
-          {billing.canManageBilling ? (
-            <Link href="/app/activate" className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 font-semibold text-white">
-              <CreditCard size={15} />
-              Aktivovat účet
-            </Link>
-          ) : (
-            <span className="inline-flex items-center justify-center rounded-md border border-orange-200 bg-white px-3 py-2 font-semibold">
-              Aktivaci řeší admin strany
-            </span>
-          )}
-        </div>
-      ) : null}
-
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <article className="rounded-md border border-black/10 bg-white p-5">
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Správa reklam</p>
@@ -572,8 +549,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
               <span className="text-right font-semibold text-[#20242a]">{workspace.membership.scope}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="text-[#68707a]">Účet</span>
-              <span className="text-right font-semibold text-[#20242a]">{workspace.billing?.statusLabel ?? "nenastaveno"}</span>
+              <span className="text-[#68707a]">Přístup</span>
+              <span className="text-right font-semibold text-[#20242a]">aktivní</span>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-1.5">
@@ -685,7 +662,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
             <div>
               <h2 className="text-lg font-semibold text-black">Seznam reklam</h2>
               <p className="mt-1 text-sm text-[#59616b]">
-                Tarif: {workspace.billing?.effectivePrice ?? "-"} · Platba: {workspace.billing?.methodLabel ?? "-"}
+                Evidence, kontrola údajů, schvalování a exporty k reklamám v jednom pracovním prostoru.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

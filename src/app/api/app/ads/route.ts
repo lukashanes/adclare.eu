@@ -1,6 +1,5 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
-import { getUserBillingAccess } from "@/lib/billing-access";
 import { createAppAd, getAppWorkspacePayload, normalizeLocale } from "@/lib/admin-demo-db";
 import { parseEditableAdInput, validationErrorResponse } from "@/lib/request-validation";
 
@@ -19,12 +18,6 @@ export async function GET(request: Request) {
   }
 
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
-  const billingAccess = await getUserBillingAccess(session.userId, locale);
-
-  if (!billingAccess?.canUseApp) {
-    return Response.json({ error: "Zkušební přístup skončil nebo účet není aktivní.", activationRequired: true }, { status: 402 });
-  }
-
   const payload = await getAppWorkspacePayload(session.userId, locale);
 
   if (!payload) {
@@ -50,12 +43,6 @@ export async function POST(request: Request) {
   }
 
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
-  const billingAccess = await getUserBillingAccess(session.userId, locale);
-
-  if (!billingAccess?.canUseApp) {
-    return Response.json({ error: "Zkušební přístup skončil nebo účet není aktivní.", activationRequired: true }, { status: 402 });
-  }
-
   try {
     const input = parseEditableAdInput(await request.json());
     const ad = await createAppAd(session.userId, input, locale);

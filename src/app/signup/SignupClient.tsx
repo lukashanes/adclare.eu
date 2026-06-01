@@ -17,7 +17,7 @@ export function SignupClient({
   const [organizationName, setOrganizationName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [plan, setPlan] = useState<"large" | "small">(defaultPlan);
+  const [plan] = useState<"large" | "small">(defaultPlan);
   const [state, setState] = useState<SignupState>("idle");
   const [error, setError] = useState("");
 
@@ -107,24 +107,6 @@ export function SignupClient({
           className="h-12 rounded-md border border-black/10 bg-white px-3 font-normal text-[#20242a] outline-none transition focus:border-[#f45d1f]"
         />
       </label>
-      <fieldset className="grid gap-2">
-        <legend className="text-sm font-semibold text-[#20242a]">Tarif po zkušebním období</legend>
-        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-black/10 p-3 text-sm">
-          <input type="radio" checked={plan === "large"} onChange={() => setPlan("large")} className="mt-1 size-4 accent-[#f45d1f]" />
-          <span>
-            <span className="block font-semibold text-[#20242a]">Velká strana</span>
-            <span className="text-[#59616b]">Neomezené přístupy, kampaně a reklamy. 999 EUR / rok v akci.</span>
-          </span>
-        </label>
-        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-black/10 p-3 text-sm">
-          <input type="radio" checked={plan === "small"} onChange={() => setPlan("small")} className="mt-1 size-4 accent-[#f45d1f]" />
-          <span>
-            <span className="block font-semibold text-[#20242a]">Malá strana</span>
-            <span className="text-[#59616b]">Jedna volební kampaň ročně, 10 přístupů. 99 EUR / rok.</span>
-          </span>
-        </label>
-      </fieldset>
-
       <TurnstileField siteKey={turnstileSiteKey} />
 
       <button
@@ -133,11 +115,11 @@ export function SignupClient({
         className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-4 text-sm font-semibold text-white transition hover:bg-[#d94410] disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
       >
         {state === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight size={16} />}
-        Spustit 14 dní zdarma
+        Založit pracovní prostor
       </button>
 
       <p className="text-xs leading-5 text-[#68707a]">
-        Odesláním se založí zkušební pracovní prostor. Pokračováním potvrzujete souhlas s{" "}
+        Odesláním se založí pracovní prostor v této instalaci. Pokračováním potvrzujete souhlas s{" "}
         <Link className="font-semibold text-[#d94410]" href="/cs/terms">obchodními podmínkami</Link>,{" "}
         <Link className="font-semibold text-[#d94410]" href="/cs/privacy">zpracováním osobních údajů</Link> a{" "}
         <Link className="font-semibold text-[#d94410]" href="/cs/dpa">DPA</Link>.

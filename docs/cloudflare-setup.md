@@ -96,7 +96,6 @@ Email Routing:
 - Done: destination address `lh@aenze.com` is verified in Cloudflare.
 - Done: incoming aliases are active:
   - `hello@adclare.eu`
-  - `billing@adclare.eu`
   - `support@adclare.eu`
   - `security@adclare.eu`
 
@@ -113,7 +112,7 @@ Start with `p=none` to monitor legitimate mail flow. Move to `quarantine` or `re
 
 Outbound Email:
 
-Cloudflare Email Routing is for inbound forwarding. Transactional sending for magic links, invites and billing emails uses Cloudflare Email Service REST API from the Hetzner app.
+Cloudflare Email Routing is for inbound forwarding. Transactional sending for magic links and invites uses Cloudflare Email Service REST API from the Hetzner app.
 
 Needed in production `.env` after Email Sending is onboarded in Cloudflare:
 
@@ -176,14 +175,13 @@ SETUP_EMAIL_ROUTING=1 npm run cf:setup
 Default aliases:
 
 - `hello@adclare.eu`
-- `billing@adclare.eu`
 - `support@adclare.eu`
 - `security@adclare.eu`
 
 Override aliases:
 
 ```bash
-EMAIL_ALIASES="hello,billing,support,security,info" SETUP_EMAIL_ROUTING=1 npm run cf:setup
+EMAIL_ALIASES="hello,support,security,info" SETUP_EMAIL_ROUTING=1 npm run cf:setup
 ```
 
 With Turnstile widget creation:

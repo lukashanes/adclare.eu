@@ -1,7 +1,7 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
 import { parseSignupInput, validationErrorResponse } from "@/lib/request-validation";
-import { createSignupTrial } from "@/lib/signup";
+import { createSignupWorkspace } from "@/lib/signup";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Verification failed." }, { status: 403 });
     }
 
-    const signup = await createSignupTrial({
+    const signup = await createSignupWorkspace({
       organizationName: body.organizationName,
       name: body.name,
       email: body.email,

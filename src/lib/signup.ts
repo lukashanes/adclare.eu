@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { BillingInterval, BillingMethod, BillingPlan, BillingStatus, MembershipStatus, UserRole } from "@prisma/client";
+import { MembershipStatus, UserRole } from "@prisma/client";
 import { requestAppLoginLink } from "@/lib/app-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -56,33 +56,10 @@ async function uniqueTenantSlug(value: string) {
   return `${base}-${randomBytes(4).toString("hex")}`;
 }
 
-function planConfig(plan: SignupPlan) {
-  if (plan === "small") {
-    return {
-      plan: BillingPlan.SMALL_PARTY,
-      monthlyPriceEur: 9,
-      yearlyPriceEur: 99,
-      discountPercent: 0,
-      noteCs: "14 dní bez platby. Malá strana: 1 kampaň ročně, 10 přístupů.",
-      noteEn: "14-day trial. Small party: 1 campaign per year, 10 seats.",
-    };
-  }
-
-  return {
-    plan: BillingPlan.LARGE_PARTY,
-    monthlyPriceEur: 99,
-    yearlyPriceEur: 999,
-    discountPercent: 50,
-    noteCs: "14 dní bez platby. Zaváděcí cena pro velkou stranu.",
-    noteEn: "14-day trial. Launch price for a large party.",
-  };
-}
-
-export async function createSignupTrial(input: SignupInput) {
+export async function createSignupWorkspace(input: SignupInput) {
   const organizationName = input.organizationName.trim();
   const name = input.name.trim();
   const email = normalizeEmail(input.email);
-  const plan = input.plan === "small" ? "small" : "large";
 
   if (organizationName.length < 2) {
     throw new Error("Organization name is required.");
@@ -119,8 +96,6 @@ export async function createSignupTrial(input: SignupInput) {
   }
 
   const slug = await uniqueTenantSlug(organizationName);
-  const config = planConfig(plan);
-  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
   const tenant = await prisma.$transaction(async (tx) => {
     const createdTenant = await tx.tenant.create({
@@ -175,30 +150,13 @@ export async function createSignupTrial(input: SignupInput) {
       },
     });
 
-    await tx.billingAccount.create({
-      data: {
-        tenantId: createdTenant.id,
-        plan: config.plan,
-        interval: BillingInterval.YEARLY,
-        method: BillingMethod.STRIPE,
-        status: BillingStatus.TRIAL,
-        discountPercent: config.discountPercent,
-        monthlyPriceEur: config.monthlyPriceEur,
-        yearlyPriceEur: config.yearlyPriceEur,
-        invoiceEmail: email,
-        trialEndsAt,
-        noteCs: config.noteCs,
-        noteEn: config.noteEn,
-      },
-    });
-
     await tx.auditLog.create({
       data: {
         tenantId: createdTenant.id,
         actor: email,
-        action: "create_trial_tenant",
-        messageCs: `Vytvořen zkušební účet pro ${organizationName}.`,
-        messageEn: `Created trial account for ${organizationName}.`,
+        action: "create_workspace",
+        messageCs: `Vytvořen pracovní prostor pro ${organizationName}.`,
+        messageEn: `Created workspace for ${organizationName}.`,
       },
     });
 

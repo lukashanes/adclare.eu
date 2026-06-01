@@ -67,12 +67,12 @@ const legal = {
       privacy: {
         title: "Zásady ochrany osobních údajů",
         intro:
-          "Tyto zásady obsahují informace o zpracování osobních údajů při používání webu adclare.eu, aplikace Adclare, obchodní komunikaci, fakturaci, podpoře, přihlášení, pozvánkách, veřejných transparentních výstupech a bezpečnostním provozu služby.",
+          "Tyto zásady obsahují informace o zpracování osobních údajů při používání webu adclare.eu, aplikace Adclare, obchodní komunikaci, podpoře, přihlášení, pozvánkách, veřejných transparentních výstupech a bezpečnostním provozu služby.",
         sections: [
           {
             title: "Postavení Aenze s.r.o.",
             body: [
-              "Aenze s.r.o. vystupuje jako správce osobních údajů při provozu webu, obchodní komunikaci, uzavírání a plnění smluv, fakturaci, správě účtů, bezpečnosti služby, vlastním marketingu vůči zákazníkům a ochraně svých právních nároků.",
+              "Aenze s.r.o. vystupuje jako správce osobních údajů při provozu webu, obchodní komunikaci, uzavírání a plnění smluv, správě účtů, bezpečnosti služby, vlastním marketingu vůči zákazníkům a ochraně svých právních nároků.",
               "U osobních údajů vložených zákazníkem do kampaní, reklam, transparentních oznámení, souborů, schvalování, auditních záznamů a exportů vystupuje Aenze s.r.o. jako zpracovatel, pokud zákazník určuje účely a prostředky zpracování. Toto zpracování se řídí smlouvou se zákazníkem a zpracovatelskou přílohou podle čl. 28 GDPR.",
               "Zákazník zůstává odpovědný za zákonnost, správnost, úplnost a zveřejnění údajů, které do Adclare vloží nebo prostřednictvím služby publikuje.",
             ],
@@ -81,7 +81,7 @@ const legal = {
             title: "Kategorie údajů",
             body: [
               "Kontaktní a identifikační údaje: jméno, příjmení, e-mail, telefon, organizace, role, pracovní zařazení, obsah komunikace a údaje potřebné k vyřízení poptávky nebo podpory.",
-              "Účetní a smluvní údaje: objednávka, tarif, sleva, platební metoda, fakturační údaje, stav předplatného, historie plateb, komunikace k fakturaci a údaje nezbytné pro účetní a daňové povinnosti.",
+              "Účetní a smluvní údaje: objednávka podpory, hostingové nebo implementační smlouvy, kontaktní údaje a údaje nezbytné pro účetní a daňové povinnosti.",
               "Údaje uživatelů aplikace: e-mail, jméno, role, oprávnění, pobočka nebo organizační jednotka, pozvánky, přihlášení, relace, auditní události a nastavení účtu.",
               "Zákaznický obsah: údaje o politických reklamách, kampaních, kandidátech, pobočkách, zadavatelích, plátcích, nákladech, dodavatelích, cílení, QR kódech, transparentních oznámeních, souborech a veřejných archivech.",
               "Technické a bezpečnostní údaje: IP adresa, čas přístupu, identifikátory relace, typ zařízení a prohlížeče, bezpečnostní logy, chybové záznamy, informace o doručení e-mailu a údaje potřebné k ochraně služby.",
@@ -90,7 +90,7 @@ const legal = {
           {
             title: "Účely a právní základy",
             body: [
-              "Jednání o smlouvě a plnění smlouvy zahrnuje vyřízení poptávky, zřízení a správu účtu, poskytování služby, pozvánky uživatelům, podporu, fakturaci, platby, zákaznickou komunikaci a zpřístupnění funkcí aplikace.",
+              "Jednání o smlouvě a plnění smlouvy zahrnuje vyřízení poptávky, zřízení a správu účtu, poskytování služby, pozvánky uživatelům, podporu, zákaznickou komunikaci a zpřístupnění funkcí aplikace.",
               "Právní povinnosti zahrnují vedení účetnictví, daňové doklady, plnění povinností podle právních předpisů a vyřizování oprávněných požadavků orgánů veřejné moci.",
               "Oprávněný zájem zahrnuje zabezpečení webu a aplikace, prevenci zneužití, provozní a bezpečnostní logy, ochranu právních nároků, správu zákaznického vztahu a přiměřenou přímou komunikaci se stávajícími zákazníky.",
               "Souhlas se použije u volitelných analytických, marketingových nebo obdobných technologií a u komunikace, která souhlas vyžaduje. Souhlas lze kdykoli odvolat.",
@@ -107,7 +107,7 @@ const legal = {
           {
             title: "Příjemci, dodavatelé a předávání",
             body: [
-              "Osobní údaje mohou být zpřístupněny pouze v nezbytném rozsahu poskytovatelům infrastruktury, bezpečnostních služeb, e-mailových služeb, platebních služeb, účetnictví, právních služeb, technické podpory, úložišť, monitoringu a dalším dodavatelům uvedeným v přehledu subdodavatelů.",
+              "Osobní údaje mohou být zpřístupněny pouze v nezbytném rozsahu poskytovatelům infrastruktury, bezpečnostních služeb, e-mailových služeb, účetnictví, právních služeb, technické podpory, úložišť, monitoringu a dalším dodavatelům uvedeným v přehledu subdodavatelů.",
               "Někteří dodavatelé mohou zpracovávat údaje jako samostatní správci, zejména poskytovatel platebních služeb v rozsahu vyžadovaném právními předpisy a pravidly platebních sítí.",
               "Předání osobních údajů mimo EU/EHP probíhá pouze při splnění podmínek GDPR, zejména na základě rozhodnutí o odpovídající ochraně, standardních smluvních doložek nebo jiné použitelné záruky.",
             ],
@@ -157,7 +157,7 @@ const legal = {
               "adclare_admin_session - nezbytná session cookie administrace, provozovatel Aenze s.r.o., účel ověření administrátorského přístupu, expirace 12 hodin.",
               "Přihlašovací a pozvánkové tokeny nejsou ukládány jako čitelné cookies v prohlížeči. Tokeny jsou posílány e-mailem, jejich otisky jsou uloženy na serveru a mají omezenou platnost.",
               "Cloudflare může být použit pro DNS, ochranu před útoky, proxy, WAF, e-mailové služby a případně Turnstile. Tyto technologie slouží k bezpečnosti, doručení služby a ochraně formulářů.",
-              "Stripe může být použit při platbě kartou, správě předplatného a zákaznickém portálu. Při přesměrování na Stripe se použijí technologie Stripe podle jeho vlastních podmínek a zásad ochrany osobních údajů.",
+              "",
             ],
           },
           {
@@ -171,7 +171,7 @@ const legal = {
             title: "Aplikace Adclare",
             body: [
               "V aplikaci jsou nezbytné technologie používány pro přihlášení, správu relace, zabezpečení účtu, ochranu formulářů, prevenci zneužití, oprávnění uživatelů a zachování základní funkčnosti.",
-              "Blokace nezbytných technologií může způsobit nefunkčnost přihlášení, plateb, bezpečnostního ověření, QR balíčků nebo dalších částí služby.",
+              "Blokace nezbytných technologií může způsobit nefunkčnost přihlášení, bezpečnostního ověření, QR balíčků nebo dalších částí služby.",
             ],
           },
           {
@@ -186,7 +186,7 @@ const legal = {
       terms: {
         title: "Podmínky používání služby",
         intro:
-          "Tyto podmínky upravují používání webu adclare.eu a aplikace Adclare. Konkrétní cena, tarif, rozsah přístupů, platební režim, SLA, bezpečnostní režim a zpracování osobních údajů mohou být dále sjednány objednávkou, smlouvou nebo samostatnou přílohou.",
+          "Tyto podmínky upravují používání webu adclare.eu a aplikace Adclare. Adclare je dostupný jako open source software pod licencí EUPL-1.2; samostatná podpora, hosting, SLA nebo úpravy mohou být sjednány smlouvou.",
         sections: [
           {
             title: "Provozovatel a určení služby",
@@ -207,7 +207,7 @@ const legal = {
           {
             title: "Účty, role a přístupy",
             body: [
-              "Zákazník může v rámci sjednaného tarifu vytvářet uživatele, pobočky, regiony, oblasti, kampaně a pracovní role. Zákazník odpovídá za to, že přístupy mají pouze oprávněné osoby a že jejich oprávnění odpovídá jejich úloze.",
+              "Zákazník může v rámci své instalace vytvářet uživatele, pobočky, regiony, oblasti, kampaně a pracovní role. Zákazník odpovídá za to, že přístupy mají pouze oprávněné osoby a že jejich oprávnění odpovídá jejich úloze.",
               "Pozvaní uživatelé, externí grafici, agentury a kandidáti mohou pracovat pouze v rozsahu oprávnění nastaveném zákazníkem.",
               "Uživatel je povinen chránit přístup k e-mailu, přihlašovacím odkazům a svému zařízení. Podezření na zneužití přístupu musí být bez zbytečného odkladu oznámeno zákazníkovi nebo Aenze s.r.o.",
             ],
@@ -218,15 +218,6 @@ const legal = {
               "Zákazník odpovídá za správnost, úplnost, aktuálnost a zákonnost údajů vložených do služby, zejména údajů o reklamě, zadavateli, sponzorovi, plátci, částkách, zdroji financování, kampani, období zveřejnění, cílení, dodavatelích a veřejně publikovaném obsahu.",
               "Zákazník odpovídá za interní schválení materiálů před zveřejněním a za to, že reklama nebude vyvěšena, spuštěna nebo šířena bez doplnění údajů, které jsou pro daný typ reklamy povinné.",
               "Zákazník nesmí službu používat způsobem, který porušuje právní předpisy, práva třetích osob, bezpečnost služby nebo oprávněné zájmy Aenze s.r.o. či ostatních zákazníků.",
-            ],
-          },
-          {
-            title: "Zkušební přístup, platby a fakturace",
-            body: [
-              "Pokud není sjednáno jinak, nový zákaznický účet může být zpřístupněn na 14 dní bez platby. Po skončení zkušebního období mohou být pracovní přístupy uzamčeny, dokud není účet aktivován zaplacením předplatného nebo ručním schválením fakturace.",
-              "Přístup ke službě může být poskytován formou měsíčního nebo ročního předplatného, individuální nabídky nebo fakturace na základě ručního schválení. Konkrétní tarif, cena, sleva, měna, DPH, limity a platební podmínky jsou určeny objednávkou, administrací účtu nebo smlouvou.",
-              "Platba může probíhat platební kartou prostřednictvím Stripe nebo na fakturu. Pokud není sjednáno jinak, předplatné se obnovuje na další období podle zvoleného tarifu.",
-              "Při prodlení s platbou, neúspěšné platbě, zneužití služby nebo podstatném porušení podmínek může Aenze s.r.o. přístup omezit, pozastavit nebo ukončit v rozsahu povoleném smlouvou a právními předpisy.",
             ],
           },
           {
@@ -345,12 +336,12 @@ const legal = {
       subprocessors: {
         title: "Subdodavatelé a příjemci",
         intro:
-          "Tento přehled uvádí hlavní dodavatele a příjemce, kteří se mohou podílet na provozu Adclare, zabezpečení, platbách, e-mailové komunikaci, infrastruktuře a podpoře.",
+          "Tento přehled uvádí hlavní dodavatele a příjemce, kteří se mohou podílet na provozu Adclare, zabezpečení, e-mailové komunikaci, infrastruktuře a podpoře.",
         sections: [
           {
             title: "Jak přehled používat",
             body: [
-              "Přehled se vztahuje k běžnému provozu webu adclare.eu a aplikace Adclare. Konkrétní zapojení se může lišit podle tarifu, nastavení zákazníka, platební metody a zapnutých funkcí.",
+              "Přehled se vztahuje k běžnému provozu webu adclare.eu a aplikace Adclare. Konkrétní zapojení se může lišit podle nastavení, nastavení zákazníka a zapnutých funkcí.",
               "Někteří poskytovatelé jednají jako zpracovatelé Aenze s.r.o.; někteří mohou v omezeném rozsahu jednat jako samostatní správci, zejména pokud jim tuto roli ukládají právní předpisy nebo pravidla jejich regulovaného odvětví.",
             ],
           },
@@ -359,7 +350,6 @@ const legal = {
             body: [
               "Hetzner - hosting, VPS, databázová infrastruktura, zálohy nebo objektové úložiště podle provozního nastavení. Účel: provoz aplikace, databáze, souborů, záloh a dostupnosti. Lokalita: EU/EHP podle zvoleného datacentra.",
               "Cloudflare - DNS, proxy, DDoS ochrana, WAF, bezpečnostní služby, případně Turnstile, Email Routing a e-mailové odesílání. Účel: dostupnost, zabezpečení, ochrana formulářů a doručování e-mailové komunikace. Lokalita: globální síť, možné předání mimo EU/EHP při použití smluvních záruk.",
-              "Stripe - platební brána, předplatné, zákaznický portál, platební doklady, prevence podvodů a zpracování platebních údajů. Účel: platby kartou a správa fakturace. Lokalita: EU/EHP a globální zpracování podle podmínek Stripe.",
               "Účetní, daňoví a právní poradci - zpracování faktur, účetnictví, daňových povinností, smluvní dokumentace a právních nároků. Účel: zákonné a smluvní povinnosti Aenze s.r.o.",
             ],
           },
@@ -373,7 +363,7 @@ const legal = {
           {
             title: "Změny subdodavatelů",
             body: [
-              "Aenze s.r.o. může subdodavatele změnit, doplnit nebo nahradit, pokud je to potřebné pro provoz, bezpečnost, dostupnost, platby nebo vývoj služby.",
+              "Aenze s.r.o. může subdodavatele změnit, doplnit nebo nahradit, pokud je to potřebné pro provoz, bezpečnost, dostupnost nebo vývoj služby.",
               "Podstatná změna bude promítnuta aktualizací této stránky nebo oznámena zákazníkovi jiným přiměřeným způsobem. Zákazník může vznést odůvodněnou námitku podle zpracovatelské přílohy nebo smlouvy.",
             ],
           },
@@ -395,9 +385,8 @@ const legal = {
           {
             title: "Přístupy a oddělení zákazníků",
             body: [
-              "Data zákazníků jsou oddělena tenantem. Role a oprávnění určují, zda uživatel vidí centrálu, pobočku, kampaň, kandidáta, reklamu, schvalování, fakturaci nebo audit.",
+              "Data zákazníků jsou oddělena tenantem. Role a oprávnění určují, zda uživatel vidí centrálu, pobočku, kampaň, kandidáta, reklamu, schvalování nebo audit.",
               "Zákazník může přidávat pobočky, regiony, oblasti, externí grafiky, kandidáty a schvalovatele. Za správné nastavení jejich rozsahu odpovídá zákazník.",
-              "Po skončení trialu, neuhrazené platbě nebo ručním pozastavení může být pracovní přístup uzamčen, aby do služby nemohly přibývat nové změny mimo aktivní smluvní režim.",
             ],
           },
           {
@@ -412,14 +401,13 @@ const legal = {
             title: "Síť, infrastruktura a e-mail",
             body: [
               "Produkční provoz je navržen pro nasazení za Cloudflare DNS, proxy, DDoS ochranou a WAF. Aplikace běží na infrastruktuře Hetzner.",
-              "E-mailové pozvánky, přihlašovací odkazy a fakturační oznámení jsou odesílány přes Cloudflare Email Service, pokud je služba v prostředí nakonfigurována.",
-              "Platební údaje karet nezpracovává Adclare přímo. Platby probíhají přes Stripe Checkout nebo zákaznický portál Stripe.",
+              "E-mailové pozvánky a přihlašovací odkazy jsou odesílány přes Cloudflare Email Service, pokud je služba v prostředí nakonfigurována.",
             ],
           },
           {
             title: "Auditní stopa a změny reklam",
             body: [
-              "Důležité změny v reklamách, schválení, publikaci, fakturaci, pozvánkách a přihlášení jsou zapisovány do auditní stopy.",
+              "Důležité změny v reklamách, schválení, publikaci, pozvánkách a přihlášení jsou zapisovány do auditní stopy.",
               "Po publikaci reklamy může být další změna vedena jako nová verze nebo auditní událost, aby bylo možné zpětně doložit, kdo a kdy údaje upravil.",
               "QR balíček nebo publikace mohou být zablokovány, pokud záznam neobsahuje údaje požadované nastavením služby.",
             ],
@@ -429,7 +417,7 @@ const legal = {
             body: [
               "Produkční prostředí je navrženo s pravidelným zálohováním databáze a možností exportu dat pro zákazníka.",
               "Exporty mohou sloužit pro kontrolu, archivaci, migraci do jiného úložiště nebo předání veřejnému webu zákazníka.",
-              "Konkrétní retenční doba, frekvence záloh, RPO, RTO a zvláštní archivní režim jsou závazné pouze tehdy, pokud jsou sjednány ve smlouvě nebo tarifu.",
+              "Konkrétní retenční doba, frekvence záloh, RPO, RTO a zvláštní archivní režim jsou závazné pouze tehdy, pokud jsou sjednány ve smlouvě nebo nastavení.",
             ],
           },
           {
@@ -468,12 +456,12 @@ const legal = {
       privacy: {
         title: "Privacy Policy",
         intro:
-          "This Privacy Policy describes the processing of personal data on adclare.eu, in Adclare, business communication, billing, support, login, invitations, public transparency outputs and service security operations.",
+          "This Privacy Policy describes the processing of personal data on adclare.eu, in Adclare, business communication, support, login, invitations, public transparency outputs and service security operations.",
         sections: [
           {
             title: "Role of Aenze s.r.o.",
             body: [
-              "Aenze s.r.o. acts as controller for website operation, business communication, contract conclusion and performance, billing, account administration, service security, its own customer marketing and protection of its legal claims.",
+              "Aenze s.r.o. acts as controller for website operation, business communication, contract conclusion and performance, account administration, service security, its own customer marketing and protection of its legal claims.",
               "For personal data entered by the customer into campaigns, ads, transparency notices, files, approval workflows, audit records and exports, Aenze s.r.o. acts as processor where the customer determines the purposes and means of processing. This processing is governed by the customer agreement and the data processing addendum under Article 28 GDPR.",
               "The customer remains responsible for the lawfulness, accuracy, completeness and publication of data entered into or published through Adclare.",
             ],
@@ -482,7 +470,7 @@ const legal = {
             title: "Data categories",
             body: [
               "Contact and identification data: name, email, phone number, organization, role, job function, message content and data needed to handle an inquiry or support request.",
-              "Account and contract data: order, plan, discount, payment method, billing data, subscription status, payment history, billing communication and data needed for accounting and tax duties.",
+              "Account and contract data: order, customer settings, discount method data, subscription status history communication and data needed for accounting and tax duties.",
               "Application user data: email, name, role, permissions, branch or organizational unit, invitations, logins, sessions, audit events and account settings.",
               "Customer content: political ads, campaigns, candidates, branches, sponsors, payers, costs, suppliers, targeting, QR codes, transparency notices, files and public repositories.",
               "Technical and security data: IP address, access time, session identifiers, device and browser data, security logs, error records, email delivery data and information needed to protect the service.",
@@ -491,7 +479,7 @@ const legal = {
           {
             title: "Purposes and legal bases",
             body: [
-              "Pre-contract steps and contract performance cover inquiries, account setup and administration, service provision, user invitations, support, billing, payments, customer communication and application functionality.",
+              "Pre-contract steps and contract performance cover inquiries, account setup and administration, service provision, user invitations, supports, customer communication and application functionality.",
               "Legal obligations cover accounting, tax records, compliance with applicable laws and handling lawful requests from public authorities.",
               "Legitimate interests include website and service security, abuse prevention, operational and security logs, protection of legal claims, customer relationship administration and proportionate direct communication with existing customers.",
               "Consent applies to optional analytics, marketing or similar technologies and to communications that require consent. Consent may be withdrawn at any time.",
@@ -508,7 +496,7 @@ const legal = {
           {
             title: "Recipients, suppliers and transfers",
             body: [
-              "Personal data may be disclosed only to the extent necessary to infrastructure, security, email, payment, accounting, legal, technical support, storage, monitoring and other suppliers listed in the subprocessors overview.",
+              "Personal data may be disclosed only to the extent necessary to infrastructure, security, email, accounting, legal, technical support, storage, monitoring and other suppliers listed in the subprocessors overview.",
               "Some suppliers may process data as independent controllers, especially payment service providers to the extent required by law and payment network rules.",
               "Transfers outside the EU/EEA are made only in compliance with GDPR, in particular based on an adequacy decision, standard contractual clauses or another applicable safeguard.",
             ],
@@ -558,7 +546,7 @@ const legal = {
               "adclare_admin_session - necessary admin session cookie, provider Aenze s.r.o., purpose administrator access verification, expiry 12 hours.",
               "Login and invitation tokens are not stored as readable browser cookies. Tokens are sent by email, their hashes are stored server-side and their validity is limited.",
               "Cloudflare may be used for DNS, attack protection, proxy, WAF, email services and, where enabled, Turnstile. These technologies support security, service delivery and form protection.",
-              "Stripe may be used for card payments, subscription management and the customer portal. When redirected to Stripe, Stripe technologies apply under Stripe's own terms and privacy notices.",
+              "",
             ],
           },
           {
@@ -572,7 +560,7 @@ const legal = {
             title: "Adclare application",
             body: [
               "In the application, necessary technologies are used for login, session management, account security, form protection, abuse prevention, user permissions and core functionality.",
-              "Blocking necessary technologies may prevent login, payments, security verification, QR packages or other parts of the service from working correctly.",
+              "Blocking necessary technologies may prevent logins, security verification, QR packages or other parts of the service from working correctly.",
             ],
           },
           {
@@ -587,7 +575,7 @@ const legal = {
       terms: {
         title: "Terms of Service",
         intro:
-          "These terms govern the use of adclare.eu and Adclare. Specific pricing, plan scope, payment mode, SLA, security terms and data processing terms may be further set by an order, agreement or separate addendum.",
+          "These terms govern the use of adclare.eu and Adclare. Specific pricing, customer settings scope mode, SLA, security terms and data processing terms may be further set by an order, agreement or separate addendum.",
         sections: [
           {
             title: "Operator and intended use",
@@ -608,7 +596,7 @@ const legal = {
           {
             title: "Accounts, roles and access",
             body: [
-              "Within the agreed plan, the customer may create users, branches, regions, areas, campaigns and working roles. The customer is responsible for ensuring that access is granted only to authorized persons and matches their duties.",
+              "In its installation, the customer may create users, branches, regions, areas, campaigns and working roles. The customer is responsible for ensuring that access is granted only to authorized persons and matches their duties.",
               "Invited users, external designers, agencies and candidates may work only within the permissions set by the customer.",
               "Users must protect access to their email, login links and devices. Suspected misuse must be reported without undue delay to the customer or Aenze s.r.o.",
             ],
@@ -619,15 +607,6 @@ const legal = {
               "The customer is responsible for the accuracy, completeness, current status and lawfulness of data entered into the service, especially data about ads, sponsors, payers, amounts, funding source, campaigns, publication periods, targeting, suppliers and publicly available content.",
               "The customer is responsible for internal approval of materials before publication and for ensuring that an ad is not displayed, launched or disseminated without completion of data required for the relevant ad type.",
               "The customer must not use the service in a manner that breaches law, third-party rights, service security or the legitimate interests of Aenze s.r.o. or other customers.",
-            ],
-          },
-          {
-            title: "Trial, payments and invoicing",
-            body: [
-              "Unless agreed otherwise, a new customer account may be made available for 14 days without payment. After the trial ends, working access may be locked until the account is activated by paid subscription or manual invoice approval.",
-              "Access may be provided as a monthly or annual subscription, individual offer or invoiced arrangement subject to manual approval. The specific plan, price, discount, currency, VAT, limits and payment terms are set by the order, account administration or agreement.",
-              "Payment may be made by card through Stripe or by invoice. Unless agreed otherwise, subscriptions renew for the next period according to the selected plan.",
-              "In case of overdue payment, failed payment, misuse of the service or material breach of the terms, Aenze s.r.o. may restrict, suspend or terminate access to the extent permitted by contract and law.",
             ],
           },
           {
@@ -746,12 +725,12 @@ const legal = {
       subprocessors: {
         title: "Subprocessors and Recipients",
         intro:
-          "This overview lists the main suppliers and recipients that may support Adclare operations, security, payments, email communication, infrastructure and support.",
+          "This overview lists the main suppliers and recipients that may support Adclare operations, securitys, email communication, infrastructure and support.",
         sections: [
           {
             title: "How to read this overview",
             body: [
-              "This overview applies to regular operation of adclare.eu and Adclare. Specific involvement may differ depending on the plan, customer settings, payment method and enabled features.",
+              "This overview applies to regular operation of adclare.eu and Adclare. Specific involvement may differ depending on the customer settings, customer settings method and enabled features.",
               "Some providers act as processors of Aenze s.r.o.; some may act as independent controllers in a limited scope, especially where required by law or regulated industry rules.",
             ],
           },
@@ -760,7 +739,6 @@ const legal = {
             body: [
               "Hetzner - hosting, VPS, database infrastructure, backups or object storage depending on operational setup. Purpose: operation of application, database, files, backups and availability. Location: EU/EEA depending on selected data centre.",
               "Cloudflare - DNS, proxy, DDoS protection, WAF, security services, where enabled Turnstile, Email Routing and email sending. Purpose: availability, security, form protection and email delivery. Location: global network, possible transfers outside EU/EEA under contractual safeguards.",
-              "Stripe - payment gateway, subscriptions, customer portal, payment records, fraud prevention and processing of payment data. Purpose: card payments and billing management. Location: EU/EEA and global processing under Stripe terms.",
               "Accounting, tax and legal advisers - invoices, accounting, tax duties, contract documentation and legal claims. Purpose: legal and contractual duties of Aenze s.r.o.",
             ],
           },
@@ -774,7 +752,7 @@ const legal = {
           {
             title: "Subprocessor changes",
             body: [
-              "Aenze s.r.o. may change, add or replace subprocessors where needed for operation, security, availability, payments or development of the service.",
+              "Aenze s.r.o. may change, add or replace subprocessors where needed for operation, security, availabilitys or development of the service.",
               "A material change will be reflected by updating this page or notifying the customer by another reasonable method. The customer may object on reasonable grounds under the data processing addendum or agreement.",
             ],
           },
@@ -796,9 +774,8 @@ const legal = {
           {
             title: "Access and customer separation",
             body: [
-              "Customer data is separated by tenant. Roles and permissions determine whether a user can see headquarters, branch, campaign, candidate, ad, approvals, billing or audit.",
+              "Customer data is separated by tenant. Roles and permissions determine whether a user can see headquarters, branch, campaign, candidate, ad, approvals or audit.",
               "The customer may add branches, regions, areas, external designers, candidates and approvers. The customer is responsible for setting their scope correctly.",
-              "After trial expiry, overdue payment or manual suspension, working access may be locked to prevent new changes outside an active contractual mode.",
             ],
           },
           {
@@ -813,14 +790,13 @@ const legal = {
             title: "Network, infrastructure and email",
             body: [
               "Production operation is designed for deployment behind Cloudflare DNS, proxy, DDoS protection and WAF. The application runs on Hetzner infrastructure.",
-              "Email invitations, login links and billing notices are sent through Cloudflare Email Service when configured in the environment.",
-              "Adclare does not directly process card data. Payments run through Stripe Checkout or the Stripe customer portal.",
+              "Email invitations and login links are sent through Cloudflare Email Service when configured in the environment.",
             ],
           },
           {
             title: "Audit trail and ad changes",
             body: [
-              "Important changes in ads, approvals, publication, billing, invitations and login are written to the audit trail.",
+              "Important changes in ads, approvals, publication, invitations and login are written to the audit trail.",
               "After an ad is published, further changes may be recorded as a new version or audit event so it is possible to show who changed data and when.",
               "QR package generation or publication may be blocked where a record does not contain data required by service settings.",
             ],
@@ -830,7 +806,7 @@ const legal = {
             body: [
               "The production environment is designed with regular database backups and customer data export capability.",
               "Exports may be used for inspections, archiving, migration to another storage or publication on the customer's website.",
-              "Specific retention, backup frequency, RPO, RTO and special archive mode are binding only if agreed in the contract or plan.",
+              "Specific retention, backup frequency, RPO, RTO and special archive mode are binding only if agreed in the contract or customer settings.",
             ],
           },
           {

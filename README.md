@@ -1,74 +1,51 @@
 # Adclare
 
-Adclare is a SaaS product for managing political advertising compliance under Regulation (EU) 2024/900.
+Adclare is an open source, self-hosted application for managing the full workflow of political advertising records under the EU Transparency and Targeting of Political Advertising Regulation (TTPA), Regulation (EU) 2024/900.
 
-The first version in this repository is a Next.js SaaS product website and UI direction for `adclare.eu`. It presents the campaign administration problem, the workflow Adclare provides, and the outcome for headquarters, branches, candidates and external designers.
+It helps political parties, candidates, agencies and compliance teams keep one controlled record for each advert: required data, files, QR labels, transparency notices, approvals, public repository entries and audit exports.
 
-## Product Direction
+Adclare is licensed under the European Union Public Licence v1.2 (EUPL-1.2).
 
-Adclare gives a paying political party or organization one workflow to:
+## What Adclare Solves
 
-- buy access by Stripe subscription or request invoice-based approval,
-- create its own branch/region/area structure with custom naming,
-- invite local branches, candidates and external designers by email,
-- let local teams manage their own ads and QR/label outputs,
-- require all mandatory data before the planned publication date,
-- show orange/red status when a deadline is close or required data is missing,
-- generate transparent notices, QR codes, print-ready exports and audit packages,
-- lock published ad versions and keep an append-only audit trail.
+Political advertising work often happens across email threads, spreadsheets, graphics folders and last-minute approval messages. TTPA adds a clear need to know who paid for an advert, who ordered it, when and where it is published, what it cost, and whether targeting was used.
 
-## Current Scope
+Adclare gives teams one place to:
+
+- record every political advert,
+- track mandatory TTPA fields before publication,
+- invite branches, candidates, designers and reviewers,
+- upload advert files and supporting assets,
+- generate QR codes and public transparency notices,
+- approve, publish and lock advert versions,
+- expose a public repository of published adverts,
+- export audit packages for internal or external review.
+
+## Current Capabilities
 
 - Next.js App Router with TypeScript.
-- Tailwind CSS v4.
-- Czech and English routes: `/cs`, `/en`.
-- Cloudflare-inspired visual direction: clear typography, white surface, dark product UI, orange accent.
-- Product dashboard preview with compliance statuses, deadlines, approval queue and billing state.
-- Public signup at `/signup` creates a 14-day trial tenant, first party admin, default headquarters and first campaign.
-- Password-protected database-backed admin preview at `/cs/admin` and `/en/admin` using PostgreSQL, Prisma, API routes and seeded demo records.
-- Database-backed members and invitation flow with secure invite links and public invite acceptance pages.
-- Invitation e-mail outbox with Cloudflare Email Service REST API send path when Cloudflare e-mail credentials are configured.
-- Database-backed billing account state for plan, interval, Stripe/invoice mode, status and admin discount.
-- Expanded ad records with online/offline channel, supplier, distribution area, language, targeting flag, target audience and deadline-based missing-data status.
-- Authenticated workspace at `/app` for scoped users to add/edit ads, download QR packages, approve/publish ads when their role allows it and activate/manage billing.
-- Public repository at `/repo/demo-party` with filters and JSON endpoint at `/api/repo/demo-party/ads`.
-- Public QR/transparency URLs keep a stable pending page until the ad is published; public repository output is limited to published/archived ads.
-- Cloudflare Turnstile server validation on public login and invitation forms when Turnstile secrets are configured.
-- Health endpoint at `/api/health` for production container checks.
-- Sections for workflow, modules, pricing, security and operator footer.
+- PostgreSQL and Prisma data model.
+- Multi-organization and branch-scoped access.
+- Magic-link authentication and invitation flow.
+- Role-based workspace for party admins, reviewers, local teams, candidates, designers and auditors.
+- Advert records with online/offline channel, publication date, payer, supplier, cost, funding source, distribution area, language and targeting data.
+- Missing-data workflow before publication.
+- Review, approval, return-to-changes, publish and archive states.
+- Public QR/transparency URLs with stable unguessable tokens.
+- Public repository for published/archived adverts with JSON endpoint.
+- Ad asset upload to S3-compatible object storage.
+- QR package and audit package downloads.
+- Append-only audit log.
+- Turnstile validation for public forms when configured.
+- Production health endpoint at `/api/health`.
+- Backup and restore scripts for PostgreSQL.
 
-## Planned SaaS Stack
-
-- Hetzner VPS for app runtime, API, workers, PostgreSQL and Redis/BullMQ.
-- Hetzner Object Storage for uploaded ad assets, QR exports, PDFs, ZIPs and audit packages.
-- Cloudflare DNS, proxy, WAF, Turnstile and email sending.
-- Stripe Billing for recurring subscriptions, hosted invoices, coupons, discounts and customer portal.
-- Manual invoice workflow for larger parties and enterprise customers.
-
-## Pricing Direction
-
-- Small party: 1 election campaign per year, 10 user seats, 9 EUR/month or 99 EUR/year.
-- Large party: unlimited users, campaigns and adverts, repository access, legally required archive and exports to external storage or websites. Regular price 199 EUR/month or 1990 EUR/year; launch price 99 EUR/month or 999 EUR/year.
-- Custom solution: dedicated onboarding, integrations, hosting, SLA or custom billing.
-
-Expected administrative savings:
-
-- Large party: roughly 300-900 hours per year depending on branch and ad volume.
-- Small party: roughly 25-80 hours per year during one campaign cycle.
-- Coordination gain: headquarters, branches and designers work from one shared campaign status instead of email threads, spreadsheets and chat messages.
-
-## Operator
-
-Operator: Aenze s.r.o.  
-Company ID: 28534395  
-VAT ID: CZ28534395  
-Address: Moskevská 1842, 272 04 Kladno
-
-These details should be re-checked against official registry data before production launch and legal documents.
-
-## Development
+## Quick Start
 
 ```bash
+git clone https://github.com/lukashanes/adclare.eu.git
+cd adclare.eu
+cp .env.example .env
 npm install
 docker compose up -d db
 npm run db:migrate -- --name init
@@ -76,45 +53,28 @@ npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:3000`. The root route redirects to `/cs`.
+Open `http://localhost:3000`.
 
-The local database listens on `127.0.0.1:5433`. Use `npm run db:seed` to restore the demo admin records.
+The current development seed creates a demo organization and demo users so the app can be explored immediately. The planned self-hosted first-run flow will replace this with a `/setup` screen that creates the first organization and administrator.
 
-For the temporary protected admin preview, set `ADMIN_ACCESS_PASSWORD` and a random `ADMIN_SESSION_SECRET` with at least 32 characters.
-The demo admin is enabled by default only outside production. Set `ENABLE_DEMO_ADMIN=1` only when you intentionally need the old `/cs/admin` preview.
+## Docker
 
-For invite e-mail sending, set `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`. Without those Cloudflare Email Service credentials, invitations are still created and stored in the outbox with status `PENDING_PROVIDER`.
-
-For billing, set `STRIPE_SECRET_KEY` to enable hosted Stripe Checkout and Customer Portal redirects from the admin. Set `STRIPE_WEBHOOK_SECRET` for `/api/stripe/webhook` so completed payments and subscription changes sync back into Postgres.
-
-For uploaded ad files, set `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID` and `OBJECT_STORAGE_SECRET_ACCESS_KEY`. Hetzner Object Storage uses an S3-compatible endpoint such as `https://fsn1.your-objectstorage.com`.
-
-After setting storage credentials, verify the bucket before asking users to upload production files:
+Local development:
 
 ```bash
-npm run storage:check
+docker compose up -d db
+npm run db:migrate
+npm run dev
 ```
 
-On production, use the Docker tool service so the host does not need local `node_modules`:
+Standalone Docker deployment:
 
 ```bash
-docker compose -f docker-compose.prod.yml --profile tools build storage-check
-docker compose -f docker-compose.prod.yml --profile tools run --rm storage-check
+cp .env.example .env
+docker compose up -d --build
 ```
 
-## Checks
-
-```bash
-npm run lint
-npm run build
-npm run test
-```
-
-## Deployment
-
-Production target: Hetzner VPS `46.224.66.79`.
-
-Current production uses `docker-compose.prod.yml` behind the existing Nginx reverse proxy:
+Production deployment behind an existing reverse proxy can use:
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d db
@@ -123,34 +83,65 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 ```
 
-Demo seed data is intentionally not part of the production migrator. Run `npm run db:seed` only in local development or when you explicitly want to restore demo records.
+See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for the current Hetzner deployment notes. A vendor-neutral self-hosting guide is being split out into `docs/self-hosting.md`.
 
-PostgreSQL backups can be created with:
+## Configuration
+
+Important environment variables:
+
+- `DATABASE_URL`: PostgreSQL connection string.
+- `NEXT_PUBLIC_APP_URL`: public URL of the instance.
+- `EMAIL_FROM`: sender identity for transactional email.
+- `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: optional Cloudflare Email Service credentials.
+- `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: optional Cloudflare Turnstile protection.
+- `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.
+- `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.
+
+Stripe, subscriptions, invoice approval and trial lock are not part of the default open source product.
+
+## Object Storage Check
+
+After setting object storage credentials:
+
+```bash
+npm run storage:check
+```
+
+On production through Docker:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile tools build storage-check
+docker compose -f docker-compose.prod.yml --profile tools run --rm storage-check
+```
+
+## Backups
+
+Create a PostgreSQL backup:
 
 ```bash
 APP_DIR=/srv/apps/adclare BACKUP_DIR=/srv/backups/adclare/postgres scripts/backup-postgres.sh
 ```
 
-Production restore is intentionally guarded:
+Restore is intentionally guarded:
 
 ```bash
 CONFIRM_RESTORE=adclare-prod RESTORE_FILE=/srv/backups/adclare/postgres/adclare-YYYYMMDDTHHMMSSZ.dump scripts/restore-postgres.sh
 ```
 
-The root `docker-compose.yml` also includes Caddy for a standalone fresh server:
+## Development Checks
 
 ```bash
-docker compose up -d --build
+npm run lint
+npm run build
+npm run test
 ```
 
-See [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for DNS, firewall and update steps.
+## Support
 
-## Next Product Steps
+Adclare is open source software. If you need help with hosting, installation, migration, TTPA workflow design, integrations or production support, contact:
 
-1. Replace the temporary admin password with tenant admin login, passwordless access and optional 2FA.
-2. Add real signup and tenant onboarding outside the demo tenant.
-3. Add tenant onboarding: organization details, billing mode and custom naming for branches.
-4. Replace demo admin scope with tenant-aware authenticated app shell.
-5. Add deadline, approval and billing e-mail templates on top of the existing outbox.
-6. Add real file uploads to object storage for ad assets and generated exports.
-7. Replace the demo tenant shortcuts with full tenant provisioning from checkout/invoice approval.
+`support@adclare.eu`
+
+## License
+
+Adclare is licensed under the European Union Public Licence v1.2 (EUPL-1.2). See [LICENSE](LICENSE).

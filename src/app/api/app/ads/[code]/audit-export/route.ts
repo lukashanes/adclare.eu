@@ -1,7 +1,6 @@
 import JSZip from "jszip";
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
-import { getUserBillingAccess } from "@/lib/billing-access";
 import { getAppAuditPackage, normalizeLocale, prepareAppAuditExport } from "@/lib/admin-demo-db";
 
 export const dynamic = "force-dynamic";
@@ -46,12 +45,6 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     context.params,
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
-  const billingAccess = await getUserBillingAccess(session.userId, locale);
-
-  if (!billingAccess?.canUseApp) {
-    return Response.json({ error: "Zkušební přístup skončil nebo účet není aktivní.", activationRequired: true }, { status: 402 });
-  }
-
   const auditPackage = await getAppAuditPackage(session.userId, decodeURIComponent(code), locale);
 
   if (!auditPackage) {

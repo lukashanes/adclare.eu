@@ -1,7 +1,6 @@
 import JSZip from "jszip";
 import QRCode from "qrcode";
 import { getAppSession } from "@/lib/app-auth";
-import { getUserBillingAccess } from "@/lib/billing-access";
 import { getAppAdRecord, normalizeLocale } from "@/lib/admin-demo-db";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +17,6 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     context.params,
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
-  const billingAccess = await getUserBillingAccess(session.userId, locale);
-
-  if (!billingAccess?.canUseApp) {
-    return Response.json({ error: "Zkušební přístup skončil nebo účet není aktivní.", activationRequired: true }, { status: 402 });
-  }
-
   const ad = await getAppAdRecord(session.userId, decodeURIComponent(code), locale);
 
   if (!ad) {

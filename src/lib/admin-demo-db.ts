@@ -48,7 +48,6 @@ import type {
   ReviewDecisionInput,
   Status,
 } from "@/lib/admin-demo-types";
-import { getTenantBillingAccess } from "@/lib/billing-access";
 import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
 
@@ -2375,7 +2374,6 @@ function appRolePermissions(role: UserRole) {
     canPublishAds: canPublishAppAds(role),
     canManageBranches: canManageAppBranches(role),
     canManageUsers: canManageAppUsers(role),
-    canManageBilling: role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN,
   };
 }
 
@@ -2475,7 +2473,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
 
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
-  const [ads, branches, memberships, invitations, billingAccess] = await Promise.all([
+  const [ads, branches, memberships, invitations] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
@@ -2535,7 +2533,6 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           take: 20,
         })
       : Promise.resolve([]),
-    getTenantBillingAccess(membership.tenantId, locale),
   ]);
 
   const mappedAds = ads.map((ad) => mapAd(ad, locale));
@@ -2575,22 +2572,6 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
         name: locale === "cs" ? branch.nameCs : branch.nameEn,
       })),
     },
-    billing: billingAccess
-      ? {
-          plan: billingAccess.plan,
-          status: billingAccess.status,
-          statusLabel: billingAccess.statusLabel,
-          methodLabel: billingAccess.methodLabel,
-          effectivePrice: billingAccess.effectivePrice,
-          trialEndsAt: billingAccess.trialEndsAt,
-          trialDaysLeft: billingAccess.trialDaysLeft,
-          canUseApp: billingAccess.canUseApp,
-          activationRequired: billingAccess.activationRequired,
-          invoicePending: billingAccess.invoicePending,
-          stripeCheckoutConfigured: billingAccess.stripeCheckoutConfigured,
-          canManageBilling: permissions.canManageBilling,
-        }
-      : null,
     storage: objectStorageStatus(),
     ads: mappedAds,
     counts: {

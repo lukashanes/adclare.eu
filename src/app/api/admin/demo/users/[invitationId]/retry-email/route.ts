@@ -4,7 +4,7 @@ import { normalizeLocale, retryDemoInvitationEmail } from "@/lib/admin-demo-db";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(request: Request, context: RouteContext<"/api/admin/demo/users/[invitationId]/retry-email">) {
+export async function POST(request: Request, context: { params: Promise<{ invitationId: string }> }) {
   const authResponse = requireAdminRequest(request, { mutating: true });
 
   if (authResponse) {

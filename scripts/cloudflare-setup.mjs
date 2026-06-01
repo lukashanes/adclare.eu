@@ -6,7 +6,7 @@ const originIpv4 = process.env.ORIGIN_IPV4 || "46.224.66.79";
 const sslMode = process.env.CF_SSL_MODE || "full";
 const setupEmailRouting = process.env.SETUP_EMAIL_ROUTING === "1";
 const destinationEmail = process.env.EMAIL_DESTINATION;
-const emailAliases = (process.env.EMAIL_ALIASES || "hello,billing,support,security")
+const emailAliases = (process.env.EMAIL_ALIASES || "hello,support,security")
   .split(",")
   .map((alias) => alias.trim())
   .filter(Boolean);

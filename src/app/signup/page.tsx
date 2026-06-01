@@ -7,8 +7,8 @@ import { SignupClient } from "./SignupClient";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Začít 14 dní zdarma | Adclare",
-  description: "Založení pracovního účtu Adclare se zkušebním přístupem na 14 dní zdarma.",
+  title: "Založit pracovní prostor | Adclare",
+  description: "Založení pracovního prostoru pro evidenci a workflow politické reklamy podle TTPA.",
 };
 
 function firstValue(value: string | string[] | undefined) {
@@ -33,21 +33,21 @@ export default async function SignupPage({
             </span>
             Adclare
           </Link>
-          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">14 dní zdarma</p>
+          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Open source</p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight text-black sm:text-5xl">Založte pracovní prostor pro politickou reklamu</h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-[#4c535d]">
             Vytvoří se účet strany, první administrátor, výchozí centrála a kampaň. Hned potom můžete přidat pobočky, pozvat týmy a začít doplňovat reklamy před zveřejněním.
           </p>
-          <Link href="/cs#pricing" className="mt-7 inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-[#25282d]">
+          <Link href="/cs" className="mt-7 inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-[#25282d]">
             <ArrowLeft size={16} />
-            Zpět na ceny
+            Zpět na přehled
           </Link>
         </div>
 
         <aside className="rounded-md border border-black/10 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-semibold text-black">Spustit přístup</h2>
+          <h2 className="text-2xl font-semibold text-black">Založit workspace</h2>
           <p className="mt-2 text-sm leading-6 text-[#59616b]">
-            Bez platby na začátku. Po 14 dnech účet pokračuje přes Stripe nebo platbu na fakturu po schválení.
+            Lokální instalace Adclare běží bez paywallu. Formulář vytvoří první organizaci a administrátora.
           </p>
           <div className="mt-6">
             <SignupClient defaultPlan={defaultPlan} turnstileSiteKey={publicTurnstileSiteKey()} />

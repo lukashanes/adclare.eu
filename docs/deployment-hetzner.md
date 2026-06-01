@@ -135,14 +135,12 @@ OBJECT_STORAGE_SECRET_ACCESS_KEY='...'
 OBJECT_STORAGE_FORCE_PATH_STYLE='0'
 OBJECT_STORAGE_PUBLIC_BASE_URL=''
 MAX_AD_ASSET_UPLOAD_MB='50'
-STRIPE_SECRET_KEY='sk_live_...'
-STRIPE_WEBHOOK_SECRET='whsec_...'
 ```
 
 Current behavior without those secrets:
 
 - Invitation e-mails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
-- Outbound transactional e-mail uses Cloudflare Email Service REST API, not Email Routing aliases. Email Routing remains useful for inbound aliases such as `hello@`, `billing@`, `support@` and `security@`.
+- Outbound transactional e-mail uses Cloudflare Email Service REST API, not Email Routing aliases. Email Routing remains useful for inbound aliases such as `hello@`, `support@` and `security@`.
 - Turnstile is required in production by default. Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` together and keep `TURNSTILE_ALLOWED_HOSTNAMES` limited to production hostnames. `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is kept only for backwards compatibility with older builds. A temporary `TURNSTILE_REQUIRED=0` override exists only to avoid locking login/signup before the secret is available.
 - Uploaded ad files use Hetzner Object Storage through the S3 API. Keep the bucket private unless a customer explicitly needs public asset URLs; authenticated downloads are served through `/api/app/ads/[code]/assets/[assetId]`.
 - After setting Object Storage values, run `npm run storage:check` locally or run the production tool on the server:
@@ -154,8 +152,7 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm storage-check
 ```
 
 The check writes, reads and deletes one `_health/` object and does not print access keys.
-- Billing plan, discount, Stripe/invoice mode and invoice approval state are stored in `billing_accounts`.
-- Stripe Checkout and Customer Portal actions are disabled until `STRIPE_SECRET_KEY` is present. Subscription state sync is disabled until `STRIPE_WEBHOOK_SECRET` is present and the Stripe webhook points to `https://adclare.eu/api/stripe/webhook`. Webhook event IDs are stored in `stripe_webhook_events` so repeated Stripe deliveries are idempotent.
+- Adclare does not require a paid central account. Self-hosted installations manage access through users, roles and tenant membership.
 
 ## Backups
 

@@ -1,6 +1,5 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
-import { getUserBillingAccess } from "@/lib/billing-access";
 import { approveAppAd, normalizeLocale } from "@/lib/admin-demo-db";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +20,6 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     context.params,
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
-  const billingAccess = await getUserBillingAccess(session.userId, locale);
-
-  if (!billingAccess?.canUseApp) {
-    return Response.json({ error: "Zkušební přístup skončil nebo účet není aktivní.", activationRequired: true }, { status: 402 });
-  }
-
   try {
     const ad = await approveAppAd(session.userId, decodeURIComponent(code), locale);
 

@@ -248,22 +248,7 @@ export type AppWorkspacePayload = {
     canPublishAds: boolean;
     canManageBranches: boolean;
     canManageUsers: boolean;
-    canManageBilling: boolean;
   };
-  billing: {
-    plan: BillingPlanKey;
-    status: BillingStatusKey;
-    statusLabel: string;
-    methodLabel: string;
-    effectivePrice: string;
-    trialEndsAt: string;
-    trialDaysLeft: number;
-    canUseApp: boolean;
-    activationRequired: boolean;
-    invoicePending: boolean;
-    stripeCheckoutConfigured: boolean;
-    canManageBilling: boolean;
-  } | null;
   storage: {
     configured: boolean;
     provider: string;

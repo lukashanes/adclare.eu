@@ -642,7 +642,6 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
     { key: "ads", icon: Database, label: t.nav[0] },
     { key: "branches", icon: UsersRound, label: t.nav[1] },
     { key: "users", icon: Mail, label: t.nav[2] },
-    { key: "billing", icon: CreditCard, label: t.nav[3] },
     { key: "audit", icon: History, label: t.nav[4] },
   ] as const;
 
