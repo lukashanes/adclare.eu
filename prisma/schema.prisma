@@ -1,0 +1,403 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AdStatus {
+  READY
+  WARNING
+  BLOCKED
+  REVIEW
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  PARTY_ADMIN
+  CENTRAL_REVIEWER
+  LOCAL_ADMIN
+  CAMPAIGN_MANAGER
+  CANDIDATE
+  DESIGNER
+  READONLY_AUDITOR
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum EmailStatus {
+  PENDING_PROVIDER
+  SENT
+  FAILED
+}
+
+enum AdWorkflowStatus {
+  DRAFT
+  NEEDS_DATA
+  READY_FOR_REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ApprovalStatus {
+  REQUESTED
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+  PUBLISHED
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  nameCs    String
+  nameEn    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns         Campaign[]
+  organizationUnits OrganizationUnit[]
+  ads               Ad[]
+  auditLogs         AuditLog[]
+  memberships       TenantMembership[]
+  invitations       Invitation[]
+  emailMessages     EmailMessage[]
+  adVersions        AdVersion[]
+  approvals         Approval[]
+  adAssets          AdAsset[]
+
+  @@map("tenants")
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  tenantId  String
+  slug      String
+  nameCs    String
+  nameEn    String
+  election  String
+  startsAt  DateTime
+  endsAt    DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ads    Ad[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("campaigns")
+}
+
+model OrganizationUnit {
+  id        String   @id @default(cuid())
+  tenantId  String
+  slug      String
+  kind      String
+  nameCs    String
+  nameEn    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ads         Ad[]
+  memberships TenantMembership[]
+  invitations Invitation[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("organization_units")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships TenantMembership[]
+  invitations Invitation[]       @relation("InvitationInviter")
+  sessions    UserSession[]
+
+  @@map("users")
+}
+
+model LoginToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email, createdAt])
+  @@index([expiresAt])
+  @@map("login_tokens")
+}
+
+model UserSession {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model TenantMembership {
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String
+  orgUnitId String?
+  role      UserRole
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgUnit OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, role])
+  @@index([tenantId, status])
+  @@index([orgUnitId])
+  @@map("tenant_memberships")
+}
+
+model Invitation {
+  id              String           @id @default(cuid())
+  tenantId        String
+  orgUnitId       String?
+  email           String
+  role            UserRole
+  status          InvitationStatus @default(PENDING)
+  token           String           @unique
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  invitedByUserId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orgUnit       OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  invitedBy     User?             @relation("InvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  emailMessages EmailMessage[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, email])
+  @@index([orgUnitId])
+  @@map("invitations")
+}
+
+model Ad {
+  id                 String           @id @default(cuid())
+  tenantId           String
+  campaignId         String
+  orgUnitId          String
+  code               String
+  publicToken        String           @unique
+  titleCs            String
+  titleEn            String
+  ownerCs            String
+  ownerEn            String
+  mediaTypeCs        String
+  mediaTypeEn        String
+  channel            String           @default("offline")
+  publicationDate    DateTime
+  periodCs           String
+  periodEn           String
+  distributionAreaCs String           @default("")
+  distributionAreaEn String           @default("")
+  payerCs            String
+  payerEn            String
+  supplierCs         String           @default("")
+  supplierEn         String           @default("")
+  amount             String           @default("")
+  fundingSourceCs    String           @default("")
+  fundingSourceEn    String           @default("")
+  language           String           @default("cs")
+  isTargeted         Boolean          @default(false)
+  targetingCs        String           @default("")
+  targetingEn        String           @default("")
+  targetAudienceCs   String           @default("")
+  targetAudienceEn   String           @default("")
+  missingCs          String[]
+  missingEn          String[]
+  status             AdStatus
+  statusLabelCs      String
+  statusLabelEn      String
+  workflowStatus     AdWorkflowStatus @default(NEEDS_DATA)
+  responsibleName    String           @default("")
+  reviewerName       String           @default("")
+  statusNoteCs       String           @default("")
+  statusNoteEn       String           @default("")
+  version            Int              @default(1)
+  reviewRequestedAt  DateTime?
+  approvedAt         DateTime?
+  publishedAt        DateTime?
+  archivedAt         DateTime?
+  lockedAt           DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign  Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  orgUnit   OrganizationUnit @relation(fields: [orgUnitId], references: [id], onDelete: Restrict)
+  auditLogs AuditLog[]
+  versions  AdVersion[]
+  approvals Approval[]
+  assets    AdAsset[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+  @@index([tenantId, workflowStatus])
+  @@index([tenantId, campaignId])
+  @@index([tenantId, orgUnitId])
+  @@map("ads")
+}
+
+model AdVersion {
+  id        String   @id @default(cuid())
+  tenantId  String
+  adId      String
+  version   Int
+  reason    String
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ad     Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, version])
+  @@index([tenantId, createdAt])
+  @@index([adId, createdAt])
+  @@map("ad_versions")
+}
+
+model Approval {
+  id        String         @id @default(cuid())
+  tenantId  String
+  adId      String
+  actor     String
+  status    ApprovalStatus
+  noteCs    String         @default("")
+  noteEn    String         @default("")
+  createdAt DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ad     Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([adId, createdAt])
+  @@map("approvals")
+}
+
+model AdAsset {
+  id               String   @id @default(cuid())
+  tenantId         String
+  adId             String
+  fileName         String
+  originalName     String
+  contentType      String
+  byteSize         Int
+  storageProvider  String   @default("s3")
+  storageBucket    String
+  storageKey       String   @unique
+  publicUrl        String   @default("")
+  checksumSha256   String   @default("")
+  uploadedBy       String   @default("")
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ad     Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([adId, createdAt])
+  @@map("ad_assets")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  adId      String?
+  actor     String
+  actorUserId String?
+  action    String
+  messageCs String
+  messageEn String
+  ipAddress String   @default("")
+  userAgent String   @default("")
+  requestId String   @default("")
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ad     Ad?    @relation(fields: [adId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([adId, createdAt])
+  @@index([actorUserId])
+  @@map("audit_logs")
+}
+
+model EmailMessage {
+  id                String      @id @default(cuid())
+  tenantId          String
+  invitationId      String?
+  toEmail           String
+  subject           String
+  bodyText          String
+  bodyHtml          String      @default("")
+  provider          String      @default("cloudflare_email_service")
+  providerMessageId String      @default("")
+  status            EmailStatus
+  error             String      @default("")
+  sentAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitation Invitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([invitationId])
+  @@map("email_messages")
+}
+
+model RateLimitBucket {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  scope      String
+  identifier String
+  count      Int      @default(0)
+  resetAt    DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([scope, identifier])
+  @@index([resetAt])
+  @@map("rate_limit_buckets")
+}
