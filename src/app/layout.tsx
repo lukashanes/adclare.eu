@@ -32,13 +32,13 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(baseUrl),
     title: {
-      default: "Adclare - politická reklama pod kontrolou",
+      default: "Adclare: politická reklama pod kontrolou",
       template: "%s | Adclare",
     },
     description:
-      "Open source nástroj pro evidenci politické reklamy, QR kódy, transparentní oznámení, schvalování, pobočky a audit podle TTPA / EU 2024/900.",
+      "Nástroj pro evidenci politické reklamy, QR kódy, transparentní oznámení, schvalování, pobočky a audit podle TTPA.",
     openGraph: {
-      title: "Adclare - politická reklama pod kontrolou",
+      title: "Adclare: politická reklama pod kontrolou",
       description:
         "Pobočky a grafici doplní data, systém hlídá termíny, generuje QR a drží auditní stopu pro politickou reklamu.",
       url: baseUrl,

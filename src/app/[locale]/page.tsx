@@ -37,7 +37,7 @@ const languageOptions = {
 
 const content = {
   cs: {
-    nav: ["Produkt", "Workflow", "Nasazení", "Bezpečnost", "Nápověda", "Kontakt"],
+    nav: ["Produkt", "Proces", "Kontrola", "Bezpečnost", "Nápověda", "Kontakt"],
     login: "Přihlášení",
     cta: "GitHub",
     secondaryCta: "Jak to funguje",
@@ -50,92 +50,91 @@ const content = {
       subprocessors: "Subdodavatelé",
       security: "Bezpečnost",
     },
-    heroMarker: "Open source podle EUPL-1.2",
-    heroTitle: "Evidence a celé workflow politických reklam podle TTPA",
+    heroMarker: "Evidence reklam podle TTPA",
+    heroTitle: "Politická reklama pod kontrolou",
     heroText:
-      "Adclare je self-hosted nástroj pro politické strany, kandidáty, agentury a compliance týmy. Pomáhá držet reklamy, povinné údaje, QR kódy, transparentní oznámení, schvalování a auditní exporty na jednom místě podle Nařízení EU o transparentnosti a cílení politické reklamy (TTPA), Regulation (EU) 2024/900.",
+      "Adclare sjednotí evidenci, schvalování a QR kódy pro politickou reklamu. Hlídá povinné údaje podle TTPA, ukáže co chybí před zveřejněním a ušetří týmům stovky hodin ročně.",
     heroBullets: [
-      "Každá reklama má jeden záznam, vlastní QR odkaz, veřejné oznámení a historii změn.",
-      "Pobočky, kandidáti, grafici a schvalovatelé pracují ve stejném workflow bez e-mailového ping-pongu.",
-      "Software si můžete stáhnout, nasadit přes Docker a upravit pro vlastní organizační strukturu.",
+      "Každý materiál má jasný stav, odpovědnou osobu a termín.",
+      "Z jednou vyplněných dat vznikne oznámení, QR kód i auditní balíček.",
+      "Centrála, pobočky, grafici a kontrola pracují v jednom přehledu.",
     ],
     dashboard: {
       title: "Přehled kampaně",
       menu: ["Reklamy", "Pobočky", "Kontrola", "QR", "Repozitář", "Audit"],
-      orgLabel: "Self-hosted instance",
+      orgLabel: "Kampaň pod kontrolou",
       date: "Volby 2026",
       export: "Audit export",
-      adsTitle: "Reklamy podle TTPA",
+      adsTitle: "Přehled reklam",
       tableHeads: ["Kód", "Materiál", "Tým", "Kontrola údajů", "Stav", "QR"],
       stats: [
         ["V evidenci", "128", "všechny materiály"],
         ["Hotovo", "72", "QR a oznámení"],
         ["Doplnit", "28", "povinná data"],
         ["Po termínu", "18", "nelze publikovat"],
-        ["Kontrola", "10", "čeká na review"],
+        ["Úspora", "320 h", "ročně v administrativě"],
       ],
       rows: [
         ["PHA-014", "Citylight: dostupné bydlení", "Praha 3", "plátce, období, částky OK", "Připraveno", "green"],
-        ["BRN-032", "Video: doprava v centru", "Brno-střed", "chybí cílení a archiv", "Doplnit", "orange"],
-        ["OST-011", "Leták: čisté ulice", "Ostrava-Jih", "chybí částka a původ financí", "Po termínu", "red"],
+        ["BRN-032", "Video: doprava v centru", "Brno střed", "chybí cílení a archiv", "Doplnit", "orange"],
+        ["OST-011", "Leták: čisté ulice", "Ostrava Jih", "chybí částka a původ financí", "Po termínu", "red"],
         ["LBC-006", "Billboard: dostupná energie", "Liberec", "čeká na schválení plátce", "Kontrola", "orange"],
         ["PLZ-019", "Banner: školky bez čekání", "Plzeň", "oznámení a QR hotové", "Schváleno", "green"],
       ],
-      queueTitle: "Co se řeší",
+      queueTitle: "Dnes vyřešit",
       queueItems: ["Doplnit původ financí", "Potvrdit částku kampaně", "Zkontrolovat cílení"],
       queueTime: "před 3 h",
     },
-    workflowTitle: "Jedno workflow od podkladu po audit",
+    workflowTitle: "Jednoduchý proces pro každou reklamu",
     workflowText:
-      "Adclare pokrývá praktickou práci kolem reklam: zadání materiálu, kontrolu povinných údajů, QR/label, veřejné oznámení, schválení, publikaci, uzamčení verze a auditní balíček.",
+      "Od prvního návrhu po archiv. Každý ví, co má udělat, co už je hotové a co se musí doplnit před zveřejněním.",
     steps: [
-      ["Nasadíte vlastní instanci", "Docker, PostgreSQL a vlastní doména na vašem VPS nebo hostingu."],
-      ["Vytvoříte organizaci", "Centrála, kraje, oblasti, pobočky nebo agenturní týmy podle vaší struktury."],
+      ["Založíte stranu nebo tým", "Centrála, kraje, oblasti, pobočky nebo agentury podle vaší struktury."],
       ["Pozvete lidi", "Pobočky, kandidáti, grafici a kontroloři vidí jen práci, kterou mají řešit."],
-      ["Založíte reklamu", "Soubor, termín zveřejnění, plátce, náklady, lokace a případné cílení."],
-      ["Doplníte TTPA údaje", "Systém ukáže, co chybí před zveřejněním nebo vyvěšením."],
+      ["Nahrajete reklamu", "Soubor, termín zveřejnění, plátce, náklady, lokace a případné cílení."],
+      ["Doplníte povinné údaje", "Systém ukáže, co chybí před zveřejněním nebo vyvěšením."],
       ["Vygenerujete QR", "Veřejná stránka transparentního oznámení a tiskové výstupy."],
       ["Schválíte a publikujete", "Publikovaná verze se zamkne a další změny jdou do historie."],
-      ["Exportujete audit", "ZIP/JSON/CSV/PDF podklady pro kontrolu, archiv nebo vlastní web."],
+      ["Stáhnete podklady", "Připravený balíček pro kontrolu, archiv nebo vlastní web."],
     ],
     modulesTitle: "Co aplikace obsahuje",
     modules: [
-      ["Evidence reklam", "Jeden záznam pro každou online i offline politickou reklamu, včetně termínu a odpovědnosti."],
-      ["Povinné údaje podle TTPA", "Plátce, zadavatel, náklady, období, oblast šíření, financování a cílení, pokud se používá."],
-      ["QR a transparentní oznámení", "Stabilní veřejná URL, QR kódy a oznámení pro tisk, outdoor, web i sociální reklamu."],
-      ["Role a pobočky", "Centrála, lokální týmy, kandidáti, grafici, kontroloři a auditoři s omezeným rozsahem přístupu."],
-      ["Veřejný repozitář", "Publikované reklamy lze vystavit ve vyhledatelném archivu a přes JSON endpoint."],
-      ["Auditní exporty", "Historie změn, schválení, soubory, hash podkladů a exportní balíčky pro kontrolu."],
+      ["Splnění TTPA", "Adclare hlídá plátce, zadavatele, náklady, období, oblast šíření, financování a cílení."],
+      ["Méně ruční práce", "Jednou vyplněná data se použijí pro QR kód, oznámení, archiv i kontrolní balíček."],
+      ["Schvalování bez zmatku", "Pobočky doplňují podklady, kontroloři vidí mezery a vedení má přehled o stavu kampaně."],
+      ["QR kódy za pár vteřin", "Stabilní veřejná stránka a tiskové výstupy pro letáky, plakáty, billboardy, web i sociální sítě."],
+      ["Veřejný archiv", "Publikované reklamy lze zobrazit v přehledném archivu pro voliče, média nebo kontrolu."],
+      ["Audit na jedno kliknutí", "Historie změn, schválení a soubory jsou připravené pro doložení postupu."],
     ],
-    hostingTitle: "Self-hosted nasazení",
+    hostingTitle: "Pod vaší kontrolou",
     hostingText:
-      "Adclare je určený k vlastnímu provozu. Můžete ho spustit lokálně, v Dockeru, na vlastním VPS nebo na Hetzneru. Data, soubory i doména zůstávají pod vaší kontrolou.",
+      "Adclare je otevřený nástroj. Provozujete ho tam, kde vám to dává smysl, a data zůstávají pod správou vaší organizace.",
     hostingCards: [
-      ["Docker Compose", "PostgreSQL, aplikace a volitelný reverse proxy v jednom reprodukovatelném setupu."],
-      ["Vlastní infrastruktura", "Použijte Hetzner, jiný VPS, interní server nebo hosting, který odpovídá vašim pravidlům."],
-      ["Konfigurace bez vendor lock-in", "E-mail, Turnstile, S3 kompatibilní storage a veřejná URL jsou nastavitelné přes env proměnné."],
+      ["Vaše data", "Reklamy, soubory, přístupy a historie zůstávají pod vaší správou."],
+      ["Upravitelný kód", "Tým si může nástroj přizpůsobit kampaním, pobočkám a pravidlům."],
+      ["Podpora od týmu", "S instalací, migrací a provozem může pomoct tým Adclare."],
     ],
     securityTitle: "Bezpečnost, audit a kontrola",
     securityText:
-      "Politická reklama vyžaduje jasné role, dohledatelné změny a kontrolu nad soubory. Adclare odděluje přístupy podle organizace a pobočky a drží historii kroků důležitých pro TTPA.",
+      "Politická reklama potřebuje jasná pravidla. Adclare nastaví přístupy, uchová historii změn a ukáže, které reklamy jsou připravené a které ještě potřebují doplnit.",
     securityCards: [
       ["Role a rozsah", "Každý uživatel vidí jen organizaci, pobočku a materiály, ke kterým má oprávnění."],
-      ["Magic link přihlášení", "Přístup běží přes časově omezené odkazy a chráněné relace."],
+      ["Přihlášení odkazem", "Přístup běží přes časově omezené odkazy a chráněné relace."],
       ["Auditní stopa", "Změny, schválení, publikace a exporty zůstávají v dohledatelné historii."],
-      ["Soukromé soubory", "Materiály se ukládají do S3 kompatibilního úložiště a stahují přes oprávněné endpointy."],
-      ["Veřejný repozitář", "Veřejně se ukazují jen publikované nebo archivované záznamy."],
-      ["Backup a restore", "Součástí repa jsou skripty a dokumentace pro zálohování a obnovu PostgreSQL."],
+      ["Soukromé soubory", "Materiály se ukládají do zabezpečeného úložiště a stahují jen přes oprávněný přístup."],
+      ["Veřejný archiv", "Veřejně se ukazují jen publikované nebo archivované záznamy."],
+      ["Zálohy", "Systém počítá se zálohováním databáze a obnovou při provozním problému."],
     ],
-    supportTitle: "Potřebujete pomoc s nasazením?",
+    supportTitle: "Chcete to spustit rychle?",
     supportText:
-      "Adclare je open source. Pokud chcete konzultaci, instalaci, migraci dat, hosting, školení nebo úpravu workflow pro vlastní organizaci, napište na support@adclare.eu.",
+      "Pokud chcete konzultaci, instalaci, migraci dat, školení nebo úpravu procesu pro vlastní organizaci, napište na support@adclare.eu.",
     footerText:
-      "Open source nástroj pro evidenci, označování, schvalování a archiv politické reklamy podle TTPA, Regulation (EU) 2024/900.",
-    footerSecurity: "EUPL-1.2, self-hosted, audit a exporty",
-    footerWorkflow: "Evidence, QR, oznámení, schvalování a veřejný repozitář",
+      "Nástroj pro evidenci, QR kódy, schvalování, veřejná oznámení a archiv politické reklamy podle TTPA.",
+    footerSecurity: "Open source, audit a exporty",
+    footerWorkflow: "Evidence, QR, oznámení, schvalování a veřejný archiv",
   },
   en: {
-    nav: ["Product", "Workflow", "Self-hosting", "Security", "Help", "Contact"],
+    nav: ["Product", "Process", "Control", "Security", "Help", "Contact"],
     login: "Sign in",
     cta: "GitHub",
     secondaryCta: "How it works",
@@ -148,34 +147,34 @@ const content = {
       subprocessors: "Subprocessors",
       security: "Security",
     },
-    heroMarker: "Open source under EUPL-1.2",
-    heroTitle: "Political ad records and workflow for TTPA compliance",
+    heroMarker: "Ad records for TTPA",
+    heroTitle: "Political ads under control",
     heroText:
-      "Adclare is a self-hosted tool for political parties, candidates, agencies and compliance teams. It keeps adverts, required data, QR codes, transparency notices, approvals and audit exports in one place under the EU Transparency and Targeting of Political Advertising Regulation (TTPA), Regulation (EU) 2024/900.",
+      "Adclare brings ad records, approvals and QR codes into one place. It tracks required TTPA data, shows what is missing before publication and can save teams hundreds of admin hours a year.",
     heroBullets: [
-      "Each advert has one record, QR link, public notice and change history.",
-      "Branches, candidates, designers and reviewers work in one workflow instead of email threads.",
-      "Download it, run it with Docker and adapt it to your own organization structure.",
+      "Every material has a clear status, owner and deadline.",
+      "One completed record creates a notice, QR code and audit package.",
+      "Headquarters, branches, designers and reviewers work in one overview.",
     ],
     dashboard: {
       title: "Campaign overview",
       menu: ["Ads", "Branches", "Review", "QR", "Repository", "Audit"],
-      orgLabel: "Self-hosted instance",
+      orgLabel: "Campaign under control",
       date: "Election 2026",
       export: "Audit export",
-      adsTitle: "TTPA advert records",
+      adsTitle: "Ad overview",
       tableHeads: ["Code", "Asset", "Team", "Data check", "Status", "QR"],
       stats: [
         ["In registry", "128", "all materials"],
         ["Ready", "72", "QR and notice"],
         ["Complete", "28", "required data"],
         ["Overdue", "18", "cannot publish"],
-        ["Review", "10", "waiting review"],
+        ["Time saved", "320 h", "per year in admin"],
       ],
       rows: [
         ["PRG-014", "Citylight: housing access", "Prague 3", "payer, dates, costs OK", "Ready", "green"],
-        ["BRN-032", "Video: city transport", "Brno-centre", "missing targeting and archive", "Complete", "orange"],
-        ["OST-011", "Leaflet: cleaner streets", "Ostrava-South", "missing amount and funding source", "Overdue", "red"],
+        ["BRN-032", "Video: city transport", "Brno centre", "missing targeting and archive", "Complete", "orange"],
+        ["OST-011", "Leaflet: cleaner streets", "Ostrava South", "missing amount and funding source", "Overdue", "red"],
         ["LBC-006", "Billboard: energy costs", "Liberec", "waiting for payer approval", "Review", "orange"],
         ["PLZ-019", "Banner: childcare capacity", "Pilsen", "notice and QR complete", "Approved", "green"],
       ],
@@ -183,54 +182,53 @@ const content = {
       queueItems: ["Add funding source", "Confirm campaign amount", "Review targeting"],
       queueTime: "3 h ago",
     },
-    workflowTitle: "One workflow from asset to audit",
+    workflowTitle: "A simple process for every ad",
     workflowText:
-      "Adclare covers the practical work around political adverts: asset intake, required data checks, QR labels, public notices, approval, publication, version lock and audit packages.",
+      "From the first draft to the archive. Everyone knows what to do, what is ready and what must be completed before publication.",
     steps: [
-      ["Run your own instance", "Docker, PostgreSQL and your own domain on a VPS or internal hosting."],
-      ["Create organization", "Headquarters, regions, branches or agency teams using your own structure."],
+      ["Create a party or team", "Headquarters, regions, branches or agencies using your own structure."],
       ["Invite people", "Branches, candidates, designers and reviewers only see their assigned work."],
-      ["Create an advert", "Asset, publication date, payer, cost, location and optional targeting."],
-      ["Complete TTPA data", "The system shows what is missing before publication or display."],
-      ["Generate QR", "Public transparency notice page and print-ready outputs."],
+      ["Upload an ad", "Asset, publication date, payer, cost, location and optional targeting."],
+      ["Complete required data", "The system shows what is missing before publication or display."],
+      ["Generate QR", "Public transparency notice page and print ready outputs."],
       ["Approve and publish", "Published versions are locked and later changes are versioned."],
-      ["Export audit", "ZIP/JSON/CSV/PDF packages for review, archiving or your own website."],
+      ["Download proof", "A ready package for review, archive or your own website."],
     ],
     modulesTitle: "What the application includes",
     modules: [
-      ["Advert registry", "One record for each online and offline political advert, including deadlines and responsibility."],
-      ["Required TTPA data", "Payer, sponsor, costs, period, distribution area, funding source and targeting when used."],
-      ["QR and transparency notice", "Stable public URL, QR codes and notices for print, outdoor, web and social advertising."],
-      ["Roles and branches", "Headquarters, local teams, candidates, designers, reviewers and auditors with scoped access."],
-      ["Public repository", "Published adverts can be exposed in a searchable archive and JSON endpoint."],
-      ["Audit exports", "Change history, approvals, files, asset hashes and export packages for review."],
+      ["TTPA made manageable", "Adclare tracks payer, sponsor, costs, dates, distribution area, funding and targeting."],
+      ["Less manual work", "Data entered once is used for QR codes, notices, archive records and audit packages."],
+      ["Approval without confusion", "Branches add materials, reviewers see gaps and campaign leads see the full status."],
+      ["QR codes in seconds", "Stable public pages and print outputs for leaflets, posters, billboards, web and social ads."],
+      ["Public archive", "Published ads can be shown in a clear archive for voters, media or regulators."],
+      ["Audit in one click", "Change history, approvals and files are ready when someone asks for proof."],
     ],
-    hostingTitle: "Self-hosted deployment",
+    hostingTitle: "Under your control",
     hostingText:
-      "Adclare is built to be operated by you. Run it locally, with Docker, on your VPS or on Hetzner. Your data, files and domain stay under your control.",
+      "Adclare is an open tool. Run it where it makes sense for your team, while data stays under your organization control.",
     hostingCards: [
-      ["Docker Compose", "PostgreSQL, the app and optional reverse proxy in one reproducible setup."],
-      ["Your infrastructure", "Use Hetzner, another VPS, an internal server or hosting that fits your rules."],
-      ["Config without lock-in", "Email, Turnstile, S3-compatible storage and public URL are configured through environment variables."],
+      ["Your data", "Ads, files, access and history stay under your management."],
+      ["Adaptable code", "Teams can shape the tool around campaigns, branches and internal rules."],
+      ["Support from the team", "The Adclare team can help with installation, migration and operations."],
     ],
     securityTitle: "Security, audit and control",
     securityText:
-      "Political advertising requires clear roles, traceable changes and control over files. Adclare scopes access by organization and branch and keeps history for TTPA-relevant actions.",
+      "Political advertising needs clear rules. Adclare manages access, keeps change history and shows which ads are ready and which still need work.",
     securityCards: [
       ["Roles and scope", "Each user sees only the organization, branch and materials they are allowed to access."],
-      ["Magic link login", "Access uses time-limited links and protected sessions."],
+      ["Login by link", "Access uses limited time links and protected sessions."],
       ["Audit trail", "Changes, approvals, publication and exports remain in traceable history."],
-      ["Private files", "Assets are stored in S3-compatible storage and downloaded through authorized endpoints."],
-      ["Public repository", "Only published or archived records are shown publicly."],
-      ["Backup and restore", "The repository includes scripts and docs for PostgreSQL backup and recovery."],
+      ["Private files", "Assets are stored securely and downloaded only through authorized access."],
+      ["Public archive", "Only published or archived records are shown publicly."],
+      ["Backups", "The system is designed for database backups and recovery when operations go wrong."],
     ],
-    supportTitle: "Need help with deployment?",
+    supportTitle: "Want to start quickly?",
     supportText:
-      "Adclare is open source. If you need consulting, installation, data migration, hosting, training or custom workflow changes, contact support@adclare.eu.",
+      "If you need consulting, installation, data migration, training or process changes for your organization, contact support@adclare.eu.",
     footerText:
-      "Open source tool for recording, labelling, approving and archiving political advertising under TTPA, Regulation (EU) 2024/900.",
-    footerSecurity: "EUPL-1.2, self-hosted, audit and exports",
-    footerWorkflow: "Records, QR, notices, approvals and public repository",
+      "A tool for ad records, QR codes, approvals, public notices and political advertising archives under TTPA.",
+    footerSecurity: "Open source, audit and exports",
+    footerWorkflow: "Records, QR, notices, approvals and public archive",
   },
 } as const;
 
@@ -288,7 +286,7 @@ export default async function LocalePage({
   const t = content[locale];
 
   return (
-    <main className="min-h-screen bg-white text-[#0b0b0c]">
+    <main className="min-h-screen overflow-x-hidden bg-white text-[#0b0b0c]">
       <Header t={t} locale={locale} />
       <Hero t={t} />
       <WorkflowSection t={t} />
@@ -406,13 +404,13 @@ function Hero({ t }: { t: (typeof content)[Locale] }) {
   return (
     <section id="product" className="noise-grid border-b border-black/10">
       <div className="mx-auto grid max-w-[1500px] gap-10 px-5 py-10 sm:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:px-8 lg:py-16">
-        <div className="flex flex-col justify-center">
+        <div className="min-w-0 max-w-full flex flex-col justify-center">
           <div className="mb-5 w-fit rounded-md border border-[#f45d1f] bg-white px-3 py-1.5 text-sm font-semibold text-[#e04e17]">
             {t.heroMarker}
           </div>
-          <h1 className="max-w-2xl text-4xl font-semibold leading-[1.06] text-black sm:text-6xl">{t.heroTitle}</h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-[#3f444b]">{t.heroText}</p>
-          <ul className="mt-7 grid gap-3 text-base font-medium text-[#20242a]">
+          <h1 className="max-w-full break-words text-4xl font-semibold leading-[1.06] text-black sm:max-w-2xl sm:text-6xl">{t.heroTitle}</h1>
+          <p className="mt-6 max-w-full text-lg leading-8 text-[#3f444b] sm:max-w-2xl">{t.heroText}</p>
+          <ul className="mt-7 grid max-w-full gap-3 text-base font-medium text-[#20242a] sm:max-w-2xl">
             {t.heroBullets.map((item) => (
               <li key={item} className="flex gap-3">
                 <Check className="mt-1 size-5 shrink-0 text-[#f45d1f]" strokeWidth={2.6} />
@@ -685,7 +683,7 @@ function Footer({ t, locale }: { t: (typeof content)[Locale]; locale: Locale }) 
         <div className="grid gap-3 text-sm text-[#59616b]">
           <div className="flex items-center gap-3"><BookOpen size={17} className="text-[#f45d1f]" /><span>{t.footerSecurity}</span></div>
           <div className="flex items-center gap-3"><Workflow size={17} className="text-[#f45d1f]" /><span>{t.footerWorkflow}</span></div>
-          <div className="flex items-center gap-3"><ShieldCheck size={17} className="text-[#f45d1f]" /><span>TTPA / Regulation (EU) 2024/900</span></div>
+          <div className="flex items-center gap-3"><ShieldCheck size={17} className="text-[#f45d1f]" /><span>TTPA, Regulation (EU) 2024/900</span></div>
         </div>
         <div className="grid gap-3 text-sm text-[#59616b]">
           <div className="flex items-center gap-3">

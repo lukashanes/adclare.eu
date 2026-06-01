@@ -9,80 +9,80 @@ type Locale = (typeof locales)[number];
 
 const content = {
   cs: {
-    title: "Nápověda k nasazení Adclare",
-    description: "Jak stáhnout, spustit a nastavit open source Adclare pro evidenci politické reklamy podle TTPA.",
+    title: "Jak začít s Adclare",
+    description: "Jak spustit Adclare a připravit první reklamy podle TTPA.",
     back: "Zpět na web",
-    eyebrow: "Self-hosted open source",
+    eyebrow: "Open source",
     intro:
-      "Adclare je software pod licencí EUPL-1.2 pro evidenci politických reklam, QR označení, transparentní oznámení, schvalování a auditní exporty podle Nařízení EU o transparentnosti a cílení politické reklamy (TTPA), Regulation (EU) 2024/900.",
+      "Adclare pomůže dát politické reklamy, QR kódy, schvalování a podklady pro kontrolu na jedno místo. Cílem je méně ruční práce a jasný proces podle TTPA.",
     sections: [
       {
         icon: Server,
-        title: "1. Stažení a spuštění",
-        text: "Repozitář naklonujte z GitHubu, vyplňte proměnné prostředí a spusťte aplikaci přes Docker Compose. Lokálně stačí PostgreSQL, Node.js a objektové úložiště kompatibilní se S3 pro soubory reklam.",
+        title: "1. Spusťte aplikaci",
+        text: "Stáhněte kód z GitHubu, vyplňte nastavení podle README a spusťte aplikaci. Technické detaily jsou v dokumentaci v repozitáři.",
       },
       {
         icon: Database,
         title: "2. První organizace",
-        text: "Po spuštění založte pracovní prostor strany nebo organizace. Vytvoří se první administrátor, centrála a výchozí kampaň, od které lze navázat vlastní pobočky, regiony a týmy.",
+        text: "Založte pracovní prostor strany nebo organizace. Vytvoří se první administrátor, centrála a výchozí kampaň.",
       },
       {
         icon: Workflow,
-        title: "3. Workflow reklam",
-        text: "Každá reklama prochází evidencí, validací povinných údajů, vytvořením transparentního oznámení, QR balíčkem, kontrolou, publikací a auditním exportem.",
+        title: "3. Proces reklam",
+        text: "Každá reklama projde evidencí, kontrolou povinných údajů, QR kódem, veřejným oznámením, schválením a exportem pro audit.",
       },
       {
         icon: ShieldCheck,
         title: "4. Bezpečnost",
-        text: "Přístupy se řídí rolemi a členstvím v organizaci. Produkční instalaci provozujte za HTTPS, se zálohami databáze, zabezpečeným úložištěm souborů a oddělenými tajnými klíči.",
+        text: "Přístupy se řídí rolemi a členstvím v organizaci. V provozu používejte HTTPS, zálohy databáze a zabezpečené úložiště souborů.",
       },
       {
         icon: Mail,
         title: "5. Podpora",
-        text: "Pokud chcete hosting, implementaci, úpravy na míru nebo provozní podporu od týmu Adclare, napište na support@adclare.eu.",
+        text: "Pokud chcete rychlejší start, migraci dat, školení nebo úpravy pro vlastní tým, napište na support@adclare.eu.",
       },
     ],
     commandsTitle: "Rychlý start",
     commands: ["git clone https://github.com/lukashanes/adclare.eu.git", "cp .env.example .env", "docker compose up --build"],
-    docs: "Více detailů je v README a složce docs v repozitáři.",
+    docs: "Technické detaily jsou v README a složce docs v repozitáři.",
   },
   en: {
-    title: "Adclare Deployment Help",
-    description: "How to download, run and configure open source Adclare for TTPA political advertising records.",
+    title: "How to start with Adclare",
+    description: "How to run Adclare and prepare the first ads for TTPA.",
     back: "Back to website",
-    eyebrow: "Self-hosted open source",
+    eyebrow: "Open source",
     intro:
-      "Adclare is EUPL-1.2 licensed software for political ad records, QR labels, transparency notices, approvals and audit exports under the EU Regulation on transparency and targeting of political advertising (TTPA), Regulation (EU) 2024/900.",
+      "Adclare brings political ad records, QR codes, approvals and audit files into one place. The goal is less manual work and a clear process for TTPA.",
     sections: [
       {
         icon: Server,
-        title: "1. Download and run",
-        text: "Clone the GitHub repository, fill environment variables and run the application with Docker Compose. Local development needs PostgreSQL, Node.js and S3-compatible object storage for ad files.",
+        title: "1. Run the app",
+        text: "Download the code from GitHub, fill the settings from README and start the application. Technical details live in the repository docs.",
       },
       {
         icon: Database,
         title: "2. First organization",
-        text: "Create the party or organization workspace after launch. Adclare creates the first administrator, headquarters and initial campaign, then you can add branches, regions and teams.",
+        text: "Create the party or organization workspace. Adclare creates the first administrator, headquarters and initial campaign.",
       },
       {
         icon: Workflow,
-        title: "3. Ad workflow",
-        text: "Each ad moves through records, required data validation, transparency notice creation, QR package, review, publication and audit export.",
+        title: "3. Ad process",
+        text: "Each ad moves through records, required data checks, QR code, public notice, approval and audit export.",
       },
       {
         icon: ShieldCheck,
         title: "4. Security",
-        text: "Access is controlled by roles and organization membership. Run production behind HTTPS, with database backups, secured file storage and separated secrets.",
+        text: "Access is controlled by roles and organization membership. In production, use HTTPS, database backups and secure file storage.",
       },
       {
         icon: Mail,
         title: "5. Support",
-        text: "For hosting, implementation, custom changes or operational support from the Adclare team, contact support@adclare.eu.",
+        text: "For a faster start, data migration, training or changes for your team, contact support@adclare.eu.",
       },
     ],
     commandsTitle: "Quick Start",
     commands: ["git clone https://github.com/lukashanes/adclare.eu.git", "cp .env.example .env", "docker compose up --build"],
-    docs: "More details are in README and the docs folder in the repository.",
+    docs: "Technical details are in README and the docs folder in the repository.",
   },
 } satisfies Record<Locale, {
   title: string;

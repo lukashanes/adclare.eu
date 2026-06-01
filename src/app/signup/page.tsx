@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Založit pracovní prostor | Adclare",
-  description: "Založení pracovního prostoru pro evidenci a workflow politické reklamy podle TTPA.",
+  description: "Založení pracovního prostoru pro evidenci, schvalování a QR kódy politické reklamy podle TTPA.",
 };
 
 export default async function SignupPage() {
@@ -28,7 +28,7 @@ export default async function SignupPage() {
           <p className="mt-10 text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Open source</p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight text-black sm:text-5xl">Založte pracovní prostor pro politickou reklamu</h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-[#4c535d]">
-            Vytvoří se účet strany, první administrátor, výchozí centrála a kampaň. Hned potom můžete přidat pobočky, pozvat týmy a začít doplňovat reklamy před zveřejněním.
+            Vytvoří se účet strany, první administrátor, výchozí centrála a kampaň. Hned potom můžete přidat pobočky, pozvat týmy a začít připravovat reklamy před zveřejněním.
           </p>
           <Link href="/cs" className="mt-7 inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-[#25282d]">
             <ArrowLeft size={16} />
@@ -39,7 +39,7 @@ export default async function SignupPage() {
         <aside className="rounded-md border border-black/10 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-black">Založit pracovní prostor</h2>
           <p className="mt-2 text-sm leading-6 text-[#59616b]">
-            Lokální instalace Adclare je připravená pro vlastní provoz. Ve výchozím režimu formulář vytvoří první organizaci a administrátora; další lidé přichází přes pozvánky.
+            Formulář vytvoří první organizaci a administrátora. Další lidé přichází přes pozvánky, aby měl každý přístup jen k práci, kterou má řešit.
           </p>
           <div className="mt-6">
             <SignupClient canCreateWorkspace={availability.canCreateWorkspace} turnstileSiteKey={publicTurnstileSiteKey()} />
