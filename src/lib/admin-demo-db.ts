@@ -19,7 +19,7 @@ import {
   type Tenant,
   type TenantMembership,
   type User,
-} from "@prisma/client";
+} from "@/generated/prisma/client";
 import type {
   AdRecord,
   AdChannel,

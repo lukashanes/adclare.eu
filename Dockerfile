@@ -7,7 +7,7 @@ FROM deps AS migrator
 WORKDIR /app
 COPY prisma.config.ts ./
 COPY prisma ./prisma
-RUN npm run db:generate
+RUN DATABASE_URL="postgresql://adclare:adclare@localhost:5432/adclare?schema=public" npm run db:generate
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM deps AS storage-check
@@ -20,7 +20,7 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run db:generate && npm run build
+RUN DATABASE_URL="postgresql://adclare:adclare@localhost:5432/adclare?schema=public" npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

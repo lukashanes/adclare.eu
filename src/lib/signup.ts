@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { MembershipStatus, UserRole } from "@prisma/client";
+import { MembershipStatus, UserRole } from "@/generated/prisma/client";
 import { requestAppLoginLink } from "@/lib/app-auth";
 import { prisma } from "@/lib/prisma";
 

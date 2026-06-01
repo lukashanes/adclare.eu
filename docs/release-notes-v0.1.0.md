@@ -12,7 +12,8 @@ Adclare is self-hosted software for managing political advert records and workfl
 - Public transparency pages and repository endpoints with unguessable advert tokens.
 - Branch-scoped roles for administrators, reviewers, local teams, candidates, designers and auditors.
 - Docker Compose deployment for self-hosted instances.
-- Prisma CLI configuration in `prisma.config.ts` with explicit `.env` loading for local and Docker-based database commands.
+- Prisma 7.8 runtime with generated TypeScript client output, Postgres driver adapter and `prisma.config.ts` datasource configuration.
+- Seed and migration commands updated for the Prisma 7 CLI.
 - Runtime-aware instance URLs for login links, invitations, QR/public links, metadata, robots and sitemap.
 - Optional Cloudflare Turnstile and Cloudflare Email Service integration.
 - S3-compatible object storage support, including Hetzner Object Storage.

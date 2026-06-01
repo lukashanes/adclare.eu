@@ -5,10 +5,21 @@ import {
   ApprovalStatus,
   MembershipStatus,
   UserRole,
-} from "@prisma/client";
+} from "../src/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { randomBytes } from "node:crypto";
 
-const prisma = new PrismaClient();
+function databaseUrl() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is required.");
+  }
+
+  return process.env.DATABASE_URL;
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: databaseUrl() }),
+});
 
 const tenantSlug = "demo-party";
 const campaignSlug = "municipal-2026";

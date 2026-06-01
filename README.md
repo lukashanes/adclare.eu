@@ -24,7 +24,7 @@ Adclare gives teams one place to:
 ## Current Capabilities
 
 - Next.js App Router with TypeScript.
-- PostgreSQL and Prisma data model.
+- PostgreSQL and Prisma 7 data model.
 - Multi-organization and branch-scoped access.
 - Magic-link authentication and invitation flow.
 - Role-based workspace for party admins, reviewers, local teams, candidates, designers and auditors.
@@ -42,6 +42,8 @@ Adclare gives teams one place to:
 
 ## Quick Start
 
+Local development requires Node.js 20.19 or newer.
+
 ```bash
 git clone https://github.com/lukashanes/adclare.eu.git
 cd adclare.eu
@@ -49,6 +51,7 @@ cp .env.example .env
 npm install
 docker compose up -d db
 npm run db:migrate -- --name init
+npm run db:generate
 npm run db:seed
 npm run dev
 ```
@@ -64,6 +67,7 @@ Local development:
 ```bash
 docker compose up -d db
 npm run db:migrate
+npm run db:generate
 npm run dev
 ```
 
