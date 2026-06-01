@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { EmailStatus, MembershipStatus } from "@prisma/client";
 import { readCookieFromHeader } from "@/lib/admin-auth";
+import { defaultEmailFrom, publicAppUrl } from "@/lib/instance-config";
 import { prisma } from "@/lib/prisma";
 
 export const APP_SESSION_COOKIE = "adclare_user_session";
@@ -11,14 +12,6 @@ const loginRequestLimitWindowMs = 60 * 60 * 1000;
 const maxLoginRequestsPerWindow = 5;
 const sessionTtlSeconds = 30 * 24 * 60 * 60;
 const sessionTouchIntervalMs = 5 * 60 * 1000;
-
-function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL || "https://adclare.eu").replace(/\/$/, "");
-}
-
-function emailFrom() {
-  return process.env.EMAIL_FROM || "Adclare <noreply@adclare.eu>";
-}
 
 function cloudflareEmailAccountId() {
   return (process.env.CLOUDFLARE_EMAIL_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
@@ -143,7 +136,7 @@ async function deliverLoginEmail(tenantId: string, toEmail: string, loginUrl: st
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: emailFrom(),
+        from: defaultEmailFrom(),
         to: toEmail,
         subject,
         html: bodyHtml,
@@ -259,7 +252,7 @@ export async function requestAppLoginLink(rawEmail: string) {
     },
   });
 
-  await deliverLoginEmail(tenantId, email, `${appUrl()}/api/login/verify/${token}`);
+  await deliverLoginEmail(tenantId, email, `${publicAppUrl()}/api/login/verify/${token}`);
 
   await prisma.auditLog.create({
     data: {

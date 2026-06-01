@@ -41,6 +41,7 @@ import type {
   ReviewDecisionInput,
   Status,
 } from "@/lib/admin-demo-types";
+import { defaultEmailFrom, publicAppUrl } from "@/lib/instance-config";
 import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
 
@@ -218,7 +219,7 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
 
   return {
     id: ad.code,
-    publicUrl: `${appUrl()}/ad/${ad.publicToken}`,
+    publicUrl: `${publicAppUrl()}/ad/${ad.publicToken}`,
     title: isCs ? ad.titleCs : ad.titleEn,
     tenantSlug: ad.tenant?.slug ?? tenantSlug,
     campaign: isCs ? ad.campaign.nameCs : ad.campaign.nameEn,
@@ -276,16 +277,8 @@ function createInviteToken() {
   return randomBytes(24).toString("base64url");
 }
 
-function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL || "https://adclare.eu").replace(/\/$/, "");
-}
-
 function isDemoPublicRepositoryEnabled() {
   return process.env.NEXT_PUBLIC_SHOW_DEMO_REPO === "1";
-}
-
-function emailFrom() {
-  return process.env.EMAIL_FROM || "Adclare <noreply@adclare.eu>";
 }
 
 function cloudflareEmailAccountId() {
@@ -312,7 +305,7 @@ function escapeHtml(value: string) {
 }
 
 function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
-  const inviteUrl = `${appUrl()}/invite/${invitation.token}`;
+  const inviteUrl = `${publicAppUrl()}/invite/${invitation.token}`;
   const tenantName = invitation.tenant.nameCs;
   const scope = scopeLabel(invitation.orgUnit, "cs");
   const role = roleLabel(invitation.role, "cs");
@@ -362,7 +355,7 @@ async function deliverEmailMessage(email: EmailMessage, content?: { bodyText: st
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: emailFrom(),
+        from: defaultEmailFrom(),
         to: email.toEmail,
         subject: email.subject,
         html: content?.bodyHtml ?? email.bodyHtml,
@@ -527,7 +520,7 @@ function mapInvitation(invitation: InvitationWithUnit, locale: Locale): AdminInv
     emailStatus: emailStatusLabel(emailStatus, locale),
     emailStatusKey: emailStatus,
     expiresAt: formatDate(invitation.expiresAt, locale),
-    inviteUrl: `${appUrl()}/invite/${invitation.token}`,
+    inviteUrl: `${publicAppUrl()}/invite/${invitation.token}`,
   };
 }
 
@@ -1356,7 +1349,7 @@ export async function getDemoTransparencyNotice(publicToken: string, locale: Loc
     return null;
   }
 
-  const publicUrl = `${appUrl()}/ad/${ad.publicToken}`;
+  const publicUrl = `${publicAppUrl()}/ad/${ad.publicToken}`;
 
   if (!isPublicWorkflowStatus(ad.workflowStatus)) {
     return {
@@ -2007,7 +2000,7 @@ export async function getDemoAuditPackage(code: string, locale: Locale) {
     },
     ad: mapAd(typedAd, locale),
     notice: {
-      publicUrl: `${appUrl()}/ad/${typedAd.publicToken}`,
+      publicUrl: `${publicAppUrl()}/ad/${typedAd.publicToken}`,
       lastUpdated: typedAd.updatedAt.toISOString(),
       missing: locale === "cs" ? typedAd.missingCs : typedAd.missingEn,
       workflowStatus: typedAd.workflowStatus,
@@ -2884,7 +2877,7 @@ export async function getAppAuditPackage(userId: string, code: string, locale: L
     },
     ad: mapAd(typedAd, locale),
     notice: {
-      publicUrl: `${appUrl()}/ad/${typedAd.publicToken}`,
+      publicUrl: `${publicAppUrl()}/ad/${typedAd.publicToken}`,
       lastUpdated: typedAd.updatedAt.toISOString(),
       missing: locale === "cs" ? typedAd.missingCs : typedAd.missingEn,
       workflowStatus: typedAd.workflowStatus,

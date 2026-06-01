@@ -32,6 +32,7 @@ const objectStorage = read("src/lib/object-storage.ts");
 const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
 const adminAuth = read("src/lib/admin-auth.ts");
 const adminPage = read("src/app/[locale]/admin/page.tsx");
+const appAuth = read("src/lib/app-auth.ts");
 const license = read("LICENSE");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
@@ -39,6 +40,7 @@ check(license.includes("EUROPEAN UNION PUBLIC LICENCE v. 1.2") && license.includ
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
 check(composeProd.includes("storage-check:"), "Production compose should include an object storage check tool.");
 check(composeProd.includes("NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?set NEXT_PUBLIC_APP_URL}"), "Production compose should require a self-hosted NEXT_PUBLIC_APP_URL.");
+check(composeProd.includes("EMAIL_FROM: ${EMAIL_FROM:-}"), "Production compose should not default outbound email to adclare.eu for self-hosted installs.");
 check(dockerfile.includes("AS storage-check"), "Dockerfile should include an object storage check target.");
 const rootCompose = read("docker-compose.yml");
 check(rootCompose.includes("migrate:"), "Root Docker compose should run database migrations for one-command self-hosting.");
@@ -46,6 +48,8 @@ check(rootCompose.includes("service_completed_successfully"), "Root Docker compo
 check(rootCompose.includes("TURNSTILE_REQUIRED: ${TURNSTILE_REQUIRED:-0}"), "Root Docker compose should allow first local run before Turnstile is configured.");
 check(rootCompose.includes("OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-}"), "Root Docker compose should pass object storage configuration.");
 check(read("deploy/caddy/Caddyfile").includes("{$SITE_ADDRESS:localhost}"), "Caddy should use SITE_ADDRESS instead of a hard-coded adclare.eu domain.");
+check(appAuth.includes("publicAppUrl()") && !appAuth.includes("https://adclare.eu"), "Login links should use instance URL configuration, not adclare.eu fallback.");
+check(adminDb.includes("publicAppUrl()") && !adminDb.includes("https://adclare.eu"), "Invite, QR and public URLs should use instance URL configuration, not adclare.eu fallback.");
 check(existsSync(resolve(root, "src/app/api/health/route.ts")), "Health route is missing.");
 check(adminDb.includes("publicWorkflowStatuses"), "Public workflow status allowlist is missing.");
 check(adminDb.includes("in: publicWorkflowStatuses"), "Public repository should only query public workflow statuses.");
