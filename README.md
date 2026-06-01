@@ -139,6 +139,12 @@ npm run build
 npm run test
 ```
 
+## Current Release
+
+The current release baseline is `v0.1.0`.
+
+See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-v0.1.0.md](docs/release-notes-v0.1.0.md).
+
 ## Support
 
 Adclare is open source software. If you need help with hosting, installation, migration, TTPA workflow design, integrations or production support, contact:

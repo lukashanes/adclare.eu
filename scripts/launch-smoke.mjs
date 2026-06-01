@@ -35,9 +35,11 @@ const adminPage = read("src/app/[locale]/admin/page.tsx");
 const appAuth = read("src/lib/app-auth.ts");
 const turnstile = read("src/lib/turnstile.ts");
 const license = read("LICENSE");
+const changelog = read("CHANGELOG.md");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
 check(license.includes("EUROPEAN UNION PUBLIC LICENCE v. 1.2") && license.includes("15. Applicable Law"), "LICENSE should contain the full EUPL-1.2 text.");
+check(changelog.includes("## v0.1.0 - 2026-06-01") && !changelog.includes("## v0.0"), "Changelog should contain one current v0.1.0 release baseline.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
 check(composeProd.includes("storage-check:"), "Production compose should include an object storage check tool.");
 check(composeProd.includes("NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?set NEXT_PUBLIC_APP_URL}"), "Production compose should require a self-hosted NEXT_PUBLIC_APP_URL.");
