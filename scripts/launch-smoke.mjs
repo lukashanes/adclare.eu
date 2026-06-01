@@ -58,6 +58,8 @@ check(dockerfile.includes("DATABASE_URL=\"postgresql://adclare:adclare@localhost
 check(read("eslint.config.mjs").includes("src/generated/prisma/**"), "Generated Prisma client should be excluded from linting.");
 check(ciWorkflow.includes("npm run ci"), "GitHub Actions should run the full app CI script.");
 check(ciWorkflow.includes("npm run docker:check"), "GitHub Actions should verify Docker builds.");
+check(ciWorkflow.includes("actions/checkout@v6"), "GitHub Actions should use checkout with Node 24 runtime support.");
+check(ciWorkflow.includes("actions/setup-node@v6"), "GitHub Actions should use setup-node with Node 24 runtime support.");
 check(ciWorkflow.includes("node-version: \"22\""), "GitHub Actions should run on Node.js 22.");
 check(dependabotConfig.includes("package-ecosystem: npm"), "Dependabot should watch npm dependencies.");
 check(dependabotConfig.includes("package-ecosystem: github-actions"), "Dependabot should watch GitHub Actions.");
