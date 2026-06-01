@@ -44,6 +44,7 @@ check(!Object.hasOwn(packageJson, "prisma"), "Prisma configuration should live i
 check(prismaConfig.includes('schema: "prisma/schema.prisma"'), "Prisma config should point at prisma/schema.prisma.");
 check(prismaConfig.includes('seed: "node prisma/seed.mjs"'), "Prisma config should keep the database seed command.");
 check(prismaConfig.includes('import "dotenv/config"'), "Prisma config should explicitly load .env values.");
+check(dockerfile.includes("COPY prisma.config.ts ./"), "Production migrator image should include prisma.config.ts.");
 check(license.includes("EUROPEAN UNION PUBLIC LICENCE v. 1.2") && license.includes("15. Applicable Law"), "LICENSE should contain the full EUPL-1.2 text.");
 check(changelog.includes("## v0.1.0 - 2026-06-01") && !changelog.includes("## v0.0"), "Changelog should contain one current v0.1.0 release baseline.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
