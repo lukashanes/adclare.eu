@@ -1,4 +1,4 @@
-adclare.eu, www.adclare.eu {
+{$SITE_ADDRESS:localhost} {
 	encode zstd gzip
 
 	header {

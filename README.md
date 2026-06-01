@@ -71,8 +71,12 @@ Standalone Docker deployment:
 
 ```bash
 cp .env.example .env
+printf "SITE_ADDRESS=adclare.example.org\nNEXT_PUBLIC_APP_URL=https://adclare.example.org\n" >> .env
 docker compose up -d --build
 ```
+
+The root Compose file starts PostgreSQL, runs database migrations, starts the app and serves it through Caddy. Set `SITE_ADDRESS` and `NEXT_PUBLIC_APP_URL` to your real domain before using it outside local testing.
+The example environment keeps Turnstile optional so the first local run works; enable `TURNSTILE_REQUIRED=1` with real Cloudflare keys before public production use.
 
 Production deployment behind an existing reverse proxy can use:
 

@@ -25,6 +25,7 @@ Edit `.env`:
 
 ```bash
 NEXT_PUBLIC_APP_URL=https://adclare.example.org
+SITE_ADDRESS=adclare.example.org
 POSTGRES_DB=adclare_prod
 POSTGRES_USER=adclare
 POSTGRES_PASSWORD=change_this_to_a_long_random_value
@@ -32,6 +33,7 @@ DATABASE_URL=postgresql://adclare:change_this_to_a_long_random_value@db:5432/adc
 ADMIN_ACCESS_PASSWORD=change_this_admin_password
 ADMIN_SESSION_SECRET=change_this_to_at_least_32_random_characters
 SIGNUP_MODE=first-run
+TURNSTILE_REQUIRED=0
 ```
 
 Run the database and migrations:
@@ -45,7 +47,7 @@ docker compose -f docker-compose.prod.yml up -d --build web
 
 The production Compose file binds the app to `127.0.0.1:13310`. Put Nginx, Caddy, Traefik or another reverse proxy in front of it and serve HTTPS.
 
-For a single fresh server where Caddy can own ports `80` and `443`, the root `docker-compose.yml` can also be used, but update `deploy/caddy/Caddyfile` to your real domain first.
+For a single fresh server where Caddy can own ports `80` and `443`, the root `docker-compose.yml` can also be used. Set `SITE_ADDRESS=adclare.example.org`; Caddy reads the domain from that environment variable.
 
 ## First Workspace
 
