@@ -16,6 +16,7 @@ Initial current open-source release of Adclare.
 - S3-compatible advert asset upload, including Hetzner Object Storage support.
 - QR package and audit package downloads.
 - Docker and Docker Compose setup for self-hosted deployment.
+- Prisma CLI configuration in `prisma.config.ts` with explicit `.env` loading for validate, generate, migrate and seed commands.
 - Runtime-aware `APP_URL` / `NEXT_PUBLIC_APP_URL` handling for links, metadata, robots and sitemap.
 - Cloudflare Turnstile support for public forms when configured.
 - Cloudflare Email Service integration for login links and invitations when configured.
