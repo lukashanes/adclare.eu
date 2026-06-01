@@ -33,6 +33,7 @@ const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
 const adminAuth = read("src/lib/admin-auth.ts");
 const adminPage = read("src/app/[locale]/admin/page.tsx");
 const appAuth = read("src/lib/app-auth.ts");
+const turnstile = read("src/lib/turnstile.ts");
 const license = read("LICENSE");
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
@@ -40,6 +41,7 @@ check(license.includes("EUROPEAN UNION PUBLIC LICENCE v. 1.2") && license.includ
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
 check(composeProd.includes("storage-check:"), "Production compose should include an object storage check tool.");
 check(composeProd.includes("NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?set NEXT_PUBLIC_APP_URL}"), "Production compose should require a self-hosted NEXT_PUBLIC_APP_URL.");
+check(composeProd.includes("APP_URL: ${APP_URL:-${NEXT_PUBLIC_APP_URL}}"), "Production compose should pass runtime APP_URL for self-hosted links.");
 check(composeProd.includes("EMAIL_FROM: ${EMAIL_FROM:-}"), "Production compose should not default outbound email to adclare.eu for self-hosted installs.");
 check(dockerfile.includes("AS storage-check"), "Dockerfile should include an object storage check target.");
 const rootCompose = read("docker-compose.yml");
@@ -50,6 +52,9 @@ check(rootCompose.includes("OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-
 check(read("deploy/caddy/Caddyfile").includes("{$SITE_ADDRESS:localhost}"), "Caddy should use SITE_ADDRESS instead of a hard-coded adclare.eu domain.");
 check(appAuth.includes("publicAppUrl()") && !appAuth.includes("https://adclare.eu"), "Login links should use instance URL configuration, not adclare.eu fallback.");
 check(adminDb.includes("publicAppUrl()") && !adminDb.includes("https://adclare.eu"), "Invite, QR and public URLs should use instance URL configuration, not adclare.eu fallback.");
+check(turnstile.includes("publicAppUrl()") && !turnstile.includes("process.env.NEXT_PUBLIC_APP_URL"), "Turnstile hostname fallback should use runtime APP_URL.");
+check(read("src/app/sitemap.ts").includes('dynamic = "force-dynamic"') && read("src/app/sitemap.ts").includes("publicAppUrl()"), "Sitemap should use runtime instance URL.");
+check(read("src/app/robots.ts").includes('dynamic = "force-dynamic"') && read("src/app/robots.ts").includes("publicAppUrl()"), "Robots should use runtime instance URL.");
 check(existsSync(resolve(root, "src/app/api/health/route.ts")), "Health route is missing.");
 check(adminDb.includes("publicWorkflowStatuses"), "Public workflow status allowlist is missing.");
 check(adminDb.includes("in: publicWorkflowStatuses"), "Public repository should only query public workflow statuses.");

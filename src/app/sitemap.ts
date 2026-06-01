@@ -1,11 +1,14 @@
 import type { MetadataRoute } from "next";
+import { publicAppUrl } from "@/lib/instance-config";
 
-const baseUrl = "https://adclare.eu";
+export const dynamic = "force-dynamic";
+
 const lastModified = new Date("2026-05-27");
 
 const localizedPages = ["", "/help", "/privacy", "/cookies", "/terms", "/dpa", "/subprocessors", "/security"] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  const baseUrl = publicAppUrl();
   const marketingPages: MetadataRoute.Sitemap = localizedPages.flatMap((path) => [
     {
       url: `${baseUrl}/cs${path}`,

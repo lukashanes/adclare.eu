@@ -79,7 +79,7 @@ mkdir -p /srv/apps/adclare
 rsync -az --delete --exclude '.env' --exclude '.admin-access' --exclude 'node_modules' --exclude '.next' ./ root@46.224.66.79:/srv/apps/adclare/
 ssh root@46.224.66.79 'cd /srv/apps/adclare && test -f .env || {
   PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
-  printf "POSTGRES_DB=adclare_prod\nPOSTGRES_USER=adclare\nPOSTGRES_PASSWORD=%s\nDATABASE_URL=postgresql://adclare:%s@db:5432/adclare_prod?schema=public\nNEXT_PUBLIC_APP_URL=https://adclare.eu\n" "$PASS" "$PASS" > .env
+  printf "POSTGRES_DB=adclare_prod\nPOSTGRES_USER=adclare\nPOSTGRES_PASSWORD=%s\nDATABASE_URL=postgresql://adclare:%s@db:5432/adclare_prod?schema=public\nAPP_URL=https://adclare.eu\nNEXT_PUBLIC_APP_URL=https://adclare.eu\n" "$PASS" "$PASS" > .env
 }'
 ssh root@46.224.66.79 'cd /srv/apps/adclare && docker compose -f docker-compose.prod.yml up -d db'
 ssh root@46.224.66.79 'cd /srv/apps/adclare && docker compose -f docker-compose.prod.yml --profile tools build migrate'

@@ -24,6 +24,7 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
+APP_URL=https://adclare.example.org
 NEXT_PUBLIC_APP_URL=https://adclare.example.org
 SITE_ADDRESS=adclare.example.org
 POSTGRES_DB=adclare_prod

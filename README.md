@@ -71,11 +71,11 @@ Standalone Docker deployment:
 
 ```bash
 cp .env.example .env
-printf "SITE_ADDRESS=adclare.example.org\nNEXT_PUBLIC_APP_URL=https://adclare.example.org\n" >> .env
+printf "SITE_ADDRESS=adclare.example.org\nAPP_URL=https://adclare.example.org\nNEXT_PUBLIC_APP_URL=https://adclare.example.org\n" >> .env
 docker compose up -d --build
 ```
 
-The root Compose file starts PostgreSQL, runs database migrations, starts the app and serves it through Caddy. Set `SITE_ADDRESS` and `NEXT_PUBLIC_APP_URL` to your real domain before using it outside local testing.
+The root Compose file starts PostgreSQL, runs database migrations, starts the app and serves it through Caddy. Set `SITE_ADDRESS`, `APP_URL` and `NEXT_PUBLIC_APP_URL` to your real domain before using it outside local testing.
 The example environment keeps Turnstile optional so the first local run works; enable `TURNSTILE_REQUIRED=1` with real Cloudflare keys before public production use.
 
 Production deployment behind an existing reverse proxy can use:
@@ -94,7 +94,7 @@ See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker g
 Important environment variables:
 
 - `DATABASE_URL`: PostgreSQL connection string.
-- `NEXT_PUBLIC_APP_URL`: public URL of the instance.
+- `APP_URL` and `NEXT_PUBLIC_APP_URL`: public URL of the instance. `APP_URL` is used at runtime by server-side links, feeds and metadata.
 - `EMAIL_FROM`: sender identity for transactional email.
 - `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: optional Cloudflare Email Service credentials.
 - `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: optional Cloudflare Turnstile protection.

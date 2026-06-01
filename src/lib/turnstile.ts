@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { publicAppUrl } from "@/lib/instance-config";
 
 const placeholderValues = new Set(["", "replace_with_cloudflare_turnstile_secret", "replace_with_turnstile_secret"]);
 const placeholderSiteKeys = new Set(["", "replace_with_cloudflare_turnstile_site_key", "replace_with_turnstile_site_key"]);
@@ -34,18 +35,13 @@ function shouldRequireTurnstile() {
 
 function expectedHostnames() {
   const configured = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || "").split(",").map((item) => item.trim()).filter(Boolean);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
   if (configured.length > 0) {
     return configured;
   }
 
-  if (!appUrl) {
-    return [];
-  }
-
   try {
-    return [new URL(appUrl).hostname];
+    return [new URL(publicAppUrl()).hostname];
   } catch {
     return [];
   }

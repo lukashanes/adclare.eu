@@ -1,8 +1,11 @@
 import type { MetadataRoute } from "next";
+import { publicAppUrl } from "@/lib/instance-config";
 
-const baseUrl = "https://adclare.eu";
+export const dynamic = "force-dynamic";
 
 export default function robots(): MetadataRoute.Robots {
+  const baseUrl = publicAppUrl();
+
   return {
     rules: {
       userAgent: "*",
