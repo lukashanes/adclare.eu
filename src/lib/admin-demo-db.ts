@@ -4,10 +4,6 @@ import {
   AdWorkflowStatus,
   ApprovalStatus,
   type AdAsset,
-  BillingInterval,
-  BillingMethod,
-  BillingPlan,
-  BillingStatus,
   EmailStatus,
   type AuditLog,
   type AdVersion,
@@ -16,7 +12,6 @@ import {
   MembershipStatus,
   UserRole,
   type Ad,
-  type BillingAccount,
   type Campaign,
   type EmailMessage,
   type Invitation,
@@ -29,14 +24,12 @@ import type {
   AdRecord,
   AdChannel,
   AdminAdsPayload,
-  AdminBillingPayload,
   AppBranchInput,
   AppWorkspacePayload,
   AdminInvitationRecord,
   AdminMemberRecord,
   AdminRoleKey,
   AdminUsersPayload,
-  EditableBillingInput,
   EditableAdInput,
   InvitationNotice,
   InviteInput,
@@ -76,10 +69,6 @@ type AuditPackageAd = AdWithUnit & {
   versions: AdVersion[];
   approvals: Approval[];
   assets: AdAsset[];
-};
-
-type BillingAccountWithTenant = BillingAccount & {
-  tenant: Tenant;
 };
 
 const statusMap: Record<AdStatus, Status> = {
@@ -464,105 +453,6 @@ function roleLabel(role: UserRole, locale: Locale) {
 
   return labels[role][locale];
 }
-
-function billingPlanLabel(plan: BillingPlan, locale: Locale) {
-  const labels: Record<BillingPlan, Record<Locale, string>> = {
-    SMALL_PARTY: { cs: "Malá strana", en: "Small party" },
-    LARGE_PARTY: { cs: "Velká strana", en: "Large party" },
-    CUSTOM: { cs: "Custom řešení", en: "Custom solution" },
-  };
-
-  return labels[plan][locale];
-}
-
-function billingIntervalLabel(interval: BillingInterval, locale: Locale) {
-  const labels: Record<BillingInterval, Record<Locale, string>> = {
-    MONTHLY: { cs: "měsíčně", en: "monthly" },
-    YEARLY: { cs: "ročně", en: "yearly" },
-  };
-
-  return labels[interval][locale];
-}
-
-function billingMethodLabel(method: BillingMethod, locale: Locale) {
-  const labels: Record<BillingMethod, Record<Locale, string>> = {
-    STRIPE: { cs: "Stripe", en: "Stripe" },
-    INVOICE: { cs: "faktura", en: "invoice" },
-  };
-
-  return labels[method][locale];
-}
-
-function billingStatusLabel(status: BillingStatus, locale: Locale) {
-  const labels: Record<BillingStatus, Record<Locale, string>> = {
-    TRIAL: { cs: "zkušební přístup", en: "trial" },
-    ACTIVE: { cs: "aktivní", en: "active" },
-    PENDING_INVOICE_APPROVAL: { cs: "čeká na schválení faktury", en: "pending invoice approval" },
-    TRIAL_EXPIRED: { cs: "zkušební přístup skončil", en: "trial expired" },
-    PAST_DUE: { cs: "po splatnosti", en: "past due" },
-    PAUSED: { cs: "pozastaveno", en: "paused" },
-    CANCELLED: { cs: "zrušeno", en: "cancelled" },
-  };
-
-  return labels[status][locale];
-}
-
-function formatOptionalDate(date: Date | null, locale: Locale) {
-  return date ? formatDate(date, locale) : "";
-}
-
-function hasStripeSecretConfig() {
-  return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
-}
-
-function hasStripeWebhookConfig() {
-  return Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim());
-}
-
-function hasStripeConfig() {
-  return hasStripeSecretConfig() && hasStripeWebhookConfig();
-}
-
-function effectiveBillingPrice(account: BillingAccount, locale: Locale) {
-  const amount = account.interval === BillingInterval.YEARLY ? account.yearlyPriceEur : account.monthlyPriceEur;
-  const suffix = account.interval === BillingInterval.YEARLY ? (locale === "cs" ? " / rok" : " / year") : (locale === "cs" ? " / měsíc" : " / month");
-
-  return `${amount} EUR${suffix}`;
-}
-
-function mapBillingAccount(account: BillingAccountWithTenant, locale: Locale): AdminBillingPayload {
-  return {
-    tenant: {
-      name: locale === "cs" ? account.tenant.nameCs : account.tenant.nameEn,
-      slug: account.tenant.slug,
-    },
-    billing: {
-      plan: account.plan,
-      planLabel: billingPlanLabel(account.plan, locale),
-      interval: account.interval,
-      intervalLabel: billingIntervalLabel(account.interval, locale),
-      method: account.method,
-      methodLabel: billingMethodLabel(account.method, locale),
-      status: account.status,
-      statusLabel: billingStatusLabel(account.status, locale),
-      discountPercent: account.discountPercent,
-      monthlyPriceEur: account.monthlyPriceEur,
-      yearlyPriceEur: account.yearlyPriceEur,
-      effectivePrice: effectiveBillingPrice(account, locale),
-      invoiceEmail: account.invoiceEmail,
-      invoiceApprovedAt: formatOptionalDate(account.invoiceApprovedAt, locale),
-      currentPeriodEndsAt: formatOptionalDate(account.currentPeriodEndsAt, locale),
-      trialEndsAt: formatOptionalDate(account.trialEndsAt, locale),
-      stripeCustomerId: account.stripeCustomerId,
-      stripeSubscriptionId: account.stripeSubscriptionId,
-      stripeConfigured: hasStripeConfig(),
-      stripeCheckoutConfigured: hasStripeSecretConfig(),
-      stripeWebhookConfigured: hasStripeWebhookConfig(),
-      note: locale === "cs" ? account.noteCs : account.noteEn,
-    },
-  };
-}
-
 function membershipStatusLabel(status: MembershipStatus, locale: Locale) {
   const labels: Record<MembershipStatus, Record<Locale, string>> = {
     ACTIVE: { cs: "aktivní", en: "active" },
@@ -1228,174 +1118,6 @@ export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPay
     })),
   };
 }
-
-function normalizeBillingPlan(value: string): BillingPlan {
-  return value === BillingPlan.SMALL_PARTY || value === BillingPlan.CUSTOM ? value : BillingPlan.LARGE_PARTY;
-}
-
-function normalizeBillingInterval(value: string): BillingInterval {
-  return value === BillingInterval.MONTHLY ? BillingInterval.MONTHLY : BillingInterval.YEARLY;
-}
-
-function normalizeBillingMethod(value: string): BillingMethod {
-  return value === BillingMethod.INVOICE ? BillingMethod.INVOICE : BillingMethod.STRIPE;
-}
-
-function normalizeBillingStatus(value: string): BillingStatus {
-  const allowed = new Set<BillingStatus>([
-    BillingStatus.TRIAL,
-    BillingStatus.ACTIVE,
-    BillingStatus.PENDING_INVOICE_APPROVAL,
-    BillingStatus.TRIAL_EXPIRED,
-    BillingStatus.PAST_DUE,
-    BillingStatus.PAUSED,
-    BillingStatus.CANCELLED,
-  ]);
-
-  return allowed.has(value as BillingStatus) ? (value as BillingStatus) : BillingStatus.ACTIVE;
-}
-
-function clampDiscount(value: number) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-
-  return Math.min(100, Math.max(0, Math.round(value)));
-}
-
-function positivePrice(value: number, fallback: number) {
-  if (!Number.isFinite(value) || value < 0) {
-    return fallback;
-  }
-
-  return Math.round(value);
-}
-
-export async function ensureDemoBillingAccount() {
-  const { tenant } = await getDemoTenantAndCampaign();
-
-  return prisma.billingAccount.upsert({
-    where: {
-      tenantId: tenant.id,
-    },
-    update: {},
-    create: {
-      tenantId: tenant.id,
-      plan: BillingPlan.LARGE_PARTY,
-      interval: BillingInterval.YEARLY,
-      method: BillingMethod.STRIPE,
-      status: BillingStatus.ACTIVE,
-      discountPercent: 50,
-      monthlyPriceEur: 99,
-      yearlyPriceEur: 999,
-      invoiceEmail: "billing@demo-strana.cz",
-      currentPeriodEndsAt: new Date("2027-05-26T00:00:00.000Z"),
-      noteCs: "Akční cena pro velkou stranu. Fakturační režim lze přepnout na ruční schválení.",
-      noteEn: "Promotional large party price. Billing can be switched to manual invoice approval.",
-    },
-    include: {
-      tenant: true,
-    },
-  });
-}
-
-export async function getDemoBillingPayload(locale: Locale) {
-  const billingAccount = await ensureDemoBillingAccount();
-
-  return mapBillingAccount(billingAccount, locale);
-}
-
-export async function updateDemoBillingAccount(input: EditableBillingInput, locale: Locale) {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const method = normalizeBillingMethod(input.method);
-  const status = normalizeBillingStatus(input.status);
-  const invoiceApprovedAt =
-    method === BillingMethod.INVOICE && status !== BillingStatus.PENDING_INVOICE_APPROVAL ? new Date() : null;
-
-  const billingAccount = await prisma.billingAccount.upsert({
-    where: {
-      tenantId: tenant.id,
-    },
-    update: {
-      plan: normalizeBillingPlan(input.plan),
-      interval: normalizeBillingInterval(input.interval),
-      method,
-      status,
-      discountPercent: clampDiscount(input.discountPercent),
-      monthlyPriceEur: positivePrice(input.monthlyPriceEur, 99),
-      yearlyPriceEur: positivePrice(input.yearlyPriceEur, 999),
-      stripeCustomerId: input.stripeCustomerId.trim(),
-      stripeSubscriptionId: input.stripeSubscriptionId.trim(),
-      invoiceEmail: normalizeEmail(input.invoiceEmail || "billing@demo-strana.cz"),
-      invoiceApprovedAt,
-      noteCs: input.note.trim(),
-      noteEn: input.note.trim(),
-    },
-    create: {
-      tenantId: tenant.id,
-      plan: normalizeBillingPlan(input.plan),
-      interval: normalizeBillingInterval(input.interval),
-      method,
-      status,
-      discountPercent: clampDiscount(input.discountPercent),
-      monthlyPriceEur: positivePrice(input.monthlyPriceEur, 99),
-      yearlyPriceEur: positivePrice(input.yearlyPriceEur, 999),
-      stripeCustomerId: input.stripeCustomerId.trim(),
-      stripeSubscriptionId: input.stripeSubscriptionId.trim(),
-      invoiceEmail: normalizeEmail(input.invoiceEmail || "billing@demo-strana.cz"),
-      invoiceApprovedAt,
-      currentPeriodEndsAt: new Date("2027-05-26T00:00:00.000Z"),
-      noteCs: input.note.trim(),
-      noteEn: input.note.trim(),
-    },
-    include: {
-      tenant: true,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId: tenant.id,
-      actor: "demo-admin",
-      action: "update_billing",
-      messageCs: `Upravena fakturace: ${billingPlanLabel(billingAccount.plan, "cs")}, ${billingMethodLabel(billingAccount.method, "cs")}.`,
-      messageEn: `Billing updated: ${billingPlanLabel(billingAccount.plan, "en")}, ${billingMethodLabel(billingAccount.method, "en")}.`,
-    },
-  });
-
-  return mapBillingAccount(billingAccount, locale);
-}
-
-export async function approveDemoInvoiceBilling(locale: Locale) {
-  const billingAccount = await ensureDemoBillingAccount();
-
-  const updatedAccount = await prisma.billingAccount.update({
-    where: {
-      id: billingAccount.id,
-    },
-    data: {
-      method: BillingMethod.INVOICE,
-      status: BillingStatus.ACTIVE,
-      invoiceApprovedAt: new Date(),
-    },
-    include: {
-      tenant: true,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId: updatedAccount.tenantId,
-      actor: "demo-admin",
-      action: "approve_invoice_billing",
-      messageCs: "Fakturační platba byla ručně schválena.",
-      messageEn: "Invoice payment was manually approved.",
-    },
-  });
-
-  return mapBillingAccount(updatedAccount, locale);
-}
-
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }

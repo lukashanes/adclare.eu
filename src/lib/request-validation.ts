@@ -1,4 +1,4 @@
-import type { AppBranchInput, EditableAdInput, EditableBillingInput, InviteInput, ReviewDecisionInput } from "@/lib/admin-demo-types";
+import type { AppBranchInput, EditableAdInput, InviteInput, ReviewDecisionInput } from "@/lib/admin-demo-types";
 
 export class RequestValidationError extends Error {
   readonly status = 400;
@@ -39,16 +39,6 @@ function text(value: unknown, field: string, options: { max?: number; required?:
   }
 
   return normalized;
-}
-
-function numberValue(value: unknown, field: string, fallback: number) {
-  const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : fallback;
-
-  if (!Number.isFinite(number)) {
-    throw new RequestValidationError(`${field} must be a number.`);
-  }
-
-  return number;
 }
 
 function optionalDate(value: string, field: string) {
@@ -144,24 +134,6 @@ export function parseInviteInput(value: unknown): InviteInput {
     email: text(body.email, "email", { required: true, max: 240 }).toLowerCase(),
     role: text(body.role, "role", { max: 80 }) as InviteInput["role"],
     branchId: text(body.branchId, "branchId", { max: 120 }),
-  };
-}
-
-export function parseBillingInput(value: unknown): EditableBillingInput {
-  const body = record(value);
-
-  return {
-    plan: text(body.plan, "plan", { max: 80 }) as EditableBillingInput["plan"],
-    interval: text(body.interval, "interval", { max: 80 }) as EditableBillingInput["interval"],
-    method: text(body.method, "method", { max: 80 }) as EditableBillingInput["method"],
-    status: text(body.status, "status", { max: 80 }) as EditableBillingInput["status"],
-    discountPercent: numberValue(body.discountPercent, "discountPercent", 0),
-    monthlyPriceEur: numberValue(body.monthlyPriceEur, "monthlyPriceEur", 99),
-    yearlyPriceEur: numberValue(body.yearlyPriceEur, "yearlyPriceEur", 999),
-    invoiceEmail: text(body.invoiceEmail, "invoiceEmail", { max: 240 }),
-    stripeCustomerId: text(body.stripeCustomerId, "stripeCustomerId", { max: 160 }),
-    stripeSubscriptionId: text(body.stripeSubscriptionId, "stripeSubscriptionId", { max: 160 }),
-    note: text(body.note, "note", { max: 800 }),
   };
 }
 

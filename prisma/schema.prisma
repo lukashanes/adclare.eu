@@ -38,32 +38,6 @@ enum InvitationStatus {
   REVOKED
 }
 
-enum BillingPlan {
-  SMALL_PARTY
-  LARGE_PARTY
-  CUSTOM
-}
-
-enum BillingInterval {
-  MONTHLY
-  YEARLY
-}
-
-enum BillingMethod {
-  STRIPE
-  INVOICE
-}
-
-enum BillingStatus {
-  TRIAL
-  ACTIVE
-  PENDING_INVOICE_APPROVAL
-  TRIAL_EXPIRED
-  PAST_DUE
-  PAUSED
-  CANCELLED
-}
-
 enum EmailStatus {
   PENDING_PROVIDER
   SENT
@@ -101,7 +75,6 @@ model Tenant {
   auditLogs         AuditLog[]
   memberships       TenantMembership[]
   invitations       Invitation[]
-  billingAccount    BillingAccount?
   emailMessages     EmailMessage[]
   adVersions        AdVersion[]
   approvals         Approval[]
@@ -390,34 +363,6 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-model BillingAccount {
-  id                   String          @id @default(cuid())
-  tenantId             String          @unique
-  plan                 BillingPlan
-  interval             BillingInterval
-  method               BillingMethod
-  status               BillingStatus
-  discountPercent      Int             @default(0)
-  monthlyPriceEur      Int
-  yearlyPriceEur       Int
-  stripeCustomerId     String          @default("")
-  stripeSubscriptionId String          @default("")
-  invoiceEmail         String          @default("")
-  invoiceApprovedAt    DateTime?
-  trialEndsAt          DateTime?
-  currentPeriodEndsAt  DateTime?
-  noteCs               String          @default("")
-  noteEn               String          @default("")
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([status])
-  @@index([method])
-  @@map("billing_accounts")
-}
-
 model EmailMessage {
   id                String      @id @default(cuid())
   tenantId          String
@@ -455,18 +400,4 @@ model RateLimitBucket {
   @@index([scope, identifier])
   @@index([resetAt])
   @@map("rate_limit_buckets")
-}
-
-model StripeWebhookEvent {
-  id          String    @id
-  type        String
-  status      String
-  processedAt DateTime?
-  error       String    @default("")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([status])
-  @@index([type])
-  @@map("stripe_webhook_events")
 }

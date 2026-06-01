@@ -11,10 +11,6 @@ export type AdminRoleKey =
   | "CANDIDATE"
   | "DESIGNER"
   | "READONLY_AUDITOR";
-export type BillingPlanKey = "SMALL_PARTY" | "LARGE_PARTY" | "CUSTOM";
-export type BillingIntervalKey = "MONTHLY" | "YEARLY";
-export type BillingMethodKey = "STRIPE" | "INVOICE";
-export type BillingStatusKey = "TRIAL" | "ACTIVE" | "PENDING_INVOICE_APPROVAL" | "TRIAL_EXPIRED" | "PAST_DUE" | "PAUSED" | "CANCELLED";
 export type EmailStatusKey = "PENDING_PROVIDER" | "SENT" | "FAILED";
 
 export type AdDeadlineState = "clear" | "upcoming" | "due-soon" | "overdue";
@@ -265,49 +261,4 @@ export type AppWorkspacePayload = {
     published: number;
     blocked: number;
   };
-};
-
-export type AdminBillingPayload = {
-  tenant: {
-    name: string;
-    slug: string;
-  };
-  billing: {
-    plan: BillingPlanKey;
-    planLabel: string;
-    interval: BillingIntervalKey;
-    intervalLabel: string;
-    method: BillingMethodKey;
-    methodLabel: string;
-    status: BillingStatusKey;
-    statusLabel: string;
-    discountPercent: number;
-    monthlyPriceEur: number;
-    yearlyPriceEur: number;
-    effectivePrice: string;
-    invoiceEmail: string;
-    invoiceApprovedAt: string;
-    currentPeriodEndsAt: string;
-    trialEndsAt: string;
-    stripeCustomerId: string;
-    stripeSubscriptionId: string;
-    stripeConfigured: boolean;
-    stripeCheckoutConfigured: boolean;
-    stripeWebhookConfigured: boolean;
-    note: string;
-  };
-};
-
-export type EditableBillingInput = {
-  plan: BillingPlanKey;
-  interval: BillingIntervalKey;
-  method: BillingMethodKey;
-  status: BillingStatusKey;
-  discountPercent: number;
-  monthlyPriceEur: number;
-  yearlyPriceEur: number;
-  invoiceEmail: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
-  note: string;
 };
