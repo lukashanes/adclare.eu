@@ -17,6 +17,8 @@ function check(condition, message) {
 }
 
 const dockerfile = read("Dockerfile");
+const ciWorkflow = read(".github/workflows/ci.yml");
+const dependabotConfig = read(".github/dependabot.yml");
 const composeProd = read("docker-compose.prod.yml");
 const adminDb = read("src/lib/admin-demo-db.ts");
 const transparencyPage = read("src/app/ad/[code]/page.tsx");
@@ -54,6 +56,11 @@ check(dockerfile.includes("COPY prisma.config.ts ./"), "Production migrator imag
 check(dockerfile.includes("DATABASE_URL=\"postgresql://adclare:adclare@localhost:5432/adclare?schema=public\" npm run db:generate"), "Docker build should provide a dummy DATABASE_URL for Prisma client generation.");
 check(dockerfile.includes("DATABASE_URL=\"postgresql://adclare:adclare@localhost:5432/adclare?schema=public\" npm run build"), "Docker web build should provide a dummy DATABASE_URL for Prisma client generation.");
 check(read("eslint.config.mjs").includes("src/generated/prisma/**"), "Generated Prisma client should be excluded from linting.");
+check(ciWorkflow.includes("npm run ci"), "GitHub Actions should run the full app CI script.");
+check(ciWorkflow.includes("npm run docker:check"), "GitHub Actions should verify Docker builds.");
+check(ciWorkflow.includes("node-version: \"22\""), "GitHub Actions should run on Node.js 22.");
+check(dependabotConfig.includes("package-ecosystem: npm"), "Dependabot should watch npm dependencies.");
+check(dependabotConfig.includes("package-ecosystem: github-actions"), "Dependabot should watch GitHub Actions.");
 check(license.includes("EUROPEAN UNION PUBLIC LICENCE v. 1.2") && license.includes("15. Applicable Law"), "LICENSE should contain the full EUPL-1.2 text.");
 check(changelog.includes("## v0.1.0 - 2026-06-01") && !changelog.includes("## v0.0"), "Changelog should contain one current v0.1.0 release baseline.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");

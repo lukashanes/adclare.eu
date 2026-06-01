@@ -138,10 +138,14 @@ CONFIRM_RESTORE=adclare-prod RESTORE_FILE=/srv/backups/adclare/postgres/adclare-
 ## Development Checks
 
 ```bash
+npm run ci
 npm run lint
+npm run typecheck
 npm run build
 npm run test
 ```
+
+GitHub Actions runs the same app checks plus Docker build checks for pushes, tags and pull requests. Dependabot is enabled for npm dependencies and GitHub Actions updates.
 
 ## Current Release
 

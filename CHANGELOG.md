@@ -18,6 +18,8 @@ Initial current open-source release of Adclare.
 - Docker and Docker Compose setup for self-hosted deployment.
 - Prisma 7.8 runtime with the generated TypeScript client, explicit client output, Postgres driver adapter and `prisma.config.ts` datasource configuration.
 - Prisma seed and migration workflow updated for the Prisma 7 CLI.
+- GitHub Actions CI for app checks, dependency audit and Docker image builds.
+- Dependabot configuration for npm and GitHub Actions updates.
 - Runtime-aware `APP_URL` / `NEXT_PUBLIC_APP_URL` handling for links, metadata, robots and sitemap.
 - Cloudflare Turnstile support for public forms when configured.
 - Cloudflare Email Service integration for login links and invitations when configured.
