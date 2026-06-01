@@ -98,8 +98,6 @@ Important environment variables:
 - `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.
 - `SIGNUP_MODE`: `first-run` by default; use `open` only when public workspace creation is intentional, or `disabled` for invite-only operation.
 
-Stripe, subscriptions, invoice approval and trial lock are not part of the default open source product.
-
 ## Object Storage Check
 
 After setting object storage credentials:

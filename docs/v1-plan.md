@@ -4,13 +4,13 @@
 
 Adclare is open source software for managing the full political advertising workflow required by the EU Transparency and Targeting of Political Advertising Regulation (TTPA), Regulation (EU) 2024/900.
 
-The application should be installable by a political party, candidate team, agency, civic technology supplier or compliance provider on its own infrastructure. It should not require a paid Adclare account, checkout, trial activation or central hosted-service approval.
+The application should be installable by a political party, candidate team, agency, civic technology supplier or compliance provider on its own infrastructure. It should run from source with local configuration and without central Adclare approval.
 
 ## Product Principles
 
 - Self-hosted first.
 - Licensed under EUPL-1.2.
-- No paywall, subscription or trial lock.
+- No paid access gate in the open source core.
 - Clear TTPA language in the product and docs.
 - One controlled workflow from advert draft to public transparency notice.
 - Strong audit trail and exportability.
@@ -32,7 +32,7 @@ The application should be installable by a political party, candidate team, agen
 
 1. First-run setup
    - Admin deploys the app with Docker or a VPS.
-   - Admin opens `/setup`.
+   - Admin opens `/signup`.
    - Admin creates the first organization and first administrator.
    - Setup locks itself after initialization.
 
@@ -101,14 +101,14 @@ The application should be installable by a political party, candidate team, agen
 - public_repository_settings
 - exports
 
-## Removed From Open Source Core
+## Outside The Open Source Core
 
-- Paid checkout.
-- Trial expiry.
-- Invoice approval as access control.
-- Paid plans and discounts.
-- Central hosted-service customer lifecycle.
-- Hosted account activation.
+- Hosted operations.
+- Custom migrations.
+- Tailored integrations.
+- Service-level agreements.
+- Organization-specific training.
+- Managed infrastructure support.
 
 Commercial hosting, custom integrations, migration or support can exist outside the software itself and should point to `support@adclare.eu`.
 
@@ -123,4 +123,4 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Then open `/setup`, create the first organization and use the product without any paid activation step.
+Then open `/signup`, create the first organization and use the product on the operator's own infrastructure.

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s | Adclare",
   },
   description:
-    "Online nástroj pro správu politické reklamy, QR kódů, transparentních oznámení, schvalování, poboček, plateb a auditu podle EU 2024/900.",
+    "Open source nástroj pro evidenci politické reklamy, QR kódy, transparentní oznámení, schvalování, pobočky a audit podle TTPA / EU 2024/900.",
   openGraph: {
     title: "Adclare - politická reklama pod kontrolou",
     description:

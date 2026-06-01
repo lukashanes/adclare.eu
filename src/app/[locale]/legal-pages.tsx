@@ -108,7 +108,7 @@ const legal = {
             title: "Příjemci, dodavatelé a předávání",
             body: [
               "Osobní údaje mohou být zpřístupněny pouze v nezbytném rozsahu poskytovatelům infrastruktury, bezpečnostních služeb, e-mailových služeb, účetnictví, právních služeb, technické podpory, úložišť, monitoringu a dalším dodavatelům uvedeným v přehledu subdodavatelů.",
-              "Někteří dodavatelé mohou zpracovávat údaje jako samostatní správci, zejména poskytovatel platebních služeb v rozsahu vyžadovaném právními předpisy a pravidly platebních sítí.",
+              "Někteří dodavatelé mohou zpracovávat údaje jako samostatní správci tam, kde jim tuto roli ukládají právní předpisy nebo pravidla jejich regulovaného odvětví.",
               "Předání osobních údajů mimo EU/EHP probíhá pouze při splnění podmínek GDPR, zejména na základě rozhodnutí o odpovídající ochraně, standardních smluvních doložek nebo jiné použitelné záruky.",
             ],
           },
@@ -341,7 +341,7 @@ const legal = {
           {
             title: "Jak přehled používat",
             body: [
-              "Přehled se vztahuje k běžnému provozu webu adclare.eu a aplikace Adclare. Konkrétní zapojení se může lišit podle nastavení, nastavení zákazníka a zapnutých funkcí.",
+              "Přehled se vztahuje k běžnému provozu webu adclare.eu a instancí Adclare provozovaných Aenze s.r.o. U self-hosted instalací si infrastrukturu, dodavatele a příjemce určuje provozovatel dané instalace.",
               "Někteří poskytovatelé jednají jako zpracovatelé Aenze s.r.o.; někteří mohou v omezeném rozsahu jednat jako samostatní správci, zejména pokud jim tuto roli ukládají právní předpisy nebo pravidla jejich regulovaného odvětví.",
             ],
           },
@@ -400,7 +400,7 @@ const legal = {
           {
             title: "Síť, infrastruktura a e-mail",
             body: [
-              "Produkční provoz je navržen pro nasazení za Cloudflare DNS, proxy, DDoS ochranou a WAF. Aplikace běží na infrastruktuře Hetzner.",
+              "Produkční instance provozované Aenze s.r.o. jsou navrženy pro nasazení za Cloudflare DNS, proxy, DDoS ochranou a WAF a běží na infrastruktuře Hetzner. U self-hosted instalací odpovídá síťové a infrastrukturní nastavení provozovateli dané instalace.",
               "E-mailové pozvánky a přihlašovací odkazy jsou odesílány přes Cloudflare Email Service, pokud je služba v prostředí nakonfigurována.",
             ],
           },
@@ -470,7 +470,7 @@ const legal = {
             title: "Data categories",
             body: [
               "Contact and identification data: name, email, phone number, organization, role, job function, message content and data needed to handle an inquiry or support request.",
-              "Account and contract data: order, customer settings, discount method data, subscription status history communication and data needed for accounting and tax duties.",
+              "Account and contract data: order or support request, customer settings, contract communication and data needed for accounting and tax duties where a separate hosting, support or implementation agreement exists.",
               "Application user data: email, name, role, permissions, branch or organizational unit, invitations, logins, sessions, audit events and account settings.",
               "Customer content: political ads, campaigns, candidates, branches, sponsors, payers, costs, suppliers, targeting, QR codes, transparency notices, files and public repositories.",
               "Technical and security data: IP address, access time, session identifiers, device and browser data, security logs, error records, email delivery data and information needed to protect the service.",
@@ -497,7 +497,7 @@ const legal = {
             title: "Recipients, suppliers and transfers",
             body: [
               "Personal data may be disclosed only to the extent necessary to infrastructure, security, email, accounting, legal, technical support, storage, monitoring and other suppliers listed in the subprocessors overview.",
-              "Some suppliers may process data as independent controllers, especially payment service providers to the extent required by law and payment network rules.",
+              "Some suppliers may process data as independent controllers where required by law or regulated industry rules.",
               "Transfers outside the EU/EEA are made only in compliance with GDPR, in particular based on an adequacy decision, standard contractual clauses or another applicable safeguard.",
             ],
           },
@@ -730,7 +730,7 @@ const legal = {
           {
             title: "How to read this overview",
             body: [
-              "This overview applies to regular operation of adclare.eu and Adclare. Specific involvement may differ depending on the customer settings, customer settings method and enabled features.",
+              "This overview applies to regular operation of adclare.eu and Adclare instances operated by Aenze s.r.o. For self-hosted installations, infrastructure, suppliers and recipients are determined by the operator of that installation.",
               "Some providers act as processors of Aenze s.r.o.; some may act as independent controllers in a limited scope, especially where required by law or regulated industry rules.",
             ],
           },
@@ -789,7 +789,7 @@ const legal = {
           {
             title: "Network, infrastructure and email",
             body: [
-              "Production operation is designed for deployment behind Cloudflare DNS, proxy, DDoS protection and WAF. The application runs on Hetzner infrastructure.",
+              "Production instances operated by Aenze s.r.o. are designed for deployment behind Cloudflare DNS, proxy, DDoS protection and WAF and run on Hetzner infrastructure. For self-hosted installations, network and infrastructure configuration is the responsibility of the installation operator.",
               "Email invitations and login links are sent through Cloudflare Email Service when configured in the environment.",
             ],
           },
