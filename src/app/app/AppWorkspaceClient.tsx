@@ -164,56 +164,82 @@ function reviewEventClass(status: AdRecord["reviewEvents"][number]["status"]) {
 }
 
 function setupProgress(workspace: AppWorkspacePayload) {
+  const hasAds = workspace.ads.length > 0;
+  const hasCompleteAds = workspace.ads.some((ad) => ad.missing.length === 0);
+  const hasReviewFlow = workspace.counts.review + workspace.counts.approved + workspace.counts.published > 0;
+  const hasReadyOutput = workspace.counts.approved + workspace.counts.published > 0;
+  const hasPublishedAds = workspace.counts.published > 0;
   const items = [
     {
-      key: "branches",
-      title: "Pobočky jsou připravené",
-      text: workspace.branches.length > 0 ? `${workspace.branches.length} poboček nebo oblastí v seznamu.` : "Založte první pobočku nebo oblast.",
-      done: workspace.branches.length > 0,
-      href: "#branches",
-      action: "Spravovat pobočky",
-      visible: workspace.permissions.canManageBranches,
-    },
-    {
-      key: "people",
-      title: "Lidé dostali přístup",
-      text:
-        workspace.users.members.length > 1 || workspace.users.invitations.length > 0
-          ? `${workspace.users.members.length} aktivních lidí, ${workspace.users.invitations.length} pozvánek.`
-          : "Pozvěte pobočku, kandidáta nebo grafika.",
-      done: workspace.users.members.length > 1 || workspace.users.invitations.length > 0,
-      href: "#people",
-      action: "Pozvat lidi",
-      visible: workspace.permissions.canManageUsers,
-    },
-    {
-      key: "ads",
-      title: "První reklama je v evidenci",
-      text: workspace.ads.length > 0 ? `${workspace.ads.length} reklam v seznamu.` : "Přidejte první reklamu a její termín zveřejnění.",
-      done: workspace.ads.length > 0,
+      key: "create",
+      title: "1. Založit reklamu",
+      text: hasAds ? `${workspace.ads.length} reklam je v evidenci.` : "Začněte názvem, pobočkou a termínem zveřejnění.",
+      done: hasAds,
       href: "#ads",
       action: "Přidat reklamu",
       visible: workspace.permissions.canCreateAds,
     },
     {
-      key: "missing",
-      title: "Chybějící údaje jsou pod kontrolou",
-      text: workspace.counts.needsData > 0 ? `${workspace.counts.needsData} reklam ještě potřebuje doplnit.` : "Žádná reklama teď neblokuje povinné údaje.",
-      done: workspace.ads.length > 0 && workspace.counts.needsData === 0,
+      key: "asset",
+      title: "2. Nahrát podklad",
+      text: "Přidejte návrh, PDF, banner, video nebo finální tiskový soubor.",
+      done: workspace.ads.some((ad) => ad.assetCount > 0),
+      href: "#ads",
+      action: "Otevřít reklamy",
+      visible: true,
+    },
+    {
+      key: "identity",
+      title: "3. Doplnit zadavatele",
+      text: "U reklamy musí být jasné, kdo ji zadal a kdo ji platí.",
+      done: hasAds && workspace.ads.some((ad) => ad.owner.trim() && ad.payer.trim()),
       href: workspace.counts.needsData > 0 ? "#missing-data" : "#ads",
-      action: workspace.counts.needsData > 0 ? "Doplnit údaje" : "Zobrazit reklamy",
+      action: "Doplnit údaje",
+      visible: true,
+    },
+    {
+      key: "money",
+      title: "4. Doplnit peníze",
+      text: "Částka, rozpočet nebo náklady a původ financí jsou v jednom záznamu.",
+      done: hasAds && workspace.ads.some((ad) => ad.amount.trim() && ad.fundingSource.trim()),
+      href: workspace.counts.needsData > 0 ? "#missing-data" : "#ads",
+      action: "Zkontrolovat údaje",
+      visible: true,
+    },
+    {
+      key: "publication",
+      title: "5. Nastavit zveřejnění",
+      text: "Datum, období, oblast šíření a kanál určují, kdy musí být vše hotové.",
+      done: hasAds && workspace.ads.some((ad) => ad.publicationDateIso && ad.period.trim() && ad.distributionArea.trim()),
+      href: workspace.counts.needsData > 0 ? "#missing-data" : "#ads",
+      action: "Otevřít termíny",
+      visible: true,
+    },
+    {
+      key: "targeting",
+      title: "6. Vyřešit cílení",
+      text: "Pokud reklama používá cílení, doplňte techniku a cílové publikum.",
+      done: hasCompleteAds || (hasAds && workspace.ads.some((ad) => !ad.missing.includes("cílové publikum") && !ad.missing.includes("target audience"))),
+      href: workspace.counts.needsData > 0 ? "#missing-data" : "#ads",
+      action: "Zkontrolovat cílení",
       visible: true,
     },
     {
       key: "review",
-      title: "Kontrola a výstupy běží",
-      text:
-        workspace.counts.review + workspace.counts.approved + workspace.counts.published > 0
-          ? "Máte reklamy ke kontrole, schválené nebo publikované."
-          : "Po doplnění údajů pošlete reklamu ke kontrole.",
-      done: workspace.counts.review + workspace.counts.approved + workspace.counts.published > 0,
+      title: "7. Schválit a označit",
+      text: hasReviewFlow ? "Reklamy už běží kontrolou, schválením nebo publikací." : "Po doplnění údajů přijde kontrola, QR kód a transparentní oznámení.",
+      done: hasReviewFlow,
       href: workspace.counts.review > 0 ? "#review" : "#ads",
       action: workspace.counts.review > 0 ? "Otevřít kontrolu" : "Pokračovat",
+      visible: true,
+    },
+    {
+      key: "ttpa",
+      title: "8. V souladu s TTPA",
+      text: hasReadyOutput ? "Výsledek: označení, QR, oznámení a auditní balíček jsou připravené." : "Cíl: reklama má podklady pro soulad s Nařízením EU o transparentnosti a cílení politické reklamy.",
+      done: hasPublishedAds || hasReadyOutput,
+      href: workspace.counts.needsData > 0 ? "#missing-data" : "#ads",
+      action: hasReadyOutput ? "Stáhnout výstupy" : "Doplnit mezery",
       visible: true,
     },
   ].filter((item) => item.visible);
@@ -1042,9 +1068,9 @@ function OnboardingPanel({
     <section className="rounded-md border border-black/10 bg-white p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-black">Rychlý start</h2>
+          <h2 className="text-lg font-semibold text-black">Proces pro každou reklamu</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-            Tohle je krátký postup, aby se strana dostala od prázdného účtu k první reklamě s QR kódem, kontrolou a podklady pro případnou kontrolu.
+            Osm jasných kroků od založení reklamy po výsledek: označení, QR kód, transparentní oznámení a auditní balíček pro soulad s TTPA.
           </p>
         </div>
         <div className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#25282d]">
@@ -1054,7 +1080,7 @@ function OnboardingPanel({
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eceff3]">
         <div className="h-full rounded-full bg-[#f45d1f]" style={{ width: `${percent}%` }} />
       </div>
-      <div className="mt-4 grid gap-2 lg:grid-cols-5">
+      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         {progress.items.map((item) => (
           <article key={item.key} className={`rounded-md border p-3 ${item.done ? "border-emerald-200 bg-emerald-50" : "border-black/10 bg-white"}`}>
             <div className="flex items-start gap-2">
@@ -1064,7 +1090,7 @@ function OnboardingPanel({
                 <p className="mt-1 text-xs leading-5 text-[#59616b]">{item.text}</p>
               </div>
             </div>
-            {item.key === "ads" && !item.done ? (
+            {item.key === "create" && !item.done ? (
               <button
                 type="button"
                 onClick={onCreateAd}
