@@ -160,6 +160,29 @@ export type EditableAdInput = {
   targetAudience: string;
 };
 
+export type AdImportInputRow = {
+  rowNumber: number;
+  input: EditableAdInput;
+  raw?: Record<string, string>;
+};
+
+export type AdImportIssue = {
+  rowNumber: number;
+  code: string;
+  title: string;
+  message: string;
+};
+
+export type AdImportResult = {
+  totalRows: number;
+  createdCount: number;
+  skippedCount: number;
+  failedCount: number;
+  created: AdRecord[];
+  skipped: AdImportIssue[];
+  errors: AdImportIssue[];
+};
+
 export type AdminBranchOption = {
   id: string;
   name: string;

@@ -33,6 +33,7 @@ const schema = read("prisma/schema.prisma");
 const prismaConfig = read("prisma.config.ts");
 const objectStorage = read("src/lib/object-storage.ts");
 const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
+const xlsxImport = read("src/lib/xlsx-ad-import.ts");
 const adminAuth = read("src/lib/admin-auth.ts");
 const adminPage = read("src/app/[locale]/admin/page.tsx");
 const appAuth = read("src/lib/app-auth.ts");
@@ -114,6 +115,10 @@ check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), 
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/request-changes/route.ts")), "App request changes route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/audit-export/route.ts")), "App audit export route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/ads/import/route.ts")), "App Excel import route is missing.");
+check(xlsxImport.includes("parseXlsxAdImport") && xlsxImport.includes("JSZip"), "XLSX ad import parser is missing.");
+check(adminDb.includes("importAppAds") && adminDb.includes("import_ads_batch"), "Database ad import handler or audit log is missing.");
+check(appWorkspace.includes("Import agendy") && appWorkspace.includes("Importovat Excel"), "Workspace should expose Excel agenda import.");
 check(!existsSync(resolve(root, "src/app/app/activate/page.tsx")), "Open source app should not include hosted activation pages.");
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
 check(adminDb.includes("requestAppAdChanges"), "Review change request handler is missing.");

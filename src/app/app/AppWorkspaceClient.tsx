@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Download, Edit3, FileArchive, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
-import type { AdRecord, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
+import type { AdImportResult, AdRecord, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
 
@@ -242,6 +242,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [inviteMessage, setInviteMessage] = useState("");
   const [retryingInviteId, setRetryingInviteId] = useState("");
   const [reviewNote, setReviewNote] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<AdImportResult | null>(null);
   const [error, setError] = useState("");
 
   const selectedAd = workspace.ads.find((ad) => ad.id === selectedId) ?? workspace.ads[0] ?? null;
@@ -523,6 +525,42 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
   }
 
+  async function importAds(file: File | null) {
+    if (!file || !workspace.permissions.canCreateAds || importing) {
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+    setError("");
+
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+
+      const response = await fetch("/api/app/ads/import?locale=cs", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => ({}))) as { result?: AdImportResult; error?: string };
+
+      if (!response.ok || !payload.result) {
+        throw new Error(payload.error || `Import failed with ${response.status}`);
+      }
+
+      setImportResult(payload.result);
+      await refreshWorkspace();
+
+      if (payload.result.created[0]) {
+        setSelectedId(payload.result.created[0].id);
+      }
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : "Import se nepodařilo spustit.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
@@ -589,6 +627,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       </section>
 
       <OnboardingPanel progress={progress} onCreateAd={openCreate} />
+
+      {workspace.permissions.canCreateAds ? <ImportPanel importing={importing} result={importResult} onImport={importAds} /> : null}
 
       {mode ? (
         <Editor mode={mode} form={form} branches={workspace.branches} saving={saving} writable={writable} onCancel={() => setMode(null)} onChange={setForm} onSave={saveAd} />
@@ -657,7 +697,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       {reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
 
       <section id="ads" className="grid scroll-mt-6 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="overflow-hidden rounded-md border border-black/10 bg-white">
+        <div className="min-w-0 overflow-hidden rounded-md border border-black/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-black/10 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-black">Seznam reklam</h2>
@@ -1049,6 +1089,82 @@ function OnboardingPanel({
   );
 }
 
+function ImportPanel({
+  importing,
+  result,
+  onImport,
+}: {
+  importing: boolean;
+  result: AdImportResult | null;
+  onImport: (file: File | null) => void;
+}) {
+  return (
+    <section className="rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl">
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">
+            <FileSpreadsheet size={16} />
+            Import agendy
+          </div>
+          <h2 className="mt-2 text-lg font-semibold text-black">Načíst existující reklamy z Excelu</h2>
+          <p className="mt-1 text-sm leading-6 text-[#59616b]">
+            Nahrajte tabulku se stávající agendou. Adclare založí reklamy, dopočítá stav podle povinných údajů a vypíše řádky, které se nepodařilo uložit.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5 text-xs font-semibold text-[#59616b]">
+            {["Kód", "Zadavatel", "Plátce", "Období", "Částka", "Původ financí", "Cílení"].map((label) => (
+              <span key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] px-2 py-1">
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-black">
+          <Upload size={16} />
+          {importing ? "Importuji" : "Importovat Excel"}
+          <input
+            type="file"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            className="sr-only"
+            disabled={importing}
+            onChange={(event) => {
+              onImport(event.target.files?.[0] ?? null);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+      </div>
+
+      {result ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-[260px_1fr]">
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            <div className="font-semibold">Import dokončen</div>
+            <div className="mt-2 grid gap-1">
+              <div>Založeno: {result.createdCount}</div>
+              <div>Přeskočeno: {result.skippedCount}</div>
+              <div>Chyby: {result.failedCount}</div>
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {[...result.skipped, ...result.errors].slice(0, 6).map((issue) => (
+              <div key={`${issue.rowNumber}:${issue.code}:${issue.message}`} className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+                <span className="font-semibold">Řádek {issue.rowNumber}</span>
+                {issue.code ? ` · ${issue.code}` : ""}
+                {issue.title ? ` · ${issue.title}` : ""}
+                <span className="block text-orange-800">{issue.message}</span>
+              </div>
+            ))}
+            {result.skippedCount + result.failedCount > 6 ? (
+              <div className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#59616b]">
+                Další řádky jsou v odpovědi importu. Opravte zdrojovou tabulku a nahrajte ji znovu.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function PeoplePanel({
   users,
   form,
@@ -1357,7 +1473,7 @@ function DetailPanel({
 }) {
   if (!ad) {
     return (
-      <aside className="rounded-md border border-black/10 bg-white p-5 text-sm text-[#59616b]">
+      <aside className="min-w-0 rounded-md border border-black/10 bg-white p-5 text-sm text-[#59616b]">
         Vyberte nebo přidejte reklamu.
       </aside>
     );
@@ -1378,7 +1494,7 @@ function DetailPanel({
   ];
 
   return (
-    <aside className="rounded-md border border-black/10 bg-white">
+    <aside className="min-w-0 rounded-md border border-black/10 bg-white">
       <div className="border-b border-black/10 p-4">
         <div className="text-sm font-semibold text-[#68707a]">Detail reklamy</div>
         <h2 className="mt-1 text-xl font-semibold text-black">{ad.title}</h2>
@@ -1392,9 +1508,9 @@ function DetailPanel({
       </div>
       <div className="grid gap-2 p-4 text-sm">
         {rows.map(([label, value]) => (
-          <div key={label} className="grid gap-1 rounded-md border border-black/10 p-3">
-            <span className="text-xs font-semibold uppercase text-[#68707a]">{label}</span>
-            <span className={value === "chybí" || value === "chybí publikum" ? "font-semibold text-red-700" : "font-semibold text-[#20242a]"}>{value}</span>
+          <div key={label} className="grid min-w-0 gap-1 rounded-md border border-black/10 p-3">
+            <span className="min-w-0 text-xs font-semibold uppercase text-[#68707a]">{label}</span>
+            <span className={`min-w-0 break-all ${value === "chybí" || value === "chybí publikum" ? "font-semibold text-red-700" : "font-semibold text-[#20242a]"}`}>{value}</span>
           </div>
         ))}
       </div>

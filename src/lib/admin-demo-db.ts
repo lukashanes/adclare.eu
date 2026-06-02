@@ -23,6 +23,8 @@ import {
 import type {
   AdRecord,
   AdChannel,
+  AdImportInputRow,
+  AdImportResult,
   AdminAdsPayload,
   AppBranchInput,
   AppWorkspacePayload,
@@ -571,6 +573,8 @@ function slugify(value: string) {
 
 function normalizeCode(value: string) {
   return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9-]/g, "-")
@@ -583,6 +587,11 @@ function nextCode(branch: string) {
   return `${prefix}-${String(Date.now()).slice(-4)}`;
 }
 
+function nextImportCode(branch: string, rowNumber: number) {
+  const prefix = slugify(branch).slice(0, 3).toUpperCase() || "IMP";
+  return `${prefix}-IMP-${String(Date.now()).slice(-6)}-${rowNumber}`;
+}
+
 function normalizeChannel(value: string): AdChannel {
   return value === "online" ? "online" : "offline";
 }
@@ -592,9 +601,14 @@ function isBlank(value: string | null | undefined) {
 }
 
 function requiresTargetingDetails(input: Pick<EditableAdInput, "isTargeted" | "targeting" | "targetAudience">) {
-  const targeting = input.targeting.trim().toLowerCase();
+  const targeting = input.targeting
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  const noTargetingValues = new Set(["", "nepouzito", "not used", "ne", "no", "false", "0", "bez cileni", "netargetovano", "zadne"]);
 
-  return input.isTargeted || (targeting !== "" && targeting !== "nepoužito" && targeting !== "not used");
+  return input.isTargeted || !noTargetingValues.has(targeting);
 }
 
 function requiredMissing(input: EditableAdInput, locale: Locale) {
@@ -2172,6 +2186,82 @@ async function getAppUnitForInput(
   return unit;
 }
 
+async function getAppUnitForImport(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>,
+  branchName: string,
+) {
+  if (!context.tenantWideRole) {
+    if (!context.membership.orgUnit) {
+      throw new Error("User is missing organization unit scope.");
+    }
+
+    return context.membership.orgUnit;
+  }
+
+  const name = branchName.trim() || "Import";
+  const slug = slugify(name);
+
+  return tx.organizationUnit.upsert({
+    where: {
+      tenantId_slug: {
+        tenantId: context.membership.tenantId,
+        slug,
+      },
+    },
+    update: {
+      nameCs: name,
+      nameEn: name,
+    },
+    create: {
+      tenantId: context.membership.tenantId,
+      slug,
+      kind: "oblast",
+      nameCs: name,
+      nameEn: name,
+    },
+  });
+}
+
+async function uniqueImportCode(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  tenantId: string,
+  preferredCode: string,
+  branch: string,
+  rowNumber: number,
+  reservedCodes: Set<string>,
+) {
+  const normalized = normalizeCode(preferredCode || "") || nextImportCode(branch, rowNumber);
+  let code = normalized;
+
+  for (let index = 2; index < 50; index += 1) {
+    const existing = await tx.ad.findUnique({
+      where: {
+        tenantId_code: {
+          tenantId,
+          code,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing && !reservedCodes.has(code)) {
+      reservedCodes.add(code);
+      return code;
+    }
+
+    if (preferredCode) {
+      return "";
+    }
+
+    code = `${normalized}-${index}`;
+  }
+
+  return "";
+}
+
 function scopedAdWhere(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>) {
   return {
     tenantId: context.membership.tenantId,
@@ -2586,6 +2676,189 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
   });
 
   return mapAd(ad, locale);
+}
+
+export async function importAppAds(userId: string, rows: AdImportInputRow[], locale: Locale): Promise<AdImportResult | null> {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canCreateAppAds(context.membership.role)) {
+    return null;
+  }
+
+  const limitedRows = rows.slice(0, 500);
+  const campaign = await getAppCampaign(context.membership.tenantId);
+  const reservedCodes = new Set<string>();
+  const result: AdImportResult = {
+    totalRows: limitedRows.length,
+    createdCount: 0,
+    skippedCount: 0,
+    failedCount: 0,
+    created: [],
+    skipped: [],
+    errors: [],
+  };
+
+  for (const row of limitedRows) {
+    const input = row.input;
+    const title = input.title.trim();
+
+    try {
+      const ad = await prisma.$transaction(async (tx) => {
+        const unit = await getAppUnitForImport(tx, context, input.branch);
+        const code = await uniqueImportCode(tx, context.membership.tenantId, input.code || "", unit.nameCs || input.branch, row.rowNumber, reservedCodes);
+
+        if (!code) {
+          return {
+            skipped: {
+              rowNumber: row.rowNumber,
+              code: normalizeCode(input.code || ""),
+              title,
+              message: "Kód už v databázi existuje.",
+            },
+          } as const;
+        }
+
+        const missingCs = requiredMissing(input, "cs");
+        const missingEn = requiredMissing(input, "en");
+        const status = statusForInput(input);
+        const created = await tx.ad.create({
+          data: {
+            tenantId: context.membership.tenantId,
+            campaignId: campaign.id,
+            orgUnitId: unit.id,
+            code,
+            publicToken: createPublicToken(),
+            titleCs: title,
+            titleEn: title,
+            ownerCs: input.owner.trim(),
+            ownerEn: input.owner.trim(),
+            mediaTypeCs: input.type.trim(),
+            mediaTypeEn: input.type.trim(),
+            channel: normalizeChannel(input.channel),
+            publicationDate: parsePublicationDate(input.publicationDate),
+            periodCs: input.period.trim(),
+            periodEn: input.period.trim(),
+            distributionAreaCs: input.distributionArea.trim(),
+            distributionAreaEn: input.distributionArea.trim(),
+            payerCs: input.payer.trim(),
+            payerEn: input.payer.trim(),
+            supplierCs: input.supplier.trim(),
+            supplierEn: input.supplier.trim(),
+            amount: input.amount.trim(),
+            fundingSourceCs: input.fundingSource.trim(),
+            fundingSourceEn: input.fundingSource.trim(),
+            language: input.language.trim() || "cs",
+            isTargeted: input.isTargeted,
+            targetingCs: defaultTargeting(input, "cs"),
+            targetingEn: defaultTargeting(input, "en"),
+            targetAudienceCs: input.targetAudience.trim(),
+            targetAudienceEn: input.targetAudience.trim(),
+            missingCs,
+            missingEn,
+            status,
+            statusLabelCs: statusLabelForInput(input, "cs"),
+            statusLabelEn: statusLabelForInput(input, "en"),
+            workflowStatus: workflowForInput(input),
+            reviewRequestedAt: missingCs.length === 0 ? new Date() : null,
+            statusNoteCs:
+              missingCs.length === 0
+                ? "Záznam byl importován s kompletními údaji a čeká na kontrolu."
+                : "Záznam byl importován a čeká na doplnění povinných údajů.",
+            statusNoteEn:
+              missingEn.length === 0
+                ? "The record was imported with complete data and is waiting for review."
+                : "The record was imported and is waiting for required data.",
+          },
+          include: {
+            orgUnit: true,
+            campaign: true,
+            tenant: true,
+            assets: {
+              orderBy: {
+                createdAt: "desc",
+              },
+            },
+            approvals: {
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 5,
+            },
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            tenantId: context.membership.tenantId,
+            adId: created.id,
+            actor: context.membership.user.email,
+            actorUserId: context.membership.userId,
+            action: "import_ad",
+            messageCs: `Importována reklama ${created.code} z Excelu, řádek ${row.rowNumber}.`,
+            messageEn: `Imported ad ${created.code} from Excel, row ${row.rowNumber}.`,
+            metadata: {
+              rowNumber: row.rowNumber,
+              raw: row.raw ?? {},
+            },
+          },
+        });
+
+        if (missingCs.length === 0) {
+          await tx.approval.create({
+            data: {
+              tenantId: context.membership.tenantId,
+              adId: created.id,
+              actor: context.membership.user.email,
+              status: ApprovalStatus.REQUESTED,
+              noteCs: "Reklama byla importována a předána ke kontrole.",
+              noteEn: "Ad was imported and submitted for review.",
+            },
+          });
+        }
+
+        return {
+          ad: created,
+        } as const;
+      });
+
+      if ("skipped" in ad && ad.skipped) {
+        result.skipped.push(ad.skipped);
+        result.skippedCount += 1;
+      } else {
+        result.created.push(mapAd(ad.ad, locale));
+        result.createdCount += 1;
+      }
+    } catch (error) {
+      result.errors.push({
+        rowNumber: row.rowNumber,
+        code: normalizeCode(input.code || ""),
+        title,
+        message: error instanceof Error ? error.message : "Řádek se nepodařilo importovat.",
+      });
+      result.failedCount += 1;
+    }
+  }
+
+  if (result.createdCount > 0) {
+    await prisma.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "import_ads_batch",
+        messageCs: `Import z Excelu založil ${result.createdCount} reklam, přeskočil ${result.skippedCount} a neuložil ${result.failedCount}.`,
+        messageEn: `Excel import created ${result.createdCount} ads, skipped ${result.skippedCount} and failed ${result.failedCount}.`,
+        metadata: {
+          totalRows: result.totalRows,
+          createdCount: result.createdCount,
+          skippedCount: result.skippedCount,
+          failedCount: result.failedCount,
+        },
+      },
+    });
+  }
+
+  return result;
 }
 
 export async function updateAppAd(userId: string, code: string, input: EditableAdInput, locale: Locale) {
