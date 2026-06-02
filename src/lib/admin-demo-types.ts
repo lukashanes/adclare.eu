@@ -42,8 +42,10 @@ export type AdRecord = {
   publicUrl: string;
   title: string;
   tenantSlug: string;
+  campaignId: string;
   campaign: string;
   campaignSlug: string;
+  campaignTags: string[];
   branch: string;
   owner: string;
   type: string;
@@ -116,6 +118,21 @@ export type PublicRepositoryOption = {
   label: string;
 };
 
+export type AppCampaignRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  election: string;
+  description: string;
+  tags: string[];
+  startsAt: string;
+  startsAtIso: string;
+  endsAt: string;
+  endsAtIso: string;
+  archived: boolean;
+  adCount: number;
+};
+
 export type PublicRepositoryAdRecord = AdRecord & {
   campaign: string;
   campaignSlug: string;
@@ -143,6 +160,7 @@ export type PublicRepositoryPayload = {
 
 export type EditableAdInput = {
   code?: string;
+  campaignId?: string;
   title: string;
   branch: string;
   owner: string;
@@ -205,6 +223,17 @@ export type AppBranchUpdateInput = {
   parentId?: string;
   contactEmail?: string;
   description?: string;
+  archived?: boolean;
+};
+
+export type AppCampaignInput = {
+  name: string;
+  slug?: string;
+  election: string;
+  description?: string;
+  tags?: string[];
+  startsAt: string;
+  endsAt: string;
   archived?: boolean;
 };
 
@@ -309,6 +338,7 @@ export type AppWorkspacePayload = {
     status: string;
   };
   branches: AdminBranchOption[];
+  campaigns: AppCampaignRecord[];
   permissions: {
     canCreateAds: boolean;
     canEditAds: boolean;
@@ -317,6 +347,7 @@ export type AppWorkspacePayload = {
     canPublishAds: boolean;
     canManageBranches: boolean;
     canEditOwnBranch: boolean;
+    canManageCampaigns: boolean;
     canManageUsers: boolean;
     canManageTenantSettings: boolean;
     canViewAudit: boolean;

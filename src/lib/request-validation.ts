@@ -1,6 +1,7 @@
 import type {
   AppBranchInput,
   AppBranchUpdateInput,
+  AppCampaignInput,
   AppMemberUpdateInput,
   AppProfileInput,
   AppTenantSettingsInput,
@@ -82,6 +83,39 @@ function numberValue(value: unknown, field: string, options: { min?: number; max
   return rounded;
 }
 
+function textArray(value: unknown, field: string, options: { maxItems?: number; maxItemLength?: number } = {}) {
+  const rawItems = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  const maxItems = options.maxItems ?? 20;
+  const maxItemLength = options.maxItemLength ?? 60;
+  const seen = new Set<string>();
+  const items: string[] = [];
+
+  for (const rawItem of rawItems) {
+    if (typeof rawItem !== "string") {
+      throw new RequestValidationError(`${field} contains an invalid value.`);
+    }
+
+    const item = rawItem.trim().replace(/\s+/g, " ");
+
+    if (!item) {
+      continue;
+    }
+
+    if (item.length > maxItemLength) {
+      throw new RequestValidationError(`${field} contains a value that is too long.`);
+    }
+
+    const key = item.toLowerCase();
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      items.push(item);
+    }
+  }
+
+  return items.slice(0, maxItems);
+}
+
 export function parseEditableAdInput(value: unknown): EditableAdInput {
   const body = record(value);
   const channel = body.channel === "online" ? "online" : "offline";
@@ -89,6 +123,7 @@ export function parseEditableAdInput(value: unknown): EditableAdInput {
 
   return {
     code: text(body.code, "code", { max: 80 }),
+    campaignId: text(body.campaignId, "campaignId", { max: 120 }),
     title: text(body.title, "title", { required: true, max: 180 }),
     branch: text(body.branch, "branch", { required: true, max: 140 }),
     owner: text(body.owner, "owner", { max: 180 }),
@@ -155,6 +190,23 @@ export function parseAppBranchUpdateInput(value: unknown): AppBranchUpdateInput 
     parentId: text(body.parentId, "parentId", { max: 120 }),
     contactEmail: text(body.contactEmail, "contactEmail", { max: 240 }).toLowerCase(),
     description: text(body.description, "description", { max: 500 }),
+    archived: body.archived === true,
+  };
+}
+
+export function parseAppCampaignInput(value: unknown): AppCampaignInput {
+  const body = record(value);
+  const startsAt = optionalDate(text(body.startsAt, "startsAt", { required: true, max: 20 }), "startsAt");
+  const endsAt = optionalDate(text(body.endsAt, "endsAt", { required: true, max: 20 }), "endsAt");
+
+  return {
+    name: text(body.name, "name", { required: true, max: 160 }),
+    slug: text(body.slug, "slug", { max: 100 }),
+    election: text(body.election, "election", { required: true, max: 140 }),
+    description: text(body.description, "description", { max: 700 }),
+    tags: textArray(body.tags, "tags", { maxItems: 16, maxItemLength: 48 }),
+    startsAt,
+    endsAt,
     archived: body.archived === true,
   };
 }

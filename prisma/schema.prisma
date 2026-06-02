@@ -88,22 +88,27 @@ model Tenant {
 }
 
 model Campaign {
-  id        String   @id @default(cuid())
-  tenantId  String
-  slug      String
-  nameCs    String
-  nameEn    String
-  election  String
-  startsAt  DateTime
-  endsAt    DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  tenantId      String
+  slug          String
+  nameCs        String
+  nameEn        String
+  election      String
+  descriptionCs String    @default("")
+  descriptionEn String    @default("")
+  tags          String[]  @default([])
+  startsAt      DateTime
+  endsAt        DateTime
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ads    Ad[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
+  @@index([tenantId, archivedAt])
   @@map("campaigns")
 }
 

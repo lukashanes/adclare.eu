@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
-import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
+import { AlertTriangle, ArrowUpRight, CalendarDays, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, Paperclip, Plus, RefreshCw, Save, Search, Tags, Upload, X } from "lucide-react";
+import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
 
@@ -78,6 +78,21 @@ function workspaceWithBranch(workspace: AppWorkspacePayload, branch: AppWorkspac
   };
 }
 
+function workspaceWithCampaign(workspace: AppWorkspacePayload, campaign: AppWorkspacePayload["campaigns"][number]) {
+  const campaigns = workspace.campaigns.some((item) => item.id === campaign.id)
+    ? workspace.campaigns.map((item) => (item.id === campaign.id ? campaign : item))
+    : [campaign, ...workspace.campaigns];
+
+  return {
+    ...workspace,
+    campaigns,
+  };
+}
+
+function defaultCampaign(workspace: AppWorkspacePayload) {
+  return workspace.campaigns.find((campaign) => !campaign.archived) ?? workspace.campaigns[0] ?? null;
+}
+
 function blankInviteForm(workspace: AppWorkspacePayload): InviteInput {
   const role = (workspace.users.assignableRoles[0]?.value as InviteInput["role"] | undefined) ?? "CAMPAIGN_MANAGER";
   const branch = workspace.users.branches.find((item) => !item.archived) ?? workspace.users.branches[0] ?? workspace.branches.find((item) => !item.archived);
@@ -101,9 +116,11 @@ function toInputDate(value: string) {
 
 function blankForm(workspace: AppWorkspacePayload): EditableAdInput {
   const defaultBranch = workspace.branches.find((branch) => !branch.archived)?.name || (workspace.membership.scope === "celá strana" ? "" : workspace.membership.scope);
+  const campaign = defaultCampaign(workspace);
 
   return {
     code: "",
+    campaignId: campaign?.id ?? "",
     title: "",
     branch: defaultBranch,
     owner: workspace.tenant.name,
@@ -126,6 +143,7 @@ function blankForm(workspace: AppWorkspacePayload): EditableAdInput {
 function formFromAd(ad: AdRecord): EditableAdInput {
   return {
     code: ad.id,
+    campaignId: ad.campaignId,
     title: ad.title,
     branch: ad.branch,
     owner: ad.owner,
@@ -278,6 +296,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [branchKind, setBranchKind] = useState("oblast");
   const [branchSaving, setBranchSaving] = useState(false);
   const [branchSavingId, setBranchSavingId] = useState("");
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignElection, setCampaignElection] = useState("Volby 2026");
+  const [campaignStartsAt, setCampaignStartsAt] = useState("2026-01-01");
+  const [campaignEndsAt, setCampaignEndsAt] = useState("2026-12-31");
+  const [campaignTags, setCampaignTags] = useState("");
+  const [campaignSaving, setCampaignSaving] = useState(false);
+  const [campaignSavingId, setCampaignSavingId] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
@@ -290,6 +315,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [invitationActionId, setInvitationActionId] = useState("");
   const [memberSavingId, setMemberSavingId] = useState("");
   const [reviewNote, setReviewNote] = useState("");
+  const [importCampaignId, setImportCampaignId] = useState(defaultCampaign(initialWorkspace)?.id ?? "");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<AdImportResult | null>(null);
   const [error, setError] = useState("");
@@ -306,7 +332,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
 
     return workspace.ads.filter((ad) =>
-      [ad.id, ad.title, ad.branch, ad.campaign, ad.owner, ad.supplier, ad.distributionArea].some((value) =>
+      [ad.id, ad.title, ad.branch, ad.campaign, ad.campaignTags.join(" "), ad.owner, ad.supplier, ad.distributionArea].some((value) =>
         value.toLowerCase().includes(normalized),
       ),
     );
@@ -431,6 +457,77 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       setError(branchError instanceof Error ? branchError.message : "Pobočku se nepodařilo uložit.");
     } finally {
       setBranchSavingId("");
+    }
+  }
+
+  async function createCampaign() {
+    if (!workspace.permissions.canManageCampaigns || !campaignName.trim() || campaignSaving) {
+      return;
+    }
+
+    setCampaignSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/app/campaigns?locale=cs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: campaignName,
+          election: campaignElection,
+          startsAt: campaignStartsAt,
+          endsAt: campaignEndsAt,
+          tags: campaignTags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        } satisfies AppCampaignInput),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { campaign?: AppWorkspacePayload["campaigns"][number]; error?: string };
+
+      if (!response.ok || !payload.campaign) {
+        throw new Error(payload.error || `Campaign create failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => workspaceWithCampaign(current, payload.campaign as AppWorkspacePayload["campaigns"][number]));
+      setCampaignName("");
+      setCampaignTags("");
+      setImportCampaignId((current) => current || payload.campaign?.id || "");
+      await refreshWorkspace();
+    } catch (campaignError) {
+      setError(campaignError instanceof Error ? campaignError.message : "Kampaň se nepodařilo založit.");
+    } finally {
+      setCampaignSaving(false);
+    }
+  }
+
+  async function updateCampaign(campaignId: string, input: AppCampaignInput) {
+    if (!workspace.permissions.canManageCampaigns || campaignSavingId) {
+      return;
+    }
+
+    setCampaignSavingId(campaignId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/app/campaigns/${encodeURIComponent(campaignId)}?locale=cs`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { campaign?: AppWorkspacePayload["campaigns"][number]; error?: string };
+
+      if (!response.ok || !payload.campaign) {
+        throw new Error(payload.error || `Campaign update failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => workspaceWithCampaign(current, payload.campaign as AppWorkspacePayload["campaigns"][number]));
+      await refreshWorkspace();
+    } catch (campaignError) {
+      setError(campaignError instanceof Error ? campaignError.message : "Kampaň se nepodařilo uložit.");
+    } finally {
+      setCampaignSavingId("");
     }
   }
 
@@ -639,7 +736,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   }
 
   async function saveAd() {
-    if (!writable || saving || !form.title.trim() || !form.branch.trim()) {
+    if (!writable || saving || !form.title.trim() || !form.branch.trim() || !form.campaignId?.trim()) {
       return;
     }
 
@@ -773,6 +870,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     try {
       const formData = new FormData();
       formData.set("file", file);
+      formData.set("campaignId", importCampaignId || defaultCampaign(workspace)?.id || "");
 
       const response = await fetch("/api/app/ads/import?locale=cs", {
         method: "POST",
@@ -884,10 +982,29 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
       <OnboardingPanel progress={progress} onCreateAd={openCreate} />
 
-      {workspace.permissions.canCreateAds ? <ImportPanel importing={importing} result={importResult} onImport={importAds} /> : null}
+      {workspace.permissions.canCreateAds ? (
+        <ImportPanel
+          campaigns={workspace.campaigns}
+          campaignId={importCampaignId}
+          importing={importing}
+          result={importResult}
+          onCampaignChange={setImportCampaignId}
+          onImport={importAds}
+        />
+      ) : null}
 
       {mode ? (
-        <Editor mode={mode} form={form} branches={workspace.branches} saving={saving} writable={writable} onCancel={() => setMode(null)} onChange={setForm} onSave={saveAd} />
+        <Editor
+          mode={mode}
+          form={form}
+          branches={workspace.branches}
+          campaigns={workspace.campaigns}
+          saving={saving}
+          writable={writable}
+          onCancel={() => setMode(null)}
+          onChange={setForm}
+          onSave={saveAd}
+        />
       ) : null}
 
       {workspace.permissions.canManageTenantSettings ? (
@@ -912,6 +1029,26 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           onBranchNameChange={setBranchName}
           onCreate={createBranch}
           onUpdate={updateBranch}
+        />
+      ) : null}
+
+      {workspace.permissions.canManageCampaigns ? (
+        <CampaignsPanel
+          campaigns={workspace.campaigns}
+          campaignName={campaignName}
+          campaignElection={campaignElection}
+          campaignStartsAt={campaignStartsAt}
+          campaignEndsAt={campaignEndsAt}
+          campaignTags={campaignTags}
+          campaignSaving={campaignSaving}
+          campaignSavingId={campaignSavingId}
+          onCampaignNameChange={setCampaignName}
+          onCampaignElectionChange={setCampaignElection}
+          onCampaignStartsAtChange={setCampaignStartsAt}
+          onCampaignEndsAtChange={setCampaignEndsAt}
+          onCampaignTagsChange={setCampaignTags}
+          onCreate={createCampaign}
+          onUpdate={updateCampaign}
         />
       ) : null}
 
@@ -1061,6 +1198,7 @@ function Editor({
   form,
   mode,
   branches,
+  campaigns,
   saving,
   writable,
   onCancel,
@@ -1070,6 +1208,7 @@ function Editor({
   form: EditableAdInput;
   mode: EditorMode;
   branches: AppWorkspacePayload["branches"];
+  campaigns: AppWorkspacePayload["campaigns"];
   saving: boolean;
   writable: boolean;
   onCancel: () => void;
@@ -1077,6 +1216,7 @@ function Editor({
   onSave: () => void;
 }) {
   const requiredFields = new Set<keyof EditableAdInput>([
+    "campaignId",
     "title",
     "branch",
     "owner",
@@ -1094,6 +1234,7 @@ function Editor({
     {
       title: "Materiál",
       fields: [
+        ["campaignId", "Kampaň", "campaign"],
         ["title", "Název reklamy", "text"],
         ["branch", "Pobočka / oblast", "branch"],
         ["type", "Typ materiálu", "text"],
@@ -1137,7 +1278,7 @@ function Editor({
           <button
             type="button"
             onClick={onSave}
-            disabled={saving || !writable || !form.title.trim() || !form.branch.trim()}
+            disabled={saving || !writable || !form.title.trim() || !form.branch.trim() || !form.campaignId?.trim()}
             className="inline-flex items-center gap-2 rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
           >
             <Save size={15} />
@@ -1173,7 +1314,24 @@ function Editor({
                       {label}
                       {required ? <span className={empty ? "text-xs text-red-700" : "text-xs text-[#68707a]"}>povinné</span> : null}
                     </span>
-                    {type === "branch" ? (
+                    {type === "campaign" ? (
+                      <select
+                        value={form.campaignId ?? ""}
+                        onChange={(event) => onChange({ ...form, campaignId: event.target.value })}
+                        className={`rounded-md border bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] ${
+                          empty ? "border-red-300" : "border-black/10"
+                        }`}
+                      >
+                        {campaigns.filter((campaign) => !campaign.archived).length === 0 ? <option value="">Nejdřív založte kampaň</option> : null}
+                        {campaigns
+                          .filter((campaign) => !campaign.archived || campaign.id === form.campaignId)
+                          .map((campaign) => (
+                            <option key={campaign.id} value={campaign.id}>
+                              {campaign.name}
+                            </option>
+                          ))}
+                      </select>
+                    ) : type === "branch" ? (
                       <select
                         value={form.branch}
                         onChange={(event) => onChange({ ...form, branch: event.target.value })}
@@ -1332,14 +1490,22 @@ function OnboardingPanel({
 }
 
 function ImportPanel({
+  campaigns,
+  campaignId,
   importing,
   result,
+  onCampaignChange,
   onImport,
 }: {
+  campaigns: AppWorkspacePayload["campaigns"];
+  campaignId: string;
   importing: boolean;
   result: AdImportResult | null;
+  onCampaignChange: (campaignId: string) => void;
   onImport: (file: File | null) => void;
 }) {
+  const activeCampaigns = campaigns.filter((campaign) => !campaign.archived);
+
   return (
     <section className="rounded-md border border-black/10 bg-white p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1360,20 +1526,37 @@ function ImportPanel({
             ))}
           </div>
         </div>
-        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-black">
-          <Upload size={16} />
-          {importing ? "Importuji" : "Importovat Excel"}
-          <input
-            type="file"
-            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-            className="sr-only"
-            disabled={importing}
-            onChange={(event) => {
-              onImport(event.target.files?.[0] ?? null);
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
+        <div className="grid gap-2 sm:min-w-[280px]">
+          <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+            Kampaň pro import
+            <select
+              value={campaignId}
+              onChange={(event) => onCampaignChange(event.target.value)}
+              className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
+            >
+              {activeCampaigns.length === 0 ? <option value="">Nejdřív založte kampaň</option> : null}
+              {activeCampaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-black">
+            <Upload size={16} />
+            {importing ? "Importuji" : "Importovat Excel"}
+            <input
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              className="sr-only"
+              disabled={importing || activeCampaigns.length === 0}
+              onChange={(event) => {
+                onImport(event.target.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
       </div>
 
       {result ? (
@@ -1594,6 +1777,132 @@ function BranchesPanel({
             </div>
           </form>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function CampaignsPanel({
+  campaigns,
+  campaignName,
+  campaignElection,
+  campaignStartsAt,
+  campaignEndsAt,
+  campaignTags,
+  campaignSaving,
+  campaignSavingId,
+  onCampaignNameChange,
+  onCampaignElectionChange,
+  onCampaignStartsAtChange,
+  onCampaignEndsAtChange,
+  onCampaignTagsChange,
+  onCreate,
+  onUpdate,
+}: {
+  campaigns: AppWorkspacePayload["campaigns"];
+  campaignName: string;
+  campaignElection: string;
+  campaignStartsAt: string;
+  campaignEndsAt: string;
+  campaignTags: string;
+  campaignSaving: boolean;
+  campaignSavingId: string;
+  onCampaignNameChange: (value: string) => void;
+  onCampaignElectionChange: (value: string) => void;
+  onCampaignStartsAtChange: (value: string) => void;
+  onCampaignEndsAtChange: (value: string) => void;
+  onCampaignTagsChange: (value: string) => void;
+  onCreate: () => void;
+  onUpdate: (campaignId: string, input: AppCampaignInput) => void;
+}) {
+  return (
+    <section id="campaigns" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Kampaně a tagy</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Kampaň drží období, volby a štítky, podle kterých se reklamy třídí v interní práci i exportech.</p>
+        </div>
+        <div className="grid gap-2 lg:min-w-[620px] lg:grid-cols-[minmax(180px,1fr)_150px_135px_135px]">
+          <input value={campaignName} onChange={(event) => onCampaignNameChange(event.target.value)} placeholder="Název kampaně" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input value={campaignElection} onChange={(event) => onCampaignElectionChange(event.target.value)} placeholder="Volby" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input value={campaignStartsAt} onChange={(event) => onCampaignStartsAtChange(event.target.value)} type="date" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input value={campaignEndsAt} onChange={(event) => onCampaignEndsAtChange(event.target.value)} type="date" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input value={campaignTags} onChange={(event) => onCampaignTagsChange(event.target.value)} placeholder="Tagy oddělené čárkou" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f] lg:col-span-3" />
+          <button type="button" onClick={onCreate} disabled={campaignSaving || !campaignName.trim()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
+            <Plus size={15} />
+            {campaignSaving ? "Ukládám" : "Přidat"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {campaigns.map((campaign) => (
+          <form
+            key={campaign.id}
+            className={`grid min-w-0 gap-2 rounded-md border p-3 2xl:grid-cols-[minmax(180px,1fr)_145px_135px_135px_minmax(180px,1fr)_150px_130px] 2xl:items-end ${
+              campaign.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"
+            }`}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const formData = new FormData(event.currentTarget);
+              onUpdate(campaign.id, {
+                name: String(formData.get("name") ?? ""),
+                slug: String(formData.get("slug") ?? ""),
+                election: String(formData.get("election") ?? ""),
+                description: String(formData.get("description") ?? ""),
+                tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
+                startsAt: String(formData.get("startsAt") ?? ""),
+                endsAt: String(formData.get("endsAt") ?? ""),
+                archived: formData.get("archived") === "on",
+              });
+            }}
+          >
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Název
+              <input name="name" defaultValue={campaign.name} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[#59616b]">
+                <CalendarDays size={13} />
+                {campaign.adCount} reklam
+              </span>
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Volby
+              <input name="election" defaultValue={campaign.election} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Od
+              <input name="startsAt" defaultValue={campaign.startsAtIso} type="date" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Do
+              <input name="endsAt" defaultValue={campaign.endsAtIso} type="date" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Tagy
+              <input name="tags" defaultValue={campaign.tags.join(", ")} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+              <span className="inline-flex min-w-0 items-center gap-1 text-xs font-medium text-[#59616b]">
+                <Tags size={13} />
+                <span className="truncate">{campaign.tags.length ? campaign.tags.join(", ") : "bez tagů"}</span>
+              </span>
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Popis
+              <input name="description" defaultValue={campaign.description} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+              <input name="slug" type="hidden" defaultValue={campaign.slug} />
+            </label>
+            <div className="grid gap-2">
+              <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-[#20242a]">
+                <input name="archived" type="checkbox" defaultChecked={campaign.archived} className="size-4 accent-[#f45d1f]" />
+                Archiv
+              </label>
+              <button type="submit" disabled={Boolean(campaignSavingId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
+                <Save size={15} />
+                {campaignSavingId === campaign.id ? "Ukládám" : "Uložit"}
+              </button>
+            </div>
+          </form>
+        ))}
+        {campaigns.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není založená žádná kampaň.</div> : null}
       </div>
     </section>
   );
@@ -2029,6 +2338,8 @@ function DetailPanel({
 
   const rows = [
     ["Veřejná URL", ad.publicUrl],
+    ["Kampaň", ad.campaign],
+    ["Tagy kampaně", ad.campaignTags.length ? ad.campaignTags.join(", ") : "bez tagů"],
     ["Plátce", ad.payer || "chybí"],
     ["Dodavatel", ad.supplier || "chybí"],
     ["Částka", ad.amount || "chybí"],

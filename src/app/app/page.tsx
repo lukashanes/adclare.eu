@@ -34,6 +34,13 @@ export default async function AppPage() {
     redirect("/login?error=session");
   }
 
+  const workspaceKey = [
+    workspace.user.email,
+    workspace.tenant.slug,
+    workspace.ads.map((ad) => `${ad.id}:${ad.updatedAt}:${ad.version}:${ad.campaignId}`).join("|"),
+    workspace.campaigns.map((campaign) => `${campaign.id}:${campaign.slug}:${campaign.election}:${campaign.tags.join(",")}:${campaign.archived}`).join("|"),
+  ].join("::");
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f4f6f8] text-[#11161c]">
       <header className="border-b border-black/10 bg-white">
@@ -66,7 +73,7 @@ export default async function AppPage() {
         </div>
       </header>
 
-      <AppWorkspaceClient initialWorkspace={workspace} />
+      <AppWorkspaceClient key={workspaceKey} initialWorkspace={workspace} />
     </main>
   );
 }

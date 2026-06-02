@@ -107,6 +107,11 @@ check(adminDb.includes("createAppBranch") && existsSync(resolve(root, "src/app/a
 check(existsSync(resolve(root, "src/app/api/app/branches/[id]/route.ts")), "App branch update route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/settings/route.ts")), "App tenant settings route is missing.");
 check(appWorkspace.includes("Nastavení strany") && appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type === "branch"'), "Workspace should expose tenant and branch management.");
+check(existsSync(resolve(root, "src/app/api/app/campaigns/route.ts")), "App campaign management route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/campaigns/[id]/route.ts")), "App campaign update route is missing.");
+check(schema.includes("tags          String[]") && schema.includes("archivedAt    DateTime?"), "Campaign schema should include tags and archival state.");
+check(appWorkspace.includes("Kampaně a tagy") && appWorkspace.includes('type === "campaign"') && adminDb.includes("createAppCampaign") && adminDb.includes("update_campaign"), "Workspace should expose campaign and tag management.");
+check(appWorkspace.includes("Kampaň pro import") && read("src/app/api/app/ads/import/route.ts").includes("campaignId"), "Excel import should let users choose the campaign.");
 check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/profile/route.ts")), "App profile update route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/users/[id]/route.ts")), "App member update route is missing.");

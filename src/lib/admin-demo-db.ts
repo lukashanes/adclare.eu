@@ -28,6 +28,7 @@ import type {
   AdminAdsPayload,
   AppAuditRecord,
   AppBranchUpdateInput,
+  AppCampaignInput,
   AppMemberUpdateInput,
   AppProfileInput,
   AppBranchInput,
@@ -78,6 +79,11 @@ type AuditPackageAd = AdWithUnit & {
   versions: AdVersion[];
   approvals: Approval[];
   assets: AdAsset[];
+};
+type CampaignWithCount = Campaign & {
+  _count?: {
+    ads: number;
+  };
 };
 
 const statusMap: Record<AdStatus, Status> = {
@@ -230,8 +236,10 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     publicUrl: `${publicAppUrl()}/ad/${ad.publicToken}`,
     title: isCs ? ad.titleCs : ad.titleEn,
     tenantSlug: ad.tenant?.slug ?? tenantSlug,
+    campaignId: ad.campaign.id,
     campaign: isCs ? ad.campaign.nameCs : ad.campaign.nameEn,
     campaignSlug: ad.campaign.slug,
+    campaignTags: ad.campaign.tags,
     branch: isCs ? ad.orgUnit.nameCs : ad.orgUnit.nameEn,
     owner: isCs ? ad.ownerCs : ad.ownerEn,
     type: isCs ? ad.mediaTypeCs : ad.mediaTypeEn,
@@ -508,6 +516,33 @@ function mapBranch(branch: OrganizationUnit, locale: Locale) {
     description: locale === "cs" ? branch.descriptionCs : branch.descriptionEn,
     archived: Boolean(branch.archivedAt),
   };
+}
+
+function mapCampaign(campaign: CampaignWithCount, locale: Locale) {
+  return {
+    id: campaign.id,
+    name: locale === "cs" ? campaign.nameCs : campaign.nameEn,
+    slug: campaign.slug,
+    election: campaign.election,
+    description: locale === "cs" ? campaign.descriptionCs : campaign.descriptionEn,
+    tags: campaign.tags,
+    startsAt: formatDate(campaign.startsAt, locale),
+    startsAtIso: campaign.startsAt.toISOString().slice(0, 10),
+    endsAt: formatDate(campaign.endsAt, locale),
+    endsAtIso: campaign.endsAt.toISOString().slice(0, 10),
+    archived: Boolean(campaign.archivedAt),
+    adCount: campaign._count?.ads ?? 0,
+  };
+}
+
+function sortMappedCampaigns(campaigns: ReturnType<typeof mapCampaign>[]) {
+  return [...campaigns].sort((left, right) => {
+    if (left.archived !== right.archived) {
+      return left.archived ? 1 : -1;
+    }
+
+    return right.startsAtIso.localeCompare(left.startsAtIso) || left.name.localeCompare(right.name, "cs");
+  });
 }
 
 function assignableRolesForScope(tenantWideRole: boolean, locale: Locale) {
@@ -2142,6 +2177,10 @@ function canManageAppBranches(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
 }
 
+function canManageAppCampaigns(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
+}
+
 function canEditOwnAppBranch(role: UserRole) {
   return role === UserRole.LOCAL_ADMIN;
 }
@@ -2167,6 +2206,7 @@ function appRolePermissions(role: UserRole) {
     canPublishAds: canPublishAppAds(role),
     canManageBranches: canManageAppBranches(role),
     canEditOwnBranch: canEditOwnAppBranch(role),
+    canManageCampaigns: canManageAppCampaigns(role),
     canManageUsers: canManageAppUsers(role),
     canManageTenantSettings: canManageTenantSettings(role),
     canViewAudit: canViewAppAudit(role),
@@ -2203,10 +2243,9 @@ async function getAppCampaign(tenantId: string) {
   const campaign = await prisma.campaign.findFirst({
     where: {
       tenantId,
+      archivedAt: null,
     },
-    orderBy: {
-      startsAt: "desc",
-    },
+    orderBy: [{ startsAt: "desc" }, { nameCs: "asc" }],
   });
 
   if (campaign) {
@@ -2220,10 +2259,38 @@ async function getAppCampaign(tenantId: string) {
       nameCs: "Výchozí kampaň",
       nameEn: "Default campaign",
       election: "Volby 2026",
+      descriptionCs: "Výchozí pracovní kampaň pro první reklamy.",
+      descriptionEn: "Default workspace campaign for first adverts.",
+      tags: ["výchozí"],
       startsAt: new Date("2026-01-01T00:00:00.000Z"),
       endsAt: new Date("2026-12-31T23:59:59.000Z"),
     },
   });
+}
+
+async function getAppCampaignForInput(
+  context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>,
+  input: Pick<EditableAdInput, "campaignId">,
+) {
+  const campaignRef = input.campaignId?.trim();
+
+  if (!campaignRef) {
+    return getAppCampaign(context.membership.tenantId);
+  }
+
+  const campaign = await prisma.campaign.findFirst({
+    where: {
+      tenantId: context.membership.tenantId,
+      archivedAt: null,
+      OR: [{ id: campaignRef }, { slug: slugify(campaignRef) }, { nameCs: campaignRef }, { nameEn: campaignRef }],
+    },
+  });
+
+  if (!campaign) {
+    throw new Error("Vyberte existující aktivní kampaň.");
+  }
+
+  return campaign;
 }
 
 async function getAppUnitForInput(
@@ -2347,7 +2414,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
   const managedOrgUnitId = tenantWideRole ? "" : membership.orgUnitId || "__missing_org_scope__";
-  const [ads, branches, memberships, invitations, auditLogs] = await Promise.all([
+  const [ads, branches, campaigns, memberships, invitations, auditLogs] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
@@ -2374,6 +2441,20 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
         ...(tenantWideRole ? {} : { id: membership.orgUnitId || "__missing_org_scope__" }),
       },
       orderBy: [{ archivedAt: "asc" }, { kind: "asc" }, { nameCs: "asc" }],
+    }),
+    prisma.campaign.findMany({
+      where: {
+        tenantId: membership.tenantId,
+        ...(permissions.canManageCampaigns ? {} : { archivedAt: null }),
+      },
+      include: {
+        _count: {
+          select: {
+            ads: true,
+          },
+        },
+      },
+      orderBy: [{ archivedAt: "asc" }, { startsAt: "desc" }, { nameCs: "asc" }],
     }),
     permissions.canManageUsers
       ? prisma.tenantMembership.findMany({
@@ -2451,6 +2532,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       status: membershipStatusLabel(membership.status, locale),
     },
     branches: branches.map((branch) => mapBranch(branch, locale)),
+    campaigns: sortMappedCampaigns(campaigns.map((campaign) => mapCampaign(campaign, locale))),
     permissions,
     users: {
       members: memberships.map((member) => mapMember(member, locale)),
@@ -2573,6 +2655,226 @@ async function uniqueBranchSlug(tenantId: string, name: string, currentId = "") 
   }
 
   return `${baseSlug}-${randomBytes(4).toString("hex")}`;
+}
+
+async function uniqueCampaignSlug(tenantId: string, preferredSlug: string, name: string, currentId = "") {
+  const baseSlug = slugify(preferredSlug || name);
+
+  for (let index = 0; index < 50; index += 1) {
+    const slug = index === 0 ? baseSlug : `${baseSlug}-${index + 1}`;
+    const existing = await prisma.campaign.findUnique({
+      where: {
+        tenantId_slug: {
+          tenantId,
+          slug,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing || existing.id === currentId) {
+      return slug;
+    }
+  }
+
+  return `${baseSlug}-${randomBytes(4).toString("hex")}`;
+}
+
+function campaignDate(value: string, field: string) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Zadejte platné datum kampaně: ${field}.`);
+  }
+
+  return date;
+}
+
+function normalizedCampaignTags(tags: string[] = []) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const tag of tags) {
+    const clean = tag.trim().replace(/\s+/g, " ");
+    const key = clean.toLowerCase();
+
+    if (clean && !seen.has(key)) {
+      seen.add(key);
+      result.push(clean);
+    }
+  }
+
+  return result.slice(0, 16);
+}
+
+export async function createAppCampaign(userId: string, input: AppCampaignInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppCampaigns(context.membership.role)) {
+    return null;
+  }
+
+  const name = input.name.trim();
+  const election = input.election.trim();
+  const startsAt = campaignDate(input.startsAt, "začátek");
+  const endsAt = campaignDate(input.endsAt, "konec");
+
+  if (!name) {
+    throw new Error("Zadejte název kampaně.");
+  }
+
+  if (!election) {
+    throw new Error("Zadejte volby nebo období kampaně.");
+  }
+
+  if (startsAt.getTime() > endsAt.getTime()) {
+    throw new Error("Začátek kampaně nemůže být po konci kampaně.");
+  }
+
+  const slug = await uniqueCampaignSlug(context.membership.tenantId, input.slug || "", name);
+  const description = (input.description || "").trim();
+  const tags = normalizedCampaignTags(input.tags);
+
+  const campaign = await prisma.$transaction(async (tx) => {
+    const created = await tx.campaign.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        slug,
+        nameCs: name,
+        nameEn: name,
+        election,
+        descriptionCs: description,
+        descriptionEn: description,
+        tags,
+        startsAt,
+        endsAt,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "create_campaign",
+        messageCs: `Založena kampaň ${created.nameCs}.`,
+        messageEn: `Created campaign ${created.nameEn}.`,
+        metadata: {
+          campaignId: created.id,
+          slug: created.slug,
+          tags,
+        },
+      },
+    });
+
+    return created;
+  });
+
+  return mapCampaign({ ...campaign, _count: { ads: 0 } }, locale);
+}
+
+export async function updateAppCampaign(userId: string, campaignId: string, input: AppCampaignInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppCampaigns(context.membership.role)) {
+    return null;
+  }
+
+  const existing = await prisma.campaign.findFirst({
+    where: {
+      id: campaignId,
+      tenantId: context.membership.tenantId,
+    },
+    include: {
+      _count: {
+        select: {
+          ads: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const name = input.name.trim();
+  const election = input.election.trim();
+  const startsAt = campaignDate(input.startsAt, "začátek");
+  const endsAt = campaignDate(input.endsAt, "konec");
+
+  if (!name) {
+    throw new Error("Zadejte název kampaně.");
+  }
+
+  if (!election) {
+    throw new Error("Zadejte volby nebo období kampaně.");
+  }
+
+  if (startsAt.getTime() > endsAt.getTime()) {
+    throw new Error("Začátek kampaně nemůže být po konci kampaně.");
+  }
+
+  if (input.archived && !existing.archivedAt) {
+    const activeCampaignCount = await prisma.campaign.count({
+      where: {
+        tenantId: context.membership.tenantId,
+        archivedAt: null,
+      },
+    });
+
+    if (activeCampaignCount <= 1) {
+      throw new Error("Nelze archivovat poslední aktivní kampaň.");
+    }
+  }
+
+  const slug = await uniqueCampaignSlug(context.membership.tenantId, input.slug || "", name, existing.id);
+  const description = (input.description || "").trim();
+  const tags = normalizedCampaignTags(input.tags);
+  const archivedAt = input.archived ? existing.archivedAt || new Date() : null;
+
+  const campaign = await prisma.$transaction(async (tx) => {
+    const updated = await tx.campaign.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        slug,
+        nameCs: name,
+        nameEn: name,
+        election,
+        descriptionCs: description,
+        descriptionEn: description,
+        tags,
+        startsAt,
+        endsAt,
+        archivedAt,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "update_campaign",
+        messageCs: `Upravena kampaň ${updated.nameCs}.`,
+        messageEn: `Updated campaign ${updated.nameEn}.`,
+        metadata: {
+          campaignId: updated.id,
+          slug: updated.slug,
+          archived: Boolean(updated.archivedAt),
+          tags,
+        },
+      },
+    });
+
+    return updated;
+  });
+
+  return mapCampaign({ ...campaign, _count: { ads: existing._count.ads } }, locale);
 }
 
 export async function updateAppTenantSettings(userId: string, input: AppTenantSettingsInput) {
@@ -3114,7 +3416,7 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
     return null;
   }
 
-  const [campaign, unit] = await Promise.all([getAppCampaign(context.membership.tenantId), getAppUnitForInput(context, input)]);
+  const [campaign, unit] = await Promise.all([getAppCampaignForInput(context, input), getAppUnitForInput(context, input)]);
   const code = normalizeCode(input.code || "") || nextCode(unit.nameCs || input.branch);
   const missingCs = requiredMissing(input, "cs");
   const missingEn = requiredMissing(input, "en");
@@ -3220,8 +3522,8 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
   }
 
   const limitedRows = rows.slice(0, 500);
-  const campaign = await getAppCampaign(context.membership.tenantId);
   const reservedCodes = new Set<string>();
+  const campaignCache = new Map<string, Awaited<ReturnType<typeof getAppCampaignForInput>>>();
   const result: AdImportResult = {
     totalRows: limitedRows.length,
     createdCount: 0,
@@ -3237,6 +3539,14 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
     const title = input.title.trim();
 
     try {
+      const campaignKey = input.campaignId?.trim() || "__default";
+      let campaign = campaignCache.get(campaignKey);
+
+      if (!campaign) {
+        campaign = await getAppCampaignForInput(context, input);
+        campaignCache.set(campaignKey, campaign);
+      }
+
       const ad = await prisma.$transaction(async (tx) => {
         const unit = await getAppUnitForImport(tx, context, input.branch);
         const code = await uniqueImportCode(tx, context.membership.tenantId, input.code || "", unit.nameCs || input.branch, row.rowNumber, reservedCodes);
@@ -3415,7 +3725,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
     return null;
   }
 
-  const unit = await getAppUnitForInput(context, input);
+  const [campaign, unit] = await Promise.all([getAppCampaignForInput(context, input), getAppUnitForInput(context, input)]);
   const missingCs = requiredMissing(input, "cs");
   const missingEn = requiredMissing(input, "en");
   const status = statusForInput(input);
@@ -3453,6 +3763,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
         },
       },
       data: {
+        campaignId: campaign.id,
         orgUnitId: unit.id,
         titleCs: input.title.trim(),
         titleEn: input.title.trim(),
