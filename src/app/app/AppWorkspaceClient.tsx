@@ -442,7 +442,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   }, [query, workspace.ads]);
 
   useEffect(() => {
+    let lastHash = window.location.hash;
+
     function syncSectionFromHash() {
+      lastHash = window.location.hash;
       const section = sectionFromHash(window.location.hash);
 
       if (section) {
@@ -452,8 +455,18 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
     syncSectionFromHash();
     window.addEventListener("hashchange", syncSectionFromHash);
+    window.addEventListener("popstate", syncSectionFromHash);
+    const hashInterval = window.setInterval(() => {
+      if (window.location.hash !== lastHash) {
+        syncSectionFromHash();
+      }
+    }, 250);
 
-    return () => window.removeEventListener("hashchange", syncSectionFromHash);
+    return () => {
+      window.removeEventListener("hashchange", syncSectionFromHash);
+      window.removeEventListener("popstate", syncSectionFromHash);
+      window.clearInterval(hashInterval);
+    };
   }, []);
 
   async function refreshWorkspace() {
@@ -926,6 +939,15 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
   }
 
+  function selectAd(adId: string) {
+    setSelectedId(adId);
+    setMode(null);
+
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      window.setTimeout(() => document.getElementById("ad-detail")?.scrollIntoView({ block: "start" }), 50);
+    }
+  }
+
   function openCreate() {
     openSection("ads");
     setForm(blankForm(workspace));
@@ -1328,13 +1350,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
       {activeSection === "archive" && workspace.permissions.canViewAudit ? <AuditPanel logs={workspace.auditLogs} /> : null}
 
-      {activeSection === "ads" ? <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} /> : null}
+      {activeSection === "ads" ? <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={selectAd} onEdit={openEdit} /> : null}
 
-      {activeSection === "review" && reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
+      {activeSection === "review" && reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={selectAd} /> : null}
 
       {activeSection === "review" ? (
         <section className="grid scroll-mt-6 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
+          <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={selectAd} onEdit={openEdit} />
           <DetailPanel
             ad={selectedAd}
             writable={writable}
@@ -1355,124 +1377,38 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       ) : null}
 
       {activeSection === "ads" ? (
-      <section id="ads" className="grid scroll-mt-6 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0 overflow-hidden rounded-md border border-black/10 bg-white">
-          <div className="flex flex-col gap-3 border-b border-black/10 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-black">Seznam reklam</h2>
-              <p className="mt-1 text-sm text-[#59616b]">
-                Evidence, kontrola údajů, schvalování a exporty k reklamám v jednom pracovním prostoru.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <label className="flex h-10 min-w-[240px] items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm text-[#59616b]">
-                <Search size={15} />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hledat reklamu" className="min-w-0 flex-1 outline-none" />
-              </label>
-              <button
-                type="button"
-                onClick={refreshWorkspace}
-                disabled={refreshing}
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-[#25282d]"
-              >
-                <RefreshCw size={15} />
-                Obnovit
-              </button>
-              <button
-                type="button"
-                onClick={openCreate}
-                disabled={!workspace.permissions.canCreateAds}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-[#f45d1f] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-              >
-                <Plus size={15} />
-                Přidat
-              </button>
-            </div>
-          </div>
+        <section id="ads" className="grid scroll-mt-6 gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <AdListPanel
+            ads={filteredAds}
+            selectedId={selectedAd?.id ?? ""}
+            query={query}
+            refreshing={refreshing}
+            writable={writable}
+            canCreate={workspace.permissions.canCreateAds}
+            onQueryChange={setQuery}
+            onRefresh={refreshWorkspace}
+            onCreate={openCreate}
+            onSelect={selectAd}
+            onEdit={openEdit}
+          />
 
-          <MobileAdCards ads={filteredAds} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
-
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[980px] text-left text-sm">
-              <thead className="bg-[#f7f7f8] text-xs text-[#68707a]">
-                <tr>
-                  {["Kód", "Materiál", "Pobočka", "Kampaň", "Termín", "Chybí", "Stav", "Akce"].map((head) => (
-                    <th key={head} className="px-4 py-3 font-semibold">
-                      {head}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/8">
-                {filteredAds.map((ad) => (
-                  <tr key={ad.id} className={selectedAd?.id === ad.id ? "bg-orange-50/55" : "bg-white"}>
-                    <td className="whitespace-nowrap px-4 py-4 font-mono text-xs font-semibold text-[#20242a]">
-                      <button type="button" onClick={() => setSelectedId(ad.id)} className="underline-offset-2 hover:underline">
-                        {ad.id}
-                      </button>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="font-medium text-[#20242a]">{ad.title}</div>
-                      {ad.candidate ? <div className="mt-1 text-xs font-semibold text-[#68707a]">{ad.candidate}</div> : null}
-                    </td>
-                    <td className="px-4 py-4 text-[#59616b]">{ad.branch}</td>
-                    <td className="px-4 py-4 text-[#59616b]">{ad.campaign}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        {deadlineIcon(ad)}
-                        <div>
-                          <div className="font-semibold text-[#20242a]">{ad.publicationDate}</div>
-                          <div className="text-xs text-[#68707a]">{ad.deadlineLabel}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="max-w-[220px] px-4 py-4 text-[#59616b]">{ad.missing.length ? ad.missing.join(", ") : "-"}</td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>
-                        {ad.workflowLabel}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => openEdit(ad)} disabled={!writable} className="font-semibold text-[#d94410] disabled:text-[#9aa0a8]">
-                          upravit
-                        </button>
-                        <a className="font-semibold text-[#25282d]" href={noticeHref(ad.publicUrl)}>
-                          otevřít
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredAds.length === 0 ? (
-                  <tr>
-                    <td className="px-4 py-8 text-center text-[#59616b]" colSpan={8}>
-                      Zatím tu nejsou žádné reklamy.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <DetailPanel
-          ad={selectedAd}
-          writable={writable}
-          reviewable={reviewable}
-          uploadable={workspace.permissions.canUploadAssets}
-          actioning={actioning}
-          uploading={uploading}
-          storage={workspace.storage}
-          reviewNote={reviewNote}
-          onEdit={openEdit}
-          onUpload={uploadAsset}
-          onApprove={(ad) => runWorkflowAction(ad, "approve")}
-          onPublish={(ad) => runWorkflowAction(ad, "publish")}
-          onRequestChanges={(ad) => runWorkflowAction(ad, "request-changes")}
-          onReviewNoteChange={setReviewNote}
-        />
-      </section>
+          <DetailPanel
+            ad={selectedAd}
+            writable={writable}
+            reviewable={reviewable}
+            uploadable={workspace.permissions.canUploadAssets}
+            actioning={actioning}
+            uploading={uploading}
+            storage={workspace.storage}
+            reviewNote={reviewNote}
+            onEdit={openEdit}
+            onUpload={uploadAsset}
+            onApprove={(ad) => runWorkflowAction(ad, "approve")}
+            onPublish={(ad) => runWorkflowAction(ad, "publish")}
+            onRequestChanges={(ad) => runWorkflowAction(ad, "request-changes")}
+            onReviewNoteChange={setReviewNote}
+          />
+        </section>
       ) : null}
     </section>
   );
@@ -1680,58 +1616,108 @@ function Editor({
   );
 }
 
-function MobileAdCards({
+function AdListPanel({
   ads,
   selectedId,
+  query,
+  refreshing,
   writable,
+  canCreate,
+  onQueryChange,
+  onRefresh,
+  onCreate,
   onSelect,
   onEdit,
 }: {
   ads: AdRecord[];
   selectedId: string;
+  query: string;
+  refreshing: boolean;
   writable: boolean;
+  canCreate: boolean;
+  onQueryChange: (value: string) => void;
+  onRefresh: () => void;
+  onCreate: () => void;
   onSelect: (id: string) => void;
   onEdit: (ad: AdRecord) => void;
 }) {
   return (
-    <div className="grid gap-3 p-3 md:hidden">
-      {ads.map((ad) => (
-        <article key={ad.id} className={`rounded-md border p-3 ${selectedId === ad.id ? "border-[#f45d1f] bg-orange-50/55" : "border-black/10 bg-white"}`}>
-          <button type="button" onClick={() => onSelect(ad.id)} className="block w-full text-left">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
-                <h3 className="mt-1 text-base font-semibold leading-6 text-black">{ad.title}</h3>
-                <p className="mt-1 text-sm text-[#59616b]">
-                  {ad.branch} · {ad.campaign}
-                  {ad.candidate ? ` · ${ad.candidate}` : ""}
-                </p>
-              </div>
-              <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-sm text-[#59616b]">
-              {deadlineIcon(ad)}
-              <span>{ad.publicationDate} · {ad.deadlineLabel}</span>
-            </div>
-            {ad.missing.length ? <p className="mt-2 text-sm font-semibold text-red-700">Chybí: {ad.missing.join(", ")}</p> : null}
-          </button>
-          <div className="mt-3 flex gap-2">
+    <aside className="min-w-0 rounded-md border border-black/10 bg-white">
+      <div className="border-b border-black/10 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-black">Reklamy</h2>
+            <p className="mt-1 text-sm leading-5 text-[#59616b]">Vyberte reklamu a pracujte s jejím detailem.</p>
+          </div>
+          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-sm font-semibold text-[#25282d]">{ads.length}</span>
+        </div>
+        <div className="mt-3 grid gap-2">
+          <label className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm text-[#59616b]">
+            <Search size={15} />
+            <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Hledat reklamu" className="min-w-0 flex-1 outline-none" />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => onEdit(ad)}
-              disabled={!writable}
-              className="inline-flex flex-1 justify-center rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-[#25282d]"
             >
-              Upravit
+              <RefreshCw size={15} />
+              Obnovit
             </button>
-            <a className="inline-flex flex-1 justify-center rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
-              Otevřít
-            </a>
+            <button
+              type="button"
+              onClick={onCreate}
+              disabled={!canCreate}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+            >
+              <Plus size={15} />
+              Přidat
+            </button>
           </div>
-        </article>
-      ))}
-      {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">Zatím tu nejsou žádné reklamy.</div> : null}
-    </div>
+        </div>
+      </div>
+
+      <div className="grid max-h-[620px] gap-2 overflow-y-auto p-3 xl:max-h-[calc(100vh-220px)]">
+        {ads.map((ad) => (
+          <article key={ad.id} className={`rounded-md border p-3 ${selectedId === ad.id ? "border-[#f45d1f] bg-orange-50/55" : "border-black/10 bg-white"}`}>
+            <button type="button" onClick={() => onSelect(ad.id)} className="block w-full text-left">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
+                  <h3 className="mt-1 text-base font-semibold leading-6 text-black">{ad.title}</h3>
+                  <p className="mt-1 text-sm text-[#59616b]">
+                    {ad.branch} · {ad.campaign}
+                    {ad.candidate ? ` · ${ad.candidate}` : ""}
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-sm text-[#59616b]">
+                {deadlineIcon(ad)}
+                <span>{ad.publicationDate} · {ad.deadlineLabel}</span>
+              </div>
+              {ad.missing.length ? <p className="mt-2 text-sm font-semibold text-red-700">Chybí: {ad.missing.slice(0, 3).join(", ")}{ad.missing.length > 3 ? ` +${ad.missing.length - 3}` : ""}</p> : null}
+            </button>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onEdit(ad)}
+                disabled={!writable}
+                className="inline-flex justify-center rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+              >
+                Upravit
+              </button>
+              <a className="inline-flex justify-center rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
+                Otevřít
+              </a>
+            </div>
+          </article>
+        ))}
+        {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">Zatím tu nejsou žádné reklamy.</div> : null}
+      </div>
+    </aside>
   );
 }
 
@@ -3061,7 +3047,7 @@ function DetailPanel({
 }) {
   if (!ad) {
     return (
-      <aside className="min-w-0 rounded-md border border-black/10 bg-white p-5 text-sm text-[#59616b]">
+      <aside id="ad-detail" className="min-w-0 scroll-mt-4 rounded-md border border-black/10 bg-white p-5 text-sm text-[#59616b]">
         Vyberte nebo přidejte reklamu.
       </aside>
     );
@@ -3085,187 +3071,228 @@ function DetailPanel({
   ];
 
   return (
-    <aside className="min-w-0 rounded-md border border-black/10 bg-white">
+    <section id="ad-detail" className="min-w-0 scroll-mt-4 rounded-md border border-black/10 bg-white">
       <div className="border-b border-black/10 p-4">
-        <div className="text-sm font-semibold text-[#68707a]">Detail reklamy</div>
-        <h2 className="mt-1 text-xl font-semibold text-black">{ad.title}</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-xs font-semibold text-[#25282d]">
-            <FileArchive size={13} />
-            {ad.id}
-          </span>
-        </div>
-      </div>
-      <div className="grid gap-2 p-4 text-sm">
-        {rows.map(([label, value]) => (
-          <div key={label} className="grid min-w-0 gap-1 rounded-md border border-black/10 p-3">
-            <span className="min-w-0 text-xs font-semibold uppercase text-[#68707a]">{label}</span>
-            <span className={`min-w-0 break-all ${value === "chybí" || value === "chybí publikum" ? "font-semibold text-red-700" : "font-semibold text-[#20242a]"}`}>{value}</span>
-          </div>
-        ))}
-      </div>
-      {ad.missing.length ? (
-        <div className="mx-4 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
-          <div>Ještě doplnit:</div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {ad.missing.map((item) => (
-              <span key={item} className="rounded-md border border-orange-200 bg-white px-2 py-1 text-xs font-semibold text-orange-800">
-                {item}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[#68707a]">Pracovní detail reklamy</div>
+            <h2 className="mt-1 text-2xl font-semibold leading-tight text-black">{ad.title}</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-xs font-semibold text-[#25282d]">
+                <FileArchive size={13} />
+                {ad.id}
               </span>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="mx-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-          Reklama má vyplněné povinné údaje.
-        </div>
-      )}
-      <div className="mx-4 mt-3 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-black">Soubory materiálu</div>
-            <div className="mt-1 text-xs leading-5 text-[#68707a]">
-              {storage.configured ? `Ukládá se do ${storage.provider}. Limit ${storage.maxUploadSizeMb} MB.` : "Úložiště čeká na nastavení Hetzner Object Storage."}
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-xs font-semibold text-[#25282d]">
+                v{ad.version}
+                {ad.locked ? " · zamčeno" : ""}
+              </span>
             </div>
           </div>
-          <label
-            className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
-              uploadable && storage.configured && !uploading ? "cursor-pointer bg-[#11161c] text-white" : "cursor-not-allowed bg-[#c9cdd3] text-white"
-            }`}
-          >
-            <Upload size={15} />
-            {uploading === ad.id ? "Nahrávám" : "Nahrát"}
-            <input
-              type="file"
-              className="sr-only"
-              disabled={!uploadable || !storage.configured || Boolean(uploading)}
-              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,video/mp4,video/quicktime"
-              onChange={(event) => {
-                onUpload(ad, event.target.files?.[0] ?? null);
-                event.currentTarget.value = "";
-              }}
-            />
-          </label>
-        </div>
-        {ad.assets.length ? (
-          <div className="mt-3 grid gap-2">
-            {ad.assets.map((asset) => (
-              <a
-                key={asset.id}
-                href={asset.downloadUrl}
-                className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]"
-              >
-                <span className="inline-flex min-w-0 items-center gap-2">
-                  <Paperclip size={15} className="shrink-0 text-[#68707a]" />
-                  <span className="truncate">{asset.originalName}</span>
-                </span>
-                <span className="shrink-0 text-xs text-[#68707a]">{asset.sizeLabel}</span>
-              </a>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      {ad.reviewEvents.length ? (
-        <div className="mx-4 mt-3 rounded-md border border-black/10 bg-white p-3">
-          <div className="text-sm font-semibold text-black">Historie kontroly</div>
-          <div className="mt-3 grid gap-2">
-            {ad.reviewEvents.map((event) => (
-              <div key={event.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${reviewEventClass(event.status)}`}>{event.statusLabel}</span>
-                  <span className="text-xs font-semibold text-[#68707a]">{event.createdAt}</span>
-                </div>
-                <div className="mt-2 text-xs text-[#68707a]">{event.actor}</div>
-                {event.note ? <p className="mt-1 text-sm font-semibold leading-5 text-[#20242a]">{event.note}</p> : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      <div className="grid gap-2 p-4">
-        <button
-          type="button"
-          onClick={() => onEdit(ad)}
-          disabled={!writable}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-        >
-          <Edit3 size={15} />
-          Upravit údaje
-        </button>
-        {ad.canApprove ? (
-          <button
-            type="button"
-            onClick={() => onApprove(ad)}
-            disabled={!reviewable || actioning === `approve:${ad.id}`}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
-          >
-            <CheckCircle2 size={15} />
-            {actioning === `approve:${ad.id}` ? "Schvaluji" : "Schválit"}
-          </button>
-        ) : null}
-        {ad.canRequestChanges ? (
-          <div className="grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
-              Komentář pro doplnění
-              <textarea
-                value={reviewNote}
-                onChange={(event) => onReviewNoteChange(event.target.value)}
-                disabled={!reviewable || Boolean(actioning)}
-                rows={3}
-                maxLength={800}
-                placeholder="Například: Doplňte plátce a přesné období šíření."
-                className="resize-none rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]"
-              />
-            </label>
+          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
             <button
               type="button"
-              onClick={() => onRequestChanges(ad)}
-              disabled={!reviewable || !reviewNote.trim() || actioning === `request-changes:${ad.id}`}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+              onClick={() => onEdit(ad)}
+              disabled={!writable}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
             >
-              <AlertTriangle size={15} />
-              {actioning === `request-changes:${ad.id}` ? "Vracím" : "Vrátit k doplnění"}
+              <Edit3 size={15} />
+              Upravit údaje
+            </button>
+            <a className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
+              Oznámení
+              <ArrowUpRight size={15} />
+            </a>
+            <button
+              type="button"
+              disabled={!ad.canDownloadQr}
+              onClick={() => {
+                window.location.href = `/api/app/ads/${encodeURIComponent(ad.id)}/qr-package?locale=cs`;
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#25282d] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+            >
+              <Download size={15} />
+              QR balíček
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = `/api/app/ads/${encodeURIComponent(ad.id)}/audit-export?locale=cs`;
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#25282d]"
+            >
+              <FileArchive size={15} />
+              Stáhnout auditní balíček
             </button>
           </div>
-        ) : null}
-        {ad.canPublish ? (
-          <button
-            type="button"
-            onClick={() => onPublish(ad)}
-            disabled={!reviewable || actioning === `publish:${ad.id}`}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-[#f45d1f]/30 bg-[#fff4ef] px-4 py-3 text-sm font-semibold text-[#d94410] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
-          >
-            <ArrowUpRight size={15} />
-            {actioning === `publish:${ad.id}` ? "Publikuji" : "Publikovat"}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          disabled={!ad.canDownloadQr}
-          onClick={() => {
-            window.location.href = `/api/app/ads/${encodeURIComponent(ad.id)}/qr-package?locale=cs`;
-          }}
-          className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#25282d] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
-        >
-          <Download size={15} />
-          Stáhnout QR balíček
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            window.location.href = `/api/app/ads/${encodeURIComponent(ad.id)}/audit-export?locale=cs`;
-          }}
-          className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#25282d]"
-        >
-          <FileArchive size={15} />
-          Stáhnout auditní balíček
-        </button>
-        <a className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
-          Otevřít oznámení
-          <ArrowUpRight size={15} />
-        </a>
+        </div>
       </div>
-    </aside>
+
+      <div className="grid gap-4 p-4">
+        {ad.missing.length ? (
+          <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
+            <div>Ještě doplnit před dalším krokem:</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {ad.missing.map((item) => (
+                <span key={item} className="rounded-md border border-orange-200 bg-white px-2 py-1 text-xs font-semibold text-orange-800">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+            Reklama má vyplněné povinné údaje.
+          </div>
+        )}
+
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+          <div className="grid gap-3">
+            <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+              <h3 className="text-sm font-semibold text-black">Transparentní oznámení</h3>
+              <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                {rows.map(([label, value]) => (
+                  <div key={label} className="grid min-w-0 gap-1 rounded-md border border-black/10 bg-white p-3">
+                    <span className="min-w-0 text-xs font-semibold uppercase text-[#68707a]">{label}</span>
+                    <span className={`min-w-0 break-all ${value === "chybí" || value === "chybí publikum" ? "font-semibold text-red-700" : "font-semibold text-[#20242a]"}`}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-black">Soubory materiálu</h3>
+                  <div className="mt-1 text-xs leading-5 text-[#68707a]">
+                    {storage.configured ? `Ukládá se do ${storage.provider}. Limit ${storage.maxUploadSizeMb} MB.` : "Úložiště čeká na nastavení Hetzner Object Storage."}
+                  </div>
+                </div>
+                <label
+                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
+                    uploadable && storage.configured && !uploading ? "cursor-pointer bg-[#11161c] text-white" : "cursor-not-allowed bg-[#c9cdd3] text-white"
+                  }`}
+                >
+                  <Upload size={15} />
+                  {uploading === ad.id ? "Nahrávám" : "Nahrát soubor"}
+                  <input
+                    type="file"
+                    className="sr-only"
+                    disabled={!uploadable || !storage.configured || Boolean(uploading)}
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,video/mp4,video/quicktime"
+                    onChange={(event) => {
+                      onUpload(ad, event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              {ad.assets.length ? (
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {ad.assets.map((asset) => (
+                    <a
+                      key={asset.id}
+                      href={asset.downloadUrl}
+                      className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]"
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-2">
+                        <Paperclip size={15} className="shrink-0 text-[#68707a]" />
+                        <span className="truncate">{asset.originalName}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-[#68707a]">{asset.sizeLabel}</span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-md border border-black/10 bg-white p-3 text-sm text-[#59616b]">Zatím není nahraný žádný soubor.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid content-start gap-3">
+            <div className="rounded-md border border-black/10 bg-white p-3">
+              <h3 className="text-sm font-semibold text-black">Další krok</h3>
+              <p className="mt-1 text-sm leading-6 text-[#59616b]">
+                {ad.missing.length
+                  ? "Doplňte chybějící údaje. Potom půjde reklamu poslat ke kontrole nebo stáhnout výstupy."
+                  : ad.canApprove
+                    ? "Reklama čeká na kontrolu. Můžete ji schválit, nebo ji vrátit k doplnění."
+                    : ad.canPublish
+                      ? "Reklama je schválená a připravená k publikaci."
+                      : "Záznam je připravený pro transparentní oznámení a exporty."}
+              </p>
+              <div className="mt-3 grid gap-2">
+                {ad.canApprove ? (
+                  <button
+                    type="button"
+                    onClick={() => onApprove(ad)}
+                    disabled={!reviewable || actioning === `approve:${ad.id}`}
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+                  >
+                    <CheckCircle2 size={15} />
+                    {actioning === `approve:${ad.id}` ? "Schvaluji" : "Schválit"}
+                  </button>
+                ) : null}
+                {ad.canPublish ? (
+                  <button
+                    type="button"
+                    onClick={() => onPublish(ad)}
+                    disabled={!reviewable || actioning === `publish:${ad.id}`}
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-[#f45d1f]/30 bg-[#fff4ef] px-4 py-3 text-sm font-semibold text-[#d94410] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+                  >
+                    <ArrowUpRight size={15} />
+                    {actioning === `publish:${ad.id}` ? "Publikuji" : "Publikovat"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {ad.canRequestChanges ? (
+              <div className="grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+                  Komentář pro doplnění
+                  <textarea
+                    value={reviewNote}
+                    onChange={(event) => onReviewNoteChange(event.target.value)}
+                    disabled={!reviewable || Boolean(actioning)}
+                    rows={4}
+                    maxLength={800}
+                    placeholder="Například: Doplňte plátce a přesné období šíření."
+                    className="resize-none rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onRequestChanges(ad)}
+                  disabled={!reviewable || !reviewNote.trim() || actioning === `request-changes:${ad.id}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+                >
+                  <AlertTriangle size={15} />
+                  {actioning === `request-changes:${ad.id}` ? "Vracím" : "Vrátit k doplnění"}
+                </button>
+              </div>
+            ) : null}
+
+            {ad.reviewEvents.length ? (
+              <div className="rounded-md border border-black/10 bg-white p-3">
+                <div className="text-sm font-semibold text-black">Historie kontroly</div>
+                <div className="mt-3 grid gap-2">
+                  {ad.reviewEvents.map((event) => (
+                    <div key={event.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${reviewEventClass(event.status)}`}>{event.statusLabel}</span>
+                        <span className="text-xs font-semibold text-[#68707a]">{event.createdAt}</span>
+                      </div>
+                      <div className="mt-2 text-xs text-[#68707a]">{event.actor}</div>
+                      {event.note ? <p className="mt-1 text-sm font-semibold leading-5 text-[#20242a]">{event.note}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
