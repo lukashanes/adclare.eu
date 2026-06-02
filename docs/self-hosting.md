@@ -150,6 +150,10 @@ docker compose -f docker-compose.prod.yml up -d --build web
 docker image prune -f
 ```
 
+## First Account
+
+In a fresh installation with `SIGNUP_MODE=first-run`, the first signup creates the first workspace and receives the installation administrator role. This role can see all workspaces in that installation. Additional party, branch, reviewer, candidate and designer accounts should be invited from inside the app.
+
 ## Security Checklist
 
 - Use HTTPS.

@@ -308,6 +308,51 @@ export type AppAuditRecord = {
   createdAt: string;
 };
 
+export type AppSuperAdminTenantRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  contactEmail: string;
+  defaultLocale: Locale;
+  publicRepositoryEnabled: boolean;
+  retentionYears: number;
+  createdAt: string;
+  updatedAt: string;
+  admins: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    roleKey: AdminRoleKey;
+    status: string;
+  }>;
+  counts: {
+    ads: number;
+    campaigns: number;
+    branches: number;
+    users: number;
+    invitations: number;
+    assets: number;
+    needsData: number;
+    published: number;
+  };
+};
+
+export type AppSuperAdminPayload = {
+  tenants: AppSuperAdminTenantRecord[];
+  counts: {
+    tenants: number;
+    ads: number;
+    campaigns: number;
+    branches: number;
+    users: number;
+    invitations: number;
+    assets: number;
+    needsData: number;
+    published: number;
+  };
+};
+
 export type InvitationNotice = {
   token: string;
   email: string;
@@ -351,6 +396,7 @@ export type AppWorkspacePayload = {
     canManageUsers: boolean;
     canManageTenantSettings: boolean;
     canViewAudit: boolean;
+    canManageAllTenants: boolean;
   };
   storage: {
     configured: boolean;
@@ -369,4 +415,5 @@ export type AppWorkspacePayload = {
     published: number;
     blocked: number;
   };
+  superAdmin: AppSuperAdminPayload | null;
 };

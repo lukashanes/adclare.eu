@@ -119,6 +119,8 @@ check(existsSync(resolve(root, "src/app/api/app/users/[id]/retry-email/route.ts"
 check(existsSync(resolve(root, "src/app/api/app/users/[id]/revoke-invitation/route.ts")), "App invitation revoke route is missing.");
 check(appWorkspace.includes("Správa lidí") && appWorkspace.includes("Uložit profil") && appWorkspace.includes("Poslat pozvánku") && appWorkspace.includes("Zrušit pozvánku"), "Workspace should expose profile, people and invitation management.");
 check(appWorkspace.includes("Audit") && adminDb.includes("update_tenant_settings") && adminDb.includes("update_branch"), "Workspace should expose audit and log admin changes.");
+check(adminDb.includes("getAppSuperAdminPayload") && adminDb.includes("canManageAllTenants"), "Super admin payload and permission are missing.");
+check(appWorkspace.includes("Správa celé instalace") && appWorkspace.includes("workspace.permissions.canManageAllTenants"), "Workspace should expose the super admin installation overview.");
 check(appWorkspace.includes("Co je potřeba doplnit") && appWorkspace.includes("Doplnit údaje"), "Workspace should expose a missing data action queue.");
 check(appWorkspace.includes("Proces pro každou reklamu") && appWorkspace.includes("8. V souladu s TTPA") && appWorkspace.includes("setupProgress"), "Workspace should expose the eight-step ad process.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");

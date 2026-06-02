@@ -267,10 +267,10 @@ async function main() {
 
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@demo-strana.cz" },
-    update: { name: "Admin demo strany" },
+    update: { name: "Instalační admin" },
     create: {
       email: "admin@demo-strana.cz",
-      name: "Admin demo strany",
+      name: "Instalační admin",
     },
   });
 
@@ -282,14 +282,14 @@ async function main() {
       },
     },
     update: {
-      role: UserRole.PARTY_ADMIN,
+      role: UserRole.SUPER_ADMIN,
       status: MembershipStatus.ACTIVE,
       orgUnitId: null,
     },
     create: {
       tenantId: tenant.id,
       userId: adminUser.id,
-      role: UserRole.PARTY_ADMIN,
+      role: UserRole.SUPER_ADMIN,
       status: MembershipStatus.ACTIVE,
     },
   });

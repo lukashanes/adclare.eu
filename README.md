@@ -70,7 +70,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-The `/signup` screen creates the first organization and administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users should normally be invited from inside the app.
+The `/signup` screen creates the first organization and installation administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users should normally be invited from inside the app.
 
 ## Docker
 

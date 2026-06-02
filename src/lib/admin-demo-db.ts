@@ -32,6 +32,7 @@ import type {
   AppMemberUpdateInput,
   AppProfileInput,
   AppBranchInput,
+  AppSuperAdminPayload,
   AppTenantSettingsInput,
   AppWorkspacePayload,
   AdminInvitationRecord,
@@ -84,6 +85,21 @@ type CampaignWithCount = Campaign & {
   _count?: {
     ads: number;
   };
+};
+type TenantWithSuperAdminRelations = Tenant & {
+  _count: {
+    ads: number;
+    campaigns: number;
+    organizationUnits: number;
+    memberships: number;
+    invitations: number;
+    adAssets: number;
+  };
+  memberships: Array<
+    TenantMembership & {
+      user: User;
+    }
+  >;
 };
 
 const statusMap: Record<AdStatus, Status> = {
@@ -565,6 +581,24 @@ function assignableRolesForScope(tenantWideRole: boolean, locale: Locale) {
 }
 
 function assignableRolesForContext(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, locale: Locale) {
+  if (context.membership.role === UserRole.SUPER_ADMIN) {
+    const roles: UserRole[] = [
+      UserRole.SUPER_ADMIN,
+      UserRole.LOCAL_ADMIN,
+      UserRole.CAMPAIGN_MANAGER,
+      UserRole.DESIGNER,
+      UserRole.CANDIDATE,
+      UserRole.CENTRAL_REVIEWER,
+      UserRole.READONLY_AUDITOR,
+      UserRole.PARTY_ADMIN,
+    ];
+
+    return roles.map((role) => ({
+      value: role,
+      label: roleLabel(role, locale),
+    }));
+  }
+
   return assignableRolesForScope(context.tenantWideRole, locale);
 }
 
@@ -2140,6 +2174,10 @@ function roleNeedsOrgUnit(role: UserRole) {
 }
 
 function canAssignRole(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, role: UserRole) {
+  if (context.membership.role === UserRole.SUPER_ADMIN) {
+    return true;
+  }
+
   if (context.tenantWideRole) {
     return role !== UserRole.SUPER_ADMIN;
   }
@@ -2197,6 +2235,10 @@ function canViewAppAudit(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.READONLY_AUDITOR;
 }
 
+function canManageAllTenants(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN;
+}
+
 function appRolePermissions(role: UserRole) {
   return {
     canCreateAds: canCreateAppAds(role),
@@ -2210,6 +2252,7 @@ function appRolePermissions(role: UserRole) {
     canManageUsers: canManageAppUsers(role),
     canManageTenantSettings: canManageTenantSettings(role),
     canViewAudit: canViewAppAudit(role),
+    canManageAllTenants: canManageAllTenants(role),
   };
 }
 
@@ -2404,6 +2447,125 @@ function scopedAdWhere(context: NonNullable<Awaited<ReturnType<typeof getAppAcce
   };
 }
 
+async function getAppSuperAdminPayload(locale: Locale): Promise<AppSuperAdminPayload> {
+  const [tenants, workflowCounts] = await Promise.all([
+    prisma.tenant.findMany({
+      include: {
+        _count: {
+          select: {
+            ads: true,
+            campaigns: true,
+            organizationUnits: true,
+            memberships: true,
+            invitations: true,
+            adAssets: true,
+          },
+        },
+        memberships: {
+          where: {
+            status: MembershipStatus.ACTIVE,
+            role: {
+              in: [UserRole.SUPER_ADMIN, UserRole.PARTY_ADMIN],
+            },
+          },
+          include: {
+            user: true,
+          },
+          orderBy: [{ role: "asc" }, { updatedAt: "desc" }],
+          take: 8,
+        },
+      },
+      orderBy: {
+        nameCs: "asc",
+      },
+    }),
+    prisma.ad.groupBy({
+      by: ["tenantId", "workflowStatus"],
+      _count: {
+        _all: true,
+      },
+    }),
+  ]);
+
+  const countsByTenant = new Map<string, { needsData: number; published: number }>();
+
+  for (const item of workflowCounts) {
+    const counts = countsByTenant.get(item.tenantId) ?? { needsData: 0, published: 0 };
+
+    if (item.workflowStatus === AdWorkflowStatus.NEEDS_DATA) {
+      counts.needsData += item._count._all;
+    }
+
+    if (item.workflowStatus === AdWorkflowStatus.PUBLISHED) {
+      counts.published += item._count._all;
+    }
+
+    countsByTenant.set(item.tenantId, counts);
+  }
+
+  const tenantRecords = (tenants as TenantWithSuperAdminRelations[]).map((tenant) => {
+    const workflow = countsByTenant.get(tenant.id) ?? { needsData: 0, published: 0 };
+
+    return {
+      id: tenant.id,
+      name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
+      slug: tenant.slug,
+      contactEmail: tenant.contactEmail,
+      defaultLocale: tenant.defaultLocale === "en" ? "en" : ("cs" as Locale),
+      publicRepositoryEnabled: tenant.publicRepositoryEnabled,
+      retentionYears: tenant.retentionYears,
+      createdAt: tenant.createdAt.toISOString(),
+      updatedAt: tenant.updatedAt.toISOString(),
+      admins: tenant.memberships.map((membership) => ({
+        id: membership.id,
+        name: membership.user.name,
+        email: membership.user.email,
+        role: roleLabel(membership.role, locale),
+        roleKey: membership.role as AdminRoleKey,
+        status: membershipStatusLabel(membership.status, locale),
+      })),
+      counts: {
+        ads: tenant._count.ads,
+        campaigns: tenant._count.campaigns,
+        branches: tenant._count.organizationUnits,
+        users: tenant._count.memberships,
+        invitations: tenant._count.invitations,
+        assets: tenant._count.adAssets,
+        needsData: workflow.needsData,
+        published: workflow.published,
+      },
+    };
+  });
+
+  return {
+    tenants: tenantRecords,
+    counts: tenantRecords.reduce(
+      (accumulator, tenant) => ({
+        tenants: accumulator.tenants + 1,
+        ads: accumulator.ads + tenant.counts.ads,
+        campaigns: accumulator.campaigns + tenant.counts.campaigns,
+        branches: accumulator.branches + tenant.counts.branches,
+        users: accumulator.users + tenant.counts.users,
+        invitations: accumulator.invitations + tenant.counts.invitations,
+        assets: accumulator.assets + tenant.counts.assets,
+        needsData: accumulator.needsData + tenant.counts.needsData,
+        published: accumulator.published + tenant.counts.published,
+      }),
+      {
+        tenants: 0,
+        ads: 0,
+        campaigns: 0,
+        branches: 0,
+        users: 0,
+        invitations: 0,
+        assets: 0,
+        needsData: 0,
+        published: 0,
+      },
+    ),
+  };
+}
+
 export async function getAppWorkspacePayload(userId: string, locale: Locale): Promise<AppWorkspacePayload | null> {
   const context = await getAppAccessContext(userId);
 
@@ -2414,7 +2576,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
   const managedOrgUnitId = tenantWideRole ? "" : membership.orgUnitId || "__missing_org_scope__";
-  const [ads, branches, campaigns, memberships, invitations, auditLogs] = await Promise.all([
+  const [ads, branches, campaigns, memberships, invitations, auditLogs, superAdmin] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
@@ -2501,6 +2663,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           take: 40,
         })
       : Promise.resolve([]),
+    permissions.canManageAllTenants ? getAppSuperAdminPayload(locale) : Promise.resolve(null),
   ]);
 
   const mappedAds = ads.map((ad) => mapAd(ad, locale));
@@ -2557,6 +2720,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       published: mappedAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
       blocked: mappedAds.filter((ad) => ad.status === "blocked").length,
     },
+    superAdmin,
   };
 }
 

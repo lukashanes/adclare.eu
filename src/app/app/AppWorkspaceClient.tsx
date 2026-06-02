@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUpRight, CalendarDays, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, Paperclip, Plus, RefreshCw, Save, Search, Tags, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, RefreshCw, Save, Search, ShieldCheck, Tags, Upload, Users, X } from "lucide-react";
 import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
@@ -980,6 +980,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         ))}
       </section>
 
+      {workspace.permissions.canManageAllTenants && workspace.superAdmin ? <SuperAdminPanel data={workspace.superAdmin} /> : null}
+
       <OnboardingPanel progress={progress} onCreateAd={openCreate} />
 
       {workspace.permissions.canCreateAds ? (
@@ -1426,6 +1428,130 @@ function MobileAdCards({
       ))}
       {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">Zatím tu nejsou žádné reklamy.</div> : null}
     </div>
+  );
+}
+
+function formatSuperAdminDate(value: string) {
+  return new Date(value).toLocaleDateString("cs-CZ", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  });
+}
+
+function SuperAdminPanel({ data }: { data: NonNullable<AppWorkspacePayload["superAdmin"]> }) {
+  const stats = [
+    { label: "Pracovní prostory", value: data.counts.tenants, icon: Building2 },
+    { label: "Reklamy", value: data.counts.ads, icon: FileArchive },
+    { label: "Kampaně", value: data.counts.campaigns, icon: FolderKanban },
+    { label: "Přístupy", value: data.counts.users, icon: Users },
+    { label: "K doplnění", value: data.counts.needsData, icon: AlertTriangle },
+    { label: "Publikováno", value: data.counts.published, icon: CheckCircle2 },
+  ];
+
+  return (
+    <section id="super-admin" className="scroll-mt-6 rounded-md border border-black/10 bg-[#11161c] p-4 text-white">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/8 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/80">
+            <ShieldCheck size={14} />
+            Instalace
+          </div>
+          <h2 className="mt-3 text-2xl font-semibold">Správa celé instalace</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/72">
+            Přehled všech pracovních prostorů, přístupů a stavů reklam. Provozovatel rychle vidí, kde se doplňují údaje, kde už běží veřejný archiv a kdo je za daný prostor odpovědný.
+          </p>
+        </div>
+        <a
+          href="#people"
+          className="inline-flex w-fit items-center gap-2 rounded-md border border-white/15 bg-white px-3 py-2 text-sm font-semibold text-[#11161c]"
+        >
+          Správa lidí
+          <ArrowUpRight size={14} />
+        </a>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+
+          return (
+            <div key={stat.label} className="rounded-md border border-white/12 bg-white/8 p-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white/68">
+                <Icon size={15} />
+                {stat.label}
+              </div>
+              <div className="mt-2 text-3xl font-semibold leading-none">{stat.value}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {data.tenants.map((tenant) => (
+          <article key={tenant.id} className="min-w-0 rounded-md border border-white/12 bg-white p-4 text-[#20242a]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <h3 className="truncate text-lg font-semibold text-black">{tenant.name}</h3>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#59616b]">
+                  <span className="font-mono text-xs font-semibold">/{tenant.slug}</span>
+                  <span>{tenant.contactEmail || "bez kontaktního e-mailu"}</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${tenant.publicRepositoryEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-neutral-200 bg-neutral-50 text-neutral-700"}`}>
+                  {tenant.publicRepositoryEnabled ? "veřejný archiv zapnutý" : "veřejný archiv vypnutý"}
+                </span>
+                <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-xs font-semibold text-[#59616b]">
+                  archiv {tenant.retentionYears} let
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-4">
+              {[
+                ["Reklamy", tenant.counts.ads],
+                ["Kampaně", tenant.counts.campaigns],
+                ["Pobočky", tenant.counts.branches],
+                ["K doplnění", tenant.counts.needsData],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2">
+                  <div className="text-xs font-semibold text-[#68707a]">{label}</div>
+                  <div className="mt-1 text-xl font-semibold leading-none text-black">{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">Správci prostoru</div>
+                <div className="mt-2 grid gap-1.5">
+                  {tenant.admins.length ? (
+                    tenant.admins.map((admin) => (
+                      <div key={admin.id} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                        <span className="font-semibold text-black">{admin.name}</span>
+                        <span className="break-all text-[#59616b]">{admin.email}</span>
+                        <span className="rounded-md border border-black/10 bg-white px-2 py-0.5 text-xs font-semibold text-[#59616b]">{admin.role}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-[#59616b]">Zatím není uveden aktivní správce.</div>
+                  )}
+                </div>
+                <div className="mt-2 text-xs font-semibold text-[#8b929b]">Poslední změna {formatSuperAdminDate(tenant.updatedAt)}</div>
+              </div>
+              <a
+                href={`/repo/${tenant.slug}?locale=cs`}
+                className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-[#25282d]"
+              >
+                Veřejný archiv
+                <ArrowUpRight size={14} />
+              </a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
