@@ -26,9 +26,12 @@ import type {
   AdImportInputRow,
   AdImportResult,
   AdminAdsPayload,
+  AppAuditRecord,
+  AppBranchUpdateInput,
   AppMemberUpdateInput,
   AppProfileInput,
   AppBranchInput,
+  AppTenantSettingsInput,
   AppWorkspacePayload,
   AdminInvitationRecord,
   AdminMemberRecord,
@@ -282,10 +285,6 @@ function createInviteToken() {
   return randomBytes(24).toString("base64url");
 }
 
-function isDemoPublicRepositoryEnabled() {
-  return process.env.NEXT_PUBLIC_SHOW_DEMO_REPO === "1";
-}
-
 function cloudflareEmailAccountId() {
   return (process.env.CLOUDFLARE_EMAIL_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
 }
@@ -499,6 +498,41 @@ function scopeLabel(orgUnit: OrganizationUnit | null, locale: Locale) {
   return locale === "cs" ? orgUnit.nameCs : orgUnit.nameEn;
 }
 
+function mapBranch(branch: OrganizationUnit, locale: Locale) {
+  return {
+    id: branch.id,
+    name: locale === "cs" ? branch.nameCs : branch.nameEn,
+    kind: branch.kind,
+    parentId: branch.parentId ?? "",
+    contactEmail: branch.contactEmail,
+    description: locale === "cs" ? branch.descriptionCs : branch.descriptionEn,
+    archived: Boolean(branch.archivedAt),
+  };
+}
+
+function assignableRolesForScope(tenantWideRole: boolean, locale: Locale) {
+  const roles: UserRole[] = tenantWideRole
+    ? [
+        UserRole.LOCAL_ADMIN,
+        UserRole.CAMPAIGN_MANAGER,
+        UserRole.DESIGNER,
+        UserRole.CANDIDATE,
+        UserRole.CENTRAL_REVIEWER,
+        UserRole.READONLY_AUDITOR,
+        UserRole.PARTY_ADMIN,
+      ]
+    : [UserRole.CAMPAIGN_MANAGER, UserRole.DESIGNER, UserRole.CANDIDATE];
+
+  return roles.map((role) => ({
+    value: role,
+    label: roleLabel(role, locale),
+  }));
+}
+
+function assignableRolesForContext(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, locale: Locale) {
+  return assignableRolesForScope(context.tenantWideRole, locale);
+}
+
 function mapMember(member: MembershipWithUserAndUnit, locale: Locale): AdminMemberRecord {
   return {
     id: member.id,
@@ -547,10 +581,7 @@ function mapPayload(tenant: Tenant, campaign: Campaign, campaigns: Campaign[], b
       value: item.slug,
       label: isCs ? item.nameCs : item.nameEn,
     })),
-    branches: branches.map((branch) => ({
-      id: branch.id,
-      name: isCs ? branch.nameCs : branch.nameEn,
-    })),
+    branches: branches.map((branch) => mapBranch(branch, locale)),
     ads: ads.map((ad) => mapAd(ad, locale)),
   };
 }
@@ -1009,10 +1040,6 @@ export async function getPublicRepositoryPayload(
   locale: Locale,
   inputFilters: Partial<PublicRepositoryFilters> = {},
 ): Promise<PublicRepositoryPayload | null> {
-  if (requestedTenantSlug === tenantSlug && !isDemoPublicRepositoryEnabled()) {
-    return null;
-  }
-
   const tenant = await prisma.tenant.findUnique({
     where: {
       slug: requestedTenantSlug,
@@ -1020,6 +1047,10 @@ export async function getPublicRepositoryPayload(
   });
 
   if (!tenant) {
+    return null;
+  }
+
+  if (!tenant.publicRepositoryEnabled) {
     return null;
   }
 
@@ -1124,10 +1155,8 @@ export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPay
   return {
     members: memberships.map((member) => mapMember(member, locale)),
     invitations: invitations.map((invitation) => mapInvitation(invitation, locale)),
-    branches: branches.map((branch) => ({
-      id: branch.id,
-      name: locale === "cs" ? branch.nameCs : branch.nameEn,
-    })),
+    branches: branches.map((branch) => mapBranch(branch, locale)),
+    assignableRoles: assignableRolesForScope(true, locale),
   };
 }
 function normalizeEmail(value: string) {
@@ -2071,6 +2100,18 @@ function isTenantWideRole(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.READONLY_AUDITOR;
 }
 
+function roleNeedsOrgUnit(role: UserRole) {
+  return !isTenantWideRole(role);
+}
+
+function canAssignRole(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, role: UserRole) {
+  if (context.tenantWideRole) {
+    return role !== UserRole.SUPER_ADMIN;
+  }
+
+  return role === UserRole.CAMPAIGN_MANAGER || role === UserRole.DESIGNER || role === UserRole.CANDIDATE;
+}
+
 function canCreateAppAds(role: UserRole) {
   return (
     role === UserRole.SUPER_ADMIN ||
@@ -2101,8 +2142,20 @@ function canManageAppBranches(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
 }
 
+function canEditOwnAppBranch(role: UserRole) {
+  return role === UserRole.LOCAL_ADMIN;
+}
+
 function canManageAppUsers(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.LOCAL_ADMIN;
+}
+
+function canManageTenantSettings(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
+}
+
+function canViewAppAudit(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.READONLY_AUDITOR;
 }
 
 function appRolePermissions(role: UserRole) {
@@ -2113,7 +2166,10 @@ function appRolePermissions(role: UserRole) {
     canApproveAds: canApproveAppAds(role),
     canPublishAds: canPublishAppAds(role),
     canManageBranches: canManageAppBranches(role),
+    canEditOwnBranch: canEditOwnAppBranch(role),
     canManageUsers: canManageAppUsers(role),
+    canManageTenantSettings: canManageTenantSettings(role),
+    canViewAudit: canViewAppAudit(role),
   };
 }
 
@@ -2186,6 +2242,7 @@ async function getAppUnitForInput(
   const unit = await prisma.organizationUnit.findFirst({
     where: {
       tenantId: context.membership.tenantId,
+      archivedAt: null,
       OR: [{ id: branch }, { slug: slugify(branch) }, { nameCs: branch }, { nameEn: branch }],
     },
   });
@@ -2289,7 +2346,8 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
 
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
-  const [ads, branches, memberships, invitations] = await Promise.all([
+  const managedOrgUnitId = tenantWideRole ? "" : membership.orgUnitId || "__missing_org_scope__";
+  const [ads, branches, memberships, invitations, auditLogs] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
@@ -2315,12 +2373,13 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
         tenantId: membership.tenantId,
         ...(tenantWideRole ? {} : { id: membership.orgUnitId || "__missing_org_scope__" }),
       },
-      orderBy: [{ kind: "asc" }, { nameCs: "asc" }],
+      orderBy: [{ archivedAt: "asc" }, { kind: "asc" }, { nameCs: "asc" }],
     }),
     permissions.canManageUsers
       ? prisma.tenantMembership.findMany({
           where: {
             tenantId: membership.tenantId,
+            ...(tenantWideRole ? {} : { orgUnitId: managedOrgUnitId }),
           },
           include: {
             user: true,
@@ -2333,6 +2392,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       ? prisma.invitation.findMany({
           where: {
             tenantId: membership.tenantId,
+            ...(tenantWideRole ? {} : { orgUnitId: managedOrgUnitId }),
           },
           include: {
             orgUnit: true,
@@ -2347,6 +2407,17 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
             createdAt: "desc",
           },
           take: 20,
+        })
+      : Promise.resolve([]),
+    permissions.canViewAudit
+      ? prisma.auditLog.findMany({
+          where: {
+            tenantId: membership.tenantId,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 40,
         })
       : Promise.resolve([]),
   ]);
@@ -2368,6 +2439,10 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
     tenant: {
       name: locale === "cs" ? membership.tenant.nameCs : membership.tenant.nameEn,
       slug: membership.tenant.slug,
+      contactEmail: membership.tenant.contactEmail,
+      defaultLocale: membership.tenant.defaultLocale === "en" ? "en" : "cs",
+      publicRepositoryEnabled: membership.tenant.publicRepositoryEnabled,
+      retentionYears: membership.tenant.retentionYears,
     },
     membership: {
       role: roleLabel(membership.role, locale),
@@ -2375,19 +2450,21 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       scope: membershipScope,
       status: membershipStatusLabel(membership.status, locale),
     },
-    branches: branches.map((branch) => ({
-      id: branch.id,
-      name: locale === "cs" ? branch.nameCs : branch.nameEn,
-    })),
+    branches: branches.map((branch) => mapBranch(branch, locale)),
     permissions,
     users: {
       members: memberships.map((member) => mapMember(member, locale)),
       invitations: invitations.map((invitation) => mapInvitation(invitation, locale)),
-      branches: branches.map((branch) => ({
-        id: branch.id,
-        name: locale === "cs" ? branch.nameCs : branch.nameEn,
-      })),
+      branches: branches.filter((branch) => !branch.archivedAt).map((branch) => mapBranch(branch, locale)),
+      assignableRoles: assignableRolesForContext(context, locale),
     },
+    auditLogs: auditLogs.map((log): AppAuditRecord => ({
+      id: log.id,
+      actor: log.actor,
+      action: log.action,
+      message: locale === "cs" ? log.messageCs : log.messageEn,
+      createdAt: log.createdAt.toISOString(),
+    })),
     storage: objectStorageStatus(),
     ads: mappedAds,
     counts: {
@@ -2465,7 +2542,211 @@ export async function createAppBranch(userId: string, input: AppBranchInput, loc
   return {
     id: branch.id,
     name: locale === "cs" ? branch.nameCs : branch.nameEn,
+    kind: branch.kind,
+    parentId: branch.parentId ?? "",
+    contactEmail: branch.contactEmail,
+    description: locale === "cs" ? branch.descriptionCs : branch.descriptionEn,
+    archived: Boolean(branch.archivedAt),
   };
+}
+
+async function uniqueBranchSlug(tenantId: string, name: string, currentId = "") {
+  const baseSlug = slugify(name);
+
+  for (let index = 0; index < 50; index += 1) {
+    const slug = index === 0 ? baseSlug : `${baseSlug}-${index + 1}`;
+    const existing = await prisma.organizationUnit.findUnique({
+      where: {
+        tenantId_slug: {
+          tenantId,
+          slug,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing || existing.id === currentId) {
+      return slug;
+    }
+  }
+
+  return `${baseSlug}-${randomBytes(4).toString("hex")}`;
+}
+
+export async function updateAppTenantSettings(userId: string, input: AppTenantSettingsInput) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageTenantSettings(context.membership.role)) {
+    return null;
+  }
+
+  const name = input.name.trim();
+  const slug = slugify(input.slug);
+  const contactEmail = normalizeEmail(input.contactEmail || "");
+
+  if (!name) {
+    throw new Error("Zadejte název strany.");
+  }
+
+  if (contactEmail && !isValidEmail(contactEmail)) {
+    throw new Error("Zadejte platný kontaktní e-mail.");
+  }
+
+  const existingSlug = await prisma.tenant.findUnique({
+    where: {
+      slug,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingSlug && existingSlug.id !== context.membership.tenantId) {
+    throw new Error("Tento slug už používá jiná strana.");
+  }
+
+  const tenant = await prisma.$transaction(async (tx) => {
+    const updated = await tx.tenant.update({
+      where: {
+        id: context.membership.tenantId,
+      },
+      data: {
+        slug,
+        nameCs: name,
+        nameEn: name,
+        contactEmail,
+        defaultLocale: input.defaultLocale,
+        publicRepositoryEnabled: input.publicRepositoryEnabled,
+        retentionYears: input.retentionYears,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "update_tenant_settings",
+        messageCs: `Upraveno nastavení strany ${updated.nameCs}.`,
+        messageEn: `Updated settings for ${updated.nameEn}.`,
+        metadata: {
+          slug: updated.slug,
+          publicRepositoryEnabled: updated.publicRepositoryEnabled,
+          retentionYears: updated.retentionYears,
+        },
+      },
+    });
+
+    return updated;
+  });
+
+  return {
+    name: input.defaultLocale === "en" ? tenant.nameEn : tenant.nameCs,
+    slug: tenant.slug,
+    contactEmail: tenant.contactEmail,
+    defaultLocale: tenant.defaultLocale === "en" ? "en" : "cs",
+    publicRepositoryEnabled: tenant.publicRepositoryEnabled,
+    retentionYears: tenant.retentionYears,
+  };
+}
+
+export async function updateAppBranch(userId: string, branchId: string, input: AppBranchUpdateInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || (!canManageAppBranches(context.membership.role) && !canEditOwnAppBranch(context.membership.role))) {
+    return null;
+  }
+
+  if (!context.tenantWideRole && branchId !== context.membership.orgUnitId) {
+    return null;
+  }
+
+  const name = input.name.trim();
+  const kind = input.kind.trim() || "oblast";
+  const contactEmail = normalizeEmail(input.contactEmail || "");
+  const description = (input.description || "").trim();
+
+  if (!name) {
+    throw new Error("Zadejte název pobočky.");
+  }
+
+  if (contactEmail && !isValidEmail(contactEmail)) {
+    throw new Error("Zadejte platný kontaktní e-mail pobočky.");
+  }
+
+  const existing = await prisma.organizationUnit.findFirst({
+    where: {
+      id: branchId,
+      tenantId: context.membership.tenantId,
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const parentId = context.tenantWideRole ? input.parentId || null : existing.parentId;
+
+  if (parentId === existing.id) {
+    throw new Error("Pobočka nemůže být nadřazená sama sobě.");
+  }
+
+  const parent = parentId
+    ? await prisma.organizationUnit.findFirst({
+        where: {
+          id: parentId,
+          tenantId: context.membership.tenantId,
+          archivedAt: null,
+        },
+      })
+    : null;
+
+  if (parentId && !parent) {
+    throw new Error("Vyberte existující nadřazenou pobočku.");
+  }
+
+  const slug = await uniqueBranchSlug(context.membership.tenantId, name, existing.id);
+  const archivedAt = context.tenantWideRole ? (input.archived ? existing.archivedAt || new Date() : null) : existing.archivedAt;
+
+  const branch = await prisma.$transaction(async (tx) => {
+    const updated = await tx.organizationUnit.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        parentId: parent?.id ?? null,
+        slug,
+        kind,
+        nameCs: name,
+        nameEn: name,
+        contactEmail,
+        descriptionCs: description,
+        descriptionEn: description,
+        archivedAt,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "update_branch",
+        messageCs: `Upravena pobočka ${updated.nameCs}.`,
+        messageEn: `Updated branch ${updated.nameEn}.`,
+        metadata: {
+          branchId: updated.id,
+          archived: Boolean(updated.archivedAt),
+        },
+      },
+    });
+
+    return updated;
+  });
+
+  return mapBranch(branch, locale);
 }
 
 export async function createAppInvitation(userId: string, input: InviteInput, locale: Locale) {
@@ -2482,17 +2763,23 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
   }
 
   const role = normalizeInviteRole(input.role);
+  if (!canAssignRole(context, role)) {
+    throw new Error("Tuto roli nemůžete přiřadit.");
+  }
+
+  const branchId = context.tenantWideRole ? input.branchId : context.membership.orgUnitId || "";
   const orgUnit =
-    input.branchId && role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER
+    roleNeedsOrgUnit(role) && branchId
       ? await prisma.organizationUnit.findFirst({
           where: {
-            id: input.branchId,
+            id: branchId,
             tenantId: context.membership.tenantId,
+            archivedAt: null,
           },
         })
       : null;
 
-  if (role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER && !orgUnit) {
+  if (roleNeedsOrgUnit(role) && !orgUnit) {
     throw new Error("Vyberte pobočku pro člověka, který nemá pracovat s celou stranou.");
   }
 
@@ -2550,6 +2837,7 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
     where: {
       id: invitationId,
       tenantId: context.membership.tenantId,
+      ...(context.tenantWideRole ? {} : { orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }),
     },
     include: {
       tenant: true,
@@ -2582,6 +2870,74 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
   });
 
   return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
+}
+
+export async function revokeAppInvitation(userId: string, invitationId: string, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppUsers(context.membership.role)) {
+    return null;
+  }
+
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      id: invitationId,
+      tenantId: context.membership.tenantId,
+      ...(context.tenantWideRole ? {} : { orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }),
+    },
+    include: {
+      orgUnit: true,
+      emailMessages: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!invitation) {
+    return null;
+  }
+
+  if (invitation.status === InvitationStatus.ACCEPTED) {
+    throw new Error("Přijatou pozvánku už nelze zrušit. Pozastavte uživatele ve správě lidí.");
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const revoked = await tx.invitation.update({
+      where: {
+        id: invitation.id,
+      },
+      data: {
+        status: InvitationStatus.REVOKED,
+      },
+      include: {
+        orgUnit: true,
+        emailMessages: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "revoke_invitation",
+        messageCs: `Zrušena pozvánka pro ${revoked.email}.`,
+        messageEn: `Revoked invitation for ${revoked.email}.`,
+      },
+    });
+
+    return revoked;
+  });
+
+  return mapInvitation(updated, locale);
 }
 
 export async function updateAppProfile(userId: string, input: AppProfileInput) {
@@ -2642,24 +2998,12 @@ export async function updateAppMember(userId: string, memberId: string, input: A
 
   const role = normalizeInviteRole(input.role);
   const status = normalizeMemberStatus(input.status);
-  const orgUnit =
-    input.branchId && role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER
-      ? await prisma.organizationUnit.findFirst({
-          where: {
-            id: input.branchId,
-            tenantId: context.membership.tenantId,
-          },
-        })
-      : null;
-
-  if (role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER && !orgUnit) {
-    throw new Error("Vyberte pobočku pro člověka, který nemá pracovat s celou stranou.");
-  }
 
   const existing = await prisma.tenantMembership.findFirst({
     where: {
       id: memberId,
       tenantId: context.membership.tenantId,
+      ...(context.tenantWideRole ? {} : { orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }),
     },
     include: {
       user: true,
@@ -2669,6 +3013,30 @@ export async function updateAppMember(userId: string, memberId: string, input: A
 
   if (!existing) {
     return null;
+  }
+
+  if (existing.role === UserRole.SUPER_ADMIN && context.membership.role !== UserRole.SUPER_ADMIN) {
+    throw new Error("Super admina může upravit jen super admin.");
+  }
+
+  if (!canAssignRole(context, role)) {
+    throw new Error("Tuto roli nemůžete přiřadit.");
+  }
+
+  const branchId = context.tenantWideRole ? input.branchId : context.membership.orgUnitId || "";
+  const orgUnit =
+    roleNeedsOrgUnit(role) && branchId
+      ? await prisma.organizationUnit.findFirst({
+          where: {
+            id: branchId,
+            tenantId: context.membership.tenantId,
+            archivedAt: null,
+          },
+        })
+      : null;
+
+  if (roleNeedsOrgUnit(role) && !orgUnit) {
+    throw new Error("Vyberte pobočku pro člověka, který nemá pracovat s celou stranou.");
   }
 
   const targetWasActiveAdmin =
@@ -2708,7 +3076,7 @@ export async function updateAppMember(userId: string, memberId: string, input: A
       data: {
         role,
         status,
-        orgUnitId: role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER ? null : orgUnit?.id,
+        orgUnitId: roleNeedsOrgUnit(role) ? orgUnit?.id : null,
       },
       include: {
         user: true,

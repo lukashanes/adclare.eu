@@ -2,19 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
-import type { AdImportResult, AdRecord, AppMemberUpdateInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
+import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
-
-const inviteRoles: Array<{ value: InviteInput["role"]; label: string }> = [
-  { value: "LOCAL_ADMIN", label: "Správce pobočky" },
-  { value: "CAMPAIGN_MANAGER", label: "Kampaňový manažer" },
-  { value: "DESIGNER", label: "Grafik nebo agentura" },
-  { value: "CANDIDATE", label: "Kandidát" },
-  { value: "CENTRAL_REVIEWER", label: "Kontrola" },
-  { value: "READONLY_AUDITOR", label: "Pouze náhled" },
-  { value: "PARTY_ADMIN", label: "Správce strany" },
-];
 
 const workflowClass: Record<AdRecord["workflowStatus"], string> = {
   DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
@@ -67,11 +57,35 @@ function workspaceWithAd(workspace: AppWorkspacePayload, nextAd: AdRecord) {
   };
 }
 
+function roleNeedsBranch(role: InviteInput["role"]) {
+  return role !== "PARTY_ADMIN" && role !== "CENTRAL_REVIEWER" && role !== "READONLY_AUDITOR" && role !== "SUPER_ADMIN";
+}
+
+function workspaceWithBranch(workspace: AppWorkspacePayload, branch: AppWorkspacePayload["branches"][number]) {
+  const branches = workspace.branches.some((item) => item.id === branch.id)
+    ? workspace.branches.map((item) => (item.id === branch.id ? branch : item))
+    : [...workspace.branches, branch];
+
+  const activeBranches = branches.filter((item) => !item.archived);
+
+  return {
+    ...workspace,
+    branches,
+    users: {
+      ...workspace.users,
+      branches: activeBranches,
+    },
+  };
+}
+
 function blankInviteForm(workspace: AppWorkspacePayload): InviteInput {
+  const role = (workspace.users.assignableRoles[0]?.value as InviteInput["role"] | undefined) ?? "CAMPAIGN_MANAGER";
+  const branch = workspace.users.branches.find((item) => !item.archived) ?? workspace.users.branches[0] ?? workspace.branches.find((item) => !item.archived);
+
   return {
     email: "",
-    role: "LOCAL_ADMIN",
-    branchId: workspace.branches[0]?.id ?? "",
+    role,
+    branchId: branch?.id ?? "",
   };
 }
 
@@ -86,7 +100,7 @@ function toInputDate(value: string) {
 }
 
 function blankForm(workspace: AppWorkspacePayload): EditableAdInput {
-  const defaultBranch = workspace.branches[0]?.name || (workspace.membership.scope === "celá strana" ? "" : workspace.membership.scope);
+  const defaultBranch = workspace.branches.find((branch) => !branch.archived)?.name || (workspace.membership.scope === "celá strana" ? "" : workspace.membership.scope);
 
   return {
     code: "",
@@ -263,6 +277,9 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [branchName, setBranchName] = useState("");
   const [branchKind, setBranchKind] = useState("oblast");
   const [branchSaving, setBranchSaving] = useState(false);
+  const [branchSavingId, setBranchSavingId] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const profileInputRef = useRef<HTMLInputElement>(null);
@@ -270,6 +287,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteMessage, setInviteMessage] = useState("");
   const [retryingInviteId, setRetryingInviteId] = useState("");
+  const [invitationActionId, setInvitationActionId] = useState("");
   const [memberSavingId, setMemberSavingId] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [importing, setImporting] = useState(false);
@@ -346,6 +364,73 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       setError(branchError instanceof Error ? branchError.message : "Pobočku se nepodařilo založit.");
     } finally {
       setBranchSaving(false);
+    }
+  }
+
+  async function saveTenantSettings(input: AppTenantSettingsInput) {
+    if (!workspace.permissions.canManageTenantSettings || settingsSaving) {
+      return;
+    }
+
+    setSettingsSaving(true);
+    setSettingsMessage("");
+    setError("");
+
+    try {
+      const response = await fetch("/api/app/settings?locale=cs", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { tenant?: AppWorkspacePayload["tenant"]; error?: string };
+
+      if (!response.ok || !payload.tenant) {
+        throw new Error(payload.error || `Settings update failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        tenant: payload.tenant as AppWorkspacePayload["tenant"],
+      }));
+      setSettingsMessage("Nastavení je uložené.");
+      await refreshWorkspace();
+    } catch (settingsError) {
+      setError(settingsError instanceof Error ? settingsError.message : "Nastavení se nepodařilo uložit.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
+  async function updateBranch(branchId: string, input: AppBranchUpdateInput) {
+    if ((!workspace.permissions.canManageBranches && !workspace.permissions.canEditOwnBranch) || branchSavingId) {
+      return;
+    }
+
+    setBranchSavingId(branchId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/app/branches/${encodeURIComponent(branchId)}?locale=cs`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { branch?: AppWorkspacePayload["branches"][number]; error?: string };
+
+      if (!response.ok || !payload.branch) {
+        throw new Error(payload.error || `Branch update failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => workspaceWithBranch(current, payload.branch as AppWorkspacePayload["branches"][number]));
+      await refreshWorkspace();
+    } catch (branchError) {
+      setError(branchError instanceof Error ? branchError.message : "Pobočku se nepodařilo uložit.");
+    } finally {
+      setBranchSavingId("");
     }
   }
 
@@ -506,6 +591,38 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       setError(inviteError instanceof Error ? inviteError.message : "Pozvánku se nepodařilo znovu odeslat.");
     } finally {
       setRetryingInviteId("");
+    }
+  }
+
+  async function revokeInvitation(invitationId: string) {
+    if (!workspace.permissions.canManageUsers || invitationActionId) {
+      return;
+    }
+
+    setInvitationActionId(invitationId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/app/users/${encodeURIComponent(invitationId)}/revoke-invitation?locale=cs`, {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string };
+
+      if (!response.ok || !payload.invitation) {
+        throw new Error(payload.error || `Invite revoke failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        users: {
+          ...current.users,
+          invitations: current.users.invitations.map((item) => (item.id === payload.invitation?.id ? payload.invitation : item)),
+        },
+      }));
+    } catch (inviteError) {
+      setError(inviteError instanceof Error ? inviteError.message : "Pozvánku se nepodařilo zrušit.");
+    } finally {
+      setInvitationActionId("");
     }
   }
 
@@ -773,49 +890,29 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         <Editor mode={mode} form={form} branches={workspace.branches} saving={saving} writable={writable} onCancel={() => setMode(null)} onChange={setForm} onSave={saveAd} />
       ) : null}
 
-      {workspace.permissions.canManageBranches ? (
-        <section id="branches" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-black">Pobočky a oblasti</h2>
-              <p className="mt-1 text-sm text-[#59616b]">Nové reklamy vybírají pobočku z tohoto seznamu, takže nevznikají duplicity z překlepů.</p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-[150px_minmax(180px,1fr)_auto]">
-              <select
-                value={branchKind}
-                onChange={(event) => setBranchKind(event.target.value)}
-                className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold outline-none focus:border-[#f45d1f]"
-              >
-                <option value="centrala">Centrála</option>
-                <option value="kraj">Kraj</option>
-                <option value="oblast">Oblast</option>
-                <option value="pobočka">Pobočka</option>
-              </select>
-              <input
-                value={branchName}
-                onChange={(event) => setBranchName(event.target.value)}
-                placeholder="Název pobočky"
-                className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]"
-              />
-              <button
-                type="button"
-                onClick={createBranch}
-                disabled={branchSaving || !branchName.trim()}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-              >
-                <Plus size={15} />
-                {branchSaving ? "Ukládám" : "Přidat"}
-              </button>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {workspace.branches.map((branch) => (
-              <span key={branch.id} className="rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-xs font-semibold text-[#25282d]">
-                {branch.name}
-              </span>
-            ))}
-          </div>
-        </section>
+      {workspace.permissions.canManageTenantSettings ? (
+        <SettingsPanel
+          tenant={workspace.tenant}
+          saving={settingsSaving}
+          message={settingsMessage}
+          onSave={saveTenantSettings}
+        />
+      ) : null}
+
+      {workspace.permissions.canManageBranches || workspace.permissions.canEditOwnBranch ? (
+        <BranchesPanel
+          branches={workspace.branches}
+          canCreate={workspace.permissions.canManageBranches}
+          canArchive={workspace.permissions.canManageBranches}
+          branchName={branchName}
+          branchKind={branchKind}
+          branchSaving={branchSaving}
+          branchSavingId={branchSavingId}
+          onBranchKindChange={setBranchKind}
+          onBranchNameChange={setBranchName}
+          onCreate={createBranch}
+          onUpdate={updateBranch}
+        />
       ) : null}
 
       {workspace.permissions.canManageUsers ? (
@@ -824,14 +921,18 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           form={inviteForm}
           saving={inviteSaving}
           retryingInviteId={retryingInviteId}
+          invitationActionId={invitationActionId}
           memberSavingId={memberSavingId}
           message={inviteMessage}
           onChange={setInviteForm}
           onCreate={createInvitation}
           onRetryEmail={retryInvitationEmail}
+          onRevokeInvitation={revokeInvitation}
           onUpdateMember={updateMember}
         />
       ) : null}
+
+      {workspace.permissions.canViewAudit ? <AuditPanel logs={workspace.auditLogs} /> : null}
 
       <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
 
@@ -1080,8 +1181,8 @@ function Editor({
                           empty ? "border-red-300" : "border-black/10"
                         }`}
                       >
-                        {branches.length === 0 ? <option value="">Nejdřív založte pobočku</option> : null}
-                        {branches.map((branch) => (
+                        {branches.filter((branch) => !branch.archived).length === 0 ? <option value="">Nejdřív založte pobočku</option> : null}
+                        {branches.filter((branch) => !branch.archived).map((branch) => (
                           <option key={branch.id} value={branch.name}>
                             {branch.name}
                           </option>
@@ -1306,30 +1407,253 @@ function ImportPanel({
   );
 }
 
+function SettingsPanel({
+  tenant,
+  saving,
+  message,
+  onSave,
+}: {
+  tenant: AppWorkspacePayload["tenant"];
+  saving: boolean;
+  message: string;
+  onSave: (input: AppTenantSettingsInput) => void;
+}) {
+  return (
+    <section id="settings" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Nastavení strany</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Název, veřejný repozitář a základní pravidla pro archivaci jsou společná pro celý pracovní prostor.</p>
+        </div>
+        {message ? <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800">{message}</span> : null}
+      </div>
+
+      <form
+        className="mt-4 grid gap-3 lg:grid-cols-[minmax(180px,1.2fr)_180px_minmax(180px,1fr)_150px_150px_150px]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const formData = new FormData(event.currentTarget);
+          onSave({
+            name: String(formData.get("name") ?? ""),
+            slug: String(formData.get("slug") ?? ""),
+            contactEmail: String(formData.get("contactEmail") ?? ""),
+            defaultLocale: String(formData.get("defaultLocale") ?? "cs") === "en" ? "en" : "cs",
+            publicRepositoryEnabled: formData.get("publicRepositoryEnabled") === "on",
+            retentionYears: Number(formData.get("retentionYears") ?? tenant.retentionYears),
+          });
+        }}
+      >
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Název
+          <input name="name" defaultValue={tenant.name} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Slug
+          <input name="slug" defaultValue={tenant.slug} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Kontaktní e-mail
+          <input name="contactEmail" defaultValue={tenant.contactEmail} type="email" className="h-10 rounded-md border border-black/10 px-3 text-sm text-black outline-none focus:border-[#f45d1f]" />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Jazyk
+          <select name="defaultLocale" defaultValue={tenant.defaultLocale} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]">
+            <option value="cs">Čeština</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Archiv roky
+          <input name="retentionYears" defaultValue={tenant.retentionYears} type="number" min={1} max={20} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
+        </label>
+        <div className="grid gap-2">
+          <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold text-[#20242a]">
+            <input name="publicRepositoryEnabled" type="checkbox" defaultChecked={tenant.publicRepositoryEnabled} className="size-4 accent-[#f45d1f]" />
+            Veřejný repo
+          </label>
+          <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
+            <Save size={15} />
+            {saving ? "Ukládám" : "Uložit"}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function BranchesPanel({
+  branches,
+  canCreate,
+  canArchive,
+  branchName,
+  branchKind,
+  branchSaving,
+  branchSavingId,
+  onBranchKindChange,
+  onBranchNameChange,
+  onCreate,
+  onUpdate,
+}: {
+  branches: AppWorkspacePayload["branches"];
+  canCreate: boolean;
+  canArchive: boolean;
+  branchName: string;
+  branchKind: string;
+  branchSaving: boolean;
+  branchSavingId: string;
+  onBranchKindChange: (value: string) => void;
+  onBranchNameChange: (value: string) => void;
+  onCreate: () => void;
+  onUpdate: (branchId: string, input: AppBranchUpdateInput) => void;
+}) {
+  return (
+    <section id="branches" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Pobočky a oblasti</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Pobočka má vlastní název, typ, kontakt a stav. Archivované pobočky zůstávají v historii, ale nepoužívají se pro nové reklamy.</p>
+        </div>
+        {canCreate ? (
+          <div className="grid gap-2 sm:grid-cols-[150px_minmax(180px,1fr)_auto]">
+            <select value={branchKind} onChange={(event) => onBranchKindChange(event.target.value)} className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold outline-none focus:border-[#f45d1f]">
+              <option value="centrala">Centrála</option>
+              <option value="kraj">Kraj</option>
+              <option value="oblast">Oblast</option>
+              <option value="pobočka">Pobočka</option>
+            </select>
+            <input value={branchName} onChange={(event) => onBranchNameChange(event.target.value)} placeholder="Název pobočky" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+            <button type="button" onClick={onCreate} disabled={branchSaving || !branchName.trim()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
+              <Plus size={15} />
+              {branchSaving ? "Ukládám" : "Přidat"}
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {branches.map((branch) => (
+          <form
+            key={branch.id}
+            className={`grid min-w-0 gap-2 rounded-md border p-3 xl:grid-cols-[minmax(160px,1fr)_150px_minmax(160px,1fr)_minmax(180px,1fr)_140px_130px] xl:items-end ${
+              branch.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"
+            }`}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const formData = new FormData(event.currentTarget);
+              onUpdate(branch.id, {
+                name: String(formData.get("name") ?? ""),
+                kind: String(formData.get("kind") ?? branch.kind),
+                parentId: String(formData.get("parentId") ?? ""),
+                contactEmail: String(formData.get("contactEmail") ?? ""),
+                description: String(formData.get("description") ?? ""),
+                archived: formData.get("archived") === "on",
+              });
+            }}
+          >
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Název
+              <input name="name" defaultValue={branch.name} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Typ
+              <select name="kind" defaultValue={branch.kind} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]">
+                <option value="centrala">Centrála</option>
+                <option value="kraj">Kraj</option>
+                <option value="oblast">Oblast</option>
+                <option value="pobočka">Pobočka</option>
+              </select>
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Nadřazená
+              <select name="parentId" defaultValue={branch.parentId} disabled={!canCreate} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]">
+                <option value="">Bez nadřazené</option>
+                {branches.filter((item) => item.id !== branch.id && !item.archived).map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Kontakt
+              <input name="contactEmail" defaultValue={branch.contactEmail} type="email" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Poznámka
+              <input name="description" defaultValue={branch.description} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <div className="grid gap-2">
+              {canArchive ? (
+                <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-[#20242a]">
+                  <input name="archived" type="checkbox" defaultChecked={branch.archived} className="size-4 accent-[#f45d1f]" />
+                  Archiv
+                </label>
+              ) : null}
+              <button type="submit" disabled={Boolean(branchSavingId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
+                <Save size={15} />
+                {branchSavingId === branch.id ? "Ukládám" : "Uložit"}
+              </button>
+            </div>
+          </form>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
+  return (
+    <section id="audit" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Audit</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Poslední změny v pracovním prostoru. Slouží pro rychlou kontrolu, kdo co upravil.</p>
+        </div>
+        <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">{logs.length} záznamů</span>
+      </div>
+      <div className="mt-4 grid gap-2">
+        {logs.slice(0, 12).map((log) => (
+          <article key={log.id} className="grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 lg:grid-cols-[180px_180px_minmax(0,1fr)]">
+            <div className="text-xs font-semibold text-[#68707a]">{new Date(log.createdAt).toLocaleString("cs-CZ")}</div>
+            <div className="break-all text-sm font-semibold text-[#20242a]">{log.actor}</div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">{log.action}</div>
+              <p className="mt-1 text-sm leading-6 text-[#59616b]">{log.message}</p>
+            </div>
+          </article>
+        ))}
+        {logs.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím tu nejsou žádné auditní záznamy.</div> : null}
+      </div>
+    </section>
+  );
+}
+
 function PeoplePanel({
   users,
   form,
   saving,
   retryingInviteId,
+  invitationActionId,
   memberSavingId,
   message,
   onChange,
   onCreate,
   onRetryEmail,
+  onRevokeInvitation,
   onUpdateMember,
 }: {
   users: AppWorkspacePayload["users"];
   form: InviteInput;
   saving: boolean;
   retryingInviteId: string;
+  invitationActionId: string;
   memberSavingId: string;
   message: string;
   onChange: (form: InviteInput) => void;
   onCreate: () => void;
   onRetryEmail: (invitationId: string) => void;
+  onRevokeInvitation: (invitationId: string) => void;
   onUpdateMember: (memberId: string, input: AppMemberUpdateInput) => void;
 }) {
-  const roleNeedsBranch = form.role !== "PARTY_ADMIN" && form.role !== "CENTRAL_REVIEWER";
+  const inviteRoleNeedsBranch = roleNeedsBranch(form.role);
   const activeCount = users.members.filter((member) => member.statusKey === "ACTIVE").length;
 
   return (
@@ -1380,7 +1704,10 @@ function PeoplePanel({
                       defaultValue={member.roleKey}
                       className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
                     >
-                      {inviteRoles.map((role) => (
+                      {users.assignableRoles.some((role) => role.value === member.roleKey) ? null : (
+                        <option value={member.roleKey}>{member.role}</option>
+                      )}
+                      {users.assignableRoles.map((role) => (
                         <option key={role.value} value={role.value}>
                           {role.label}
                         </option>
@@ -1447,11 +1774,22 @@ function PeoplePanel({
                     <button
                       type="button"
                       onClick={() => onRetryEmail(invitation.id)}
-                      disabled={Boolean(retryingInviteId)}
+                      disabled={Boolean(retryingInviteId) || invitation.statusKey === "REVOKED" || invitation.statusKey === "ACCEPTED"}
                       className="mt-2 inline-flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
                     >
                       <RefreshCw size={15} />
                       {retryingInviteId === invitation.id ? "Odesílám" : "Zkusit odeslat znovu"}
+                    </button>
+                  ) : null}
+                  {invitation.statusKey !== "ACCEPTED" && invitation.statusKey !== "REVOKED" ? (
+                    <button
+                      type="button"
+                      onClick={() => onRevokeInvitation(invitation.id)}
+                      disabled={Boolean(invitationActionId)}
+                      className="mt-2 inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
+                    >
+                      <X size={15} />
+                      {invitationActionId === invitation.id ? "Ruším" : "Zrušit pozvánku"}
                     </button>
                   ) : null}
                 </div>
@@ -1483,7 +1821,7 @@ function PeoplePanel({
               onChange={(event) => onChange({ ...form, role: event.target.value as InviteInput["role"] })}
               className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
             >
-              {inviteRoles.map((role) => (
+              {users.assignableRoles.map((role) => (
                 <option key={role.value} value={role.value}>
                   {role.label}
                 </option>
@@ -1496,10 +1834,10 @@ function PeoplePanel({
             <select
               value={form.branchId ?? ""}
               onChange={(event) => onChange({ ...form, branchId: event.target.value })}
-              disabled={!roleNeedsBranch}
+              disabled={!inviteRoleNeedsBranch}
               className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]"
             >
-              <option value="">{roleNeedsBranch ? "Vyberte pobočku" : "Celá strana"}</option>
+              <option value="">{inviteRoleNeedsBranch ? "Vyberte pobočku" : "Celá strana"}</option>
               {users.branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -1511,7 +1849,7 @@ function PeoplePanel({
           <button
             type="button"
             onClick={onCreate}
-            disabled={saving || !form.email.trim() || (roleNeedsBranch && !form.branchId)}
+            disabled={saving || !form.email.trim() || (inviteRoleNeedsBranch && !form.branchId)}
             className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
           >
             <Plus size={15} />

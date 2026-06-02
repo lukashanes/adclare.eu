@@ -1,4 +1,13 @@
-import type { AppBranchInput, AppMemberUpdateInput, AppProfileInput, EditableAdInput, InviteInput, ReviewDecisionInput } from "@/lib/admin-demo-types";
+import type {
+  AppBranchInput,
+  AppBranchUpdateInput,
+  AppMemberUpdateInput,
+  AppProfileInput,
+  AppTenantSettingsInput,
+  EditableAdInput,
+  InviteInput,
+  ReviewDecisionInput,
+} from "@/lib/admin-demo-types";
 
 export class RequestValidationError extends Error {
   readonly status = 400;
@@ -51,6 +60,26 @@ function optionalDate(value: string, field: string) {
   }
 
   return value;
+}
+
+function numberValue(value: unknown, field: string, options: { min?: number; max?: number } = {}) {
+  const numeric = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+
+  if (!Number.isFinite(numeric)) {
+    throw new RequestValidationError(`${field} must be a number.`);
+  }
+
+  const rounded = Math.trunc(numeric);
+
+  if (options.min !== undefined && rounded < options.min) {
+    throw new RequestValidationError(`${field} is too low.`);
+  }
+
+  if (options.max !== undefined && rounded > options.max) {
+    throw new RequestValidationError(`${field} is too high.`);
+  }
+
+  return rounded;
 }
 
 export function parseEditableAdInput(value: unknown): EditableAdInput {
@@ -114,6 +143,33 @@ export function parseAppBranchInput(value: unknown): AppBranchInput {
   return {
     name: text(body.name, "name", { required: true, max: 140 }),
     kind: text(body.kind, "kind", { max: 80 }) || "oblast",
+  };
+}
+
+export function parseAppBranchUpdateInput(value: unknown): AppBranchUpdateInput {
+  const body = record(value);
+
+  return {
+    name: text(body.name, "name", { required: true, max: 140 }),
+    kind: text(body.kind, "kind", { max: 80 }) || "oblast",
+    parentId: text(body.parentId, "parentId", { max: 120 }),
+    contactEmail: text(body.contactEmail, "contactEmail", { max: 240 }).toLowerCase(),
+    description: text(body.description, "description", { max: 500 }),
+    archived: body.archived === true,
+  };
+}
+
+export function parseAppTenantSettingsInput(value: unknown): AppTenantSettingsInput {
+  const body = record(value);
+  const defaultLocale = text(body.defaultLocale, "defaultLocale", { max: 8 }) === "en" ? "en" : "cs";
+
+  return {
+    name: text(body.name, "name", { required: true, max: 160 }),
+    slug: text(body.slug, "slug", { required: true, max: 80 }),
+    contactEmail: text(body.contactEmail, "contactEmail", { max: 240 }).toLowerCase(),
+    defaultLocale,
+    publicRepositoryEnabled: body.publicRepositoryEnabled === true,
+    retentionYears: numberValue(body.retentionYears, "retentionYears", { min: 1, max: 20 }),
   };
 }
 

@@ -62,12 +62,16 @@ enum ApprovalStatus {
 }
 
 model Tenant {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  nameCs    String
-  nameEn    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  slug                    String   @unique
+  nameCs                  String
+  nameEn                  String
+  contactEmail            String   @default("")
+  defaultLocale           String   @default("cs")
+  publicRepositoryEnabled Boolean  @default(true)
+  retentionYears          Int      @default(7)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   campaigns         Campaign[]
   organizationUnits OrganizationUnit[]
@@ -104,22 +108,31 @@ model Campaign {
 }
 
 model OrganizationUnit {
-  id        String   @id @default(cuid())
-  tenantId  String
-  slug      String
-  kind      String
-  nameCs    String
-  nameEn    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(cuid())
+  tenantId    String
+  parentId    String?
+  slug        String
+  kind        String
+  nameCs      String
+  nameEn      String
+  contactEmail String   @default("")
+  descriptionCs String  @default("")
+  descriptionEn String  @default("")
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent      OrganizationUnit?  @relation("OrganizationUnitTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    OrganizationUnit[] @relation("OrganizationUnitTree")
   ads         Ad[]
   memberships TenantMembership[]
   invitations Invitation[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
+  @@index([parentId])
+  @@index([tenantId, archivedAt])
   @@map("organization_units")
 }
 

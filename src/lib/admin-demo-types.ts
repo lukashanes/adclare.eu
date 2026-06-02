@@ -187,11 +187,25 @@ export type AdImportResult = {
 export type AdminBranchOption = {
   id: string;
   name: string;
+  kind: string;
+  parentId: string;
+  contactEmail: string;
+  description: string;
+  archived: boolean;
 };
 
 export type AppBranchInput = {
   name: string;
   kind: string;
+};
+
+export type AppBranchUpdateInput = {
+  name: string;
+  kind: string;
+  parentId?: string;
+  contactEmail?: string;
+  description?: string;
+  archived?: boolean;
 };
 
 export type ReviewDecisionInput = {
@@ -228,6 +242,7 @@ export type AdminUsersPayload = {
   members: AdminMemberRecord[];
   invitations: AdminInvitationRecord[];
   branches: AdminBranchOption[];
+  assignableRoles: PublicRepositoryOption[];
 };
 
 export type InviteInput = {
@@ -245,6 +260,23 @@ export type AppMemberUpdateInput = {
   role: AdminRoleKey;
   branchId?: string;
   status: MemberStatusKey;
+};
+
+export type AppTenantSettingsInput = {
+  name: string;
+  slug: string;
+  contactEmail?: string;
+  defaultLocale: Locale;
+  publicRepositoryEnabled: boolean;
+  retentionYears: number;
+};
+
+export type AppAuditRecord = {
+  id: string;
+  actor: string;
+  action: string;
+  message: string;
+  createdAt: string;
 };
 
 export type InvitationNotice = {
@@ -265,6 +297,10 @@ export type AppWorkspacePayload = {
   tenant: {
     name: string;
     slug: string;
+    contactEmail: string;
+    defaultLocale: Locale;
+    publicRepositoryEnabled: boolean;
+    retentionYears: number;
   };
   membership: {
     role: string;
@@ -280,7 +316,10 @@ export type AppWorkspacePayload = {
     canApproveAds: boolean;
     canPublishAds: boolean;
     canManageBranches: boolean;
+    canEditOwnBranch: boolean;
     canManageUsers: boolean;
+    canManageTenantSettings: boolean;
+    canViewAudit: boolean;
   };
   storage: {
     configured: boolean;
@@ -289,6 +328,7 @@ export type AppWorkspacePayload = {
     maxUploadSizeMb: number;
   };
   users: AdminUsersPayload;
+  auditLogs: AppAuditRecord[];
   ads: AdRecord[];
   counts: {
     all: number;

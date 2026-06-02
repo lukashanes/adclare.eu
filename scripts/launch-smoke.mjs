@@ -104,12 +104,16 @@ check(schema.includes("DESIGNER") && adminDb.includes("canUploadAppAssets"), "De
 check(adminDb.includes("canApproveAppAds") && adminDb.includes("canPublishAppAds"), "Approval and publishing permissions should be explicit.");
 check(appWorkspace.includes("workspace.permissions.canCreateAds"), "Workspace should use API permissions for create actions.");
 check(adminDb.includes("createAppBranch") && existsSync(resolve(root, "src/app/api/app/branches/route.ts")), "App branch management route is missing.");
-check(appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type === "branch"'), "Workspace should use controlled branch management.");
+check(existsSync(resolve(root, "src/app/api/app/branches/[id]/route.ts")), "App branch update route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/settings/route.ts")), "App tenant settings route is missing.");
+check(appWorkspace.includes("Nastavení strany") && appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type === "branch"'), "Workspace should expose tenant and branch management.");
 check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/profile/route.ts")), "App profile update route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/users/[id]/route.ts")), "App member update route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/users/[id]/retry-email/route.ts")), "App invitation retry route is missing.");
-check(appWorkspace.includes("Správa lidí") && appWorkspace.includes("Uložit profil") && appWorkspace.includes("Poslat pozvánku"), "Workspace should expose profile, people and invitation management.");
+check(existsSync(resolve(root, "src/app/api/app/users/[id]/revoke-invitation/route.ts")), "App invitation revoke route is missing.");
+check(appWorkspace.includes("Správa lidí") && appWorkspace.includes("Uložit profil") && appWorkspace.includes("Poslat pozvánku") && appWorkspace.includes("Zrušit pozvánku"), "Workspace should expose profile, people and invitation management.");
+check(appWorkspace.includes("Audit") && adminDb.includes("update_tenant_settings") && adminDb.includes("update_branch"), "Workspace should expose audit and log admin changes.");
 check(appWorkspace.includes("Co je potřeba doplnit") && appWorkspace.includes("Doplnit údaje"), "Workspace should expose a missing data action queue.");
 check(appWorkspace.includes("Proces pro každou reklamu") && appWorkspace.includes("8. V souladu s TTPA") && appWorkspace.includes("setupProgress"), "Workspace should expose the eight-step ad process.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
@@ -134,7 +138,7 @@ check(adminPage.includes("isDemoAdminEnabled") && adminPage.includes("notFound()
 check(composeProd.includes("ENABLE_DEMO_ADMIN: ${ENABLE_DEMO_ADMIN:-0}"), "Production compose should disable demo admin by default.");
 check(composeProd.includes("ADMIN_ACCESS_PASSWORD: ${ADMIN_ACCESS_PASSWORD:-}"), "Production compose should not require demo admin password when demo admin is disabled.");
 check(composeProd.includes("ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}"), "Production compose should not require demo admin secret when demo admin is disabled.");
-check(adminDb.includes("isDemoPublicRepositoryEnabled") && adminDb.includes("NEXT_PUBLIC_SHOW_DEMO_REPO"), "Public demo repository should require an explicit feature flag.");
+check(adminDb.includes("publicRepositoryEnabled"), "Public repository should be controlled by tenant settings.");
 
 for (const path of [
   "src/app/[locale]/privacy/page.tsx",
