@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security issue
+    url: mailto:support@adclare.eu
+    about: Please report security issues privately.
+  - name: Hosting and implementation support
+    url: mailto:support@adclare.eu
+    about: Contact the Adclare team for setup, migration and production support.

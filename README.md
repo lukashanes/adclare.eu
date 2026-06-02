@@ -6,6 +6,18 @@ It helps political parties, candidates, agencies and compliance teams keep one c
 
 Adclare is licensed under the European Union Public Licence v1.2 (EUPL-1.2).
 
+## Official Repository and Releases
+
+The official Adclare source is:
+
+https://github.com/lukashanes/adclare.eu
+
+Collaborators and contributors can work through branches, forks and pull requests. The main downloadable version is always the version released from `lukashanes/adclare.eu` by the repository owner or maintainers explicitly authorized by the owner.
+
+Official releases are published as `v*` tags and GitHub Releases in this repository. Forks may publish their own builds, but they are not official Adclare releases unless explicitly marked by the repository owner.
+
+See [GOVERNANCE.md](GOVERNANCE.md) for the contribution and release model.
+
 ## What Adclare Solves
 
 Political advertising work often happens across email threads, spreadsheets, graphics folders and last-minute approval messages. TTPA adds a clear need to know who paid for an advert, who ordered it, when and where it is published, what it cost, and whether targeting was used.

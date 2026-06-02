@@ -12,6 +12,14 @@ Contributions are welcome in these areas:
 - Export formats and integrations.
 - Documentation.
 
+## Official Repository
+
+The official repository is `lukashanes/adclare.eu`.
+
+Please contribute through pull requests. The protected `main` branch and `v*` release tags are used for the official downloadable version. Collaborator access can be granted for trusted contributors, but accepted changes still go through review and CI before they become part of the public release line.
+
+See [GOVERNANCE.md](GOVERNANCE.md) for roles, contribution flow and release flow.
+
 ## Development
 
 ```bash

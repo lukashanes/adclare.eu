@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a problem in Adclare.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please do not include secrets, private campaign data or personal data.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem and the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the steps that trigger the problem.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.1.0 or commit hash
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, Node.js version, Docker, hosting provider or other relevant setup details.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Add only non-sensitive logs or screenshots.
