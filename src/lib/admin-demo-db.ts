@@ -305,8 +305,8 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     archivedAt: isoDate(ad.archivedAt),
     updatedAt: formatDate(ad.updatedAt, locale),
     canRequestReview: missing.length === 0 && workflowStatus !== AdWorkflowStatus.READY_FOR_REVIEW && workflowStatus !== AdWorkflowStatus.APPROVED && workflowStatus !== AdWorkflowStatus.PUBLISHED,
-    canApprove: missing.length === 0 && workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW,
-    canPublish: missing.length === 0 && workflowStatus === AdWorkflowStatus.APPROVED,
+    canApprove: missing.length === 0 && assets.length > 0 && workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW,
+    canPublish: missing.length === 0 && assets.length > 0 && workflowStatus === AdWorkflowStatus.APPROVED,
     canRequestChanges: missing.length === 0 && (workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW || workflowStatus === AdWorkflowStatus.APPROVED),
     canDownloadQr: missing.length === 0 && workflowStatus !== AdWorkflowStatus.ARCHIVED && workflowStatus !== AdWorkflowStatus.NEEDS_DATA,
     assetCount: assets.length,
@@ -1967,6 +1967,17 @@ async function findTenantAd(code: string) {
   return { tenant, ad };
 }
 
+async function hasAdAsset(tenantId: string, adId: string) {
+  const count = await prisma.adAsset.count({
+    where: {
+      tenantId,
+      adId,
+    },
+  });
+
+  return count > 0;
+}
+
 export async function approveDemoAd(code: string, locale: Locale) {
   const { tenant, ad } = await findTenantAd(code);
 
@@ -1978,6 +1989,10 @@ export async function approveDemoAd(code: string, locale: Locale) {
 
   if (missing.length > 0) {
     throw new Error("Required data is missing.");
+  }
+
+  if (!(await hasAdAsset(tenant.id, ad.id))) {
+    throw new Error("Nahrajte podklad reklamy před schválením.");
   }
 
   if (ad.workflowStatus !== AdWorkflowStatus.READY_FOR_REVIEW) {
@@ -2070,6 +2085,10 @@ export async function publishDemoAd(code: string, locale: Locale) {
 
   if (missing.length > 0) {
     throw new Error("Required data is missing.");
+  }
+
+  if (!(await hasAdAsset(tenant.id, ad.id))) {
+    throw new Error("Nahrajte podklad reklamy před publikací.");
   }
 
   if (ad.workflowStatus !== AdWorkflowStatus.APPROVED) {
@@ -5122,6 +5141,10 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
     throw new Error("Required data is missing.");
   }
 
+  if (!(await hasAdAsset(context.membership.tenantId, ad.id))) {
+    throw new Error("Nahrajte podklad reklamy před schválením.");
+  }
+
   if (ad.workflowStatus === AdWorkflowStatus.PUBLISHED || ad.workflowStatus === AdWorkflowStatus.ARCHIVED) {
     throw new Error("Ad is already locked.");
   }
@@ -5346,6 +5369,10 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
 
   if (missing.length > 0) {
     throw new Error("Required data is missing.");
+  }
+
+  if (!(await hasAdAsset(context.membership.tenantId, ad.id))) {
+    throw new Error("Nahrajte podklad reklamy před publikací.");
   }
 
   if (ad.workflowStatus === AdWorkflowStatus.PUBLISHED || ad.workflowStatus === AdWorkflowStatus.ARCHIVED) {

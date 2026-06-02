@@ -140,6 +140,8 @@ check(adminDb.includes("getAppSuperAdminPayload") && adminDb.includes("canManage
 check(appWorkspace.includes("Správa celé instalace") && appWorkspace.includes("workspace.permissions.canManageAllTenants"), "Workspace should expose the super admin installation overview.");
 check(appWorkspace.includes("Co je potřeba doplnit") && appWorkspace.includes("Doplnit údaje"), "Workspace should expose a missing data action queue.");
 check(appWorkspace.includes("Proces pro každou reklamu") && appWorkspace.includes("8. V souladu s TTPA") && appWorkspace.includes("setupProgress"), "Workspace should expose the eight-step ad process.");
+check(appWorkspace.includes("Kontrolní proces reklamy") && appWorkspace.includes("Nařízení EU o transparentnosti a cílení politické reklamy") && appWorkspace.includes("Teď řešit"), "Workspace should expose a per-ad TTPA checklist.");
+check(adminDb.includes("hasAdAsset") && adminDb.includes("Nahrajte podklad reklamy před schválením.") && adminDb.includes("Nahrajte podklad reklamy před publikací."), "Approval and publication should require an uploaded ad asset.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");

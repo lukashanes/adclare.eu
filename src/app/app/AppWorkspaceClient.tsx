@@ -219,6 +219,94 @@ function deadlineIcon(ad: AdRecord) {
   return <CircleDot className="h-4 w-4 text-orange-700" aria-hidden="true" />;
 }
 
+function hasValue(value: string) {
+  return value.trim().length > 0;
+}
+
+type AdProcessStep = {
+  key: string;
+  title: string;
+  text: string;
+  nextAction: string;
+  done: boolean;
+};
+
+function adProcessSteps(ad: AdRecord): AdProcessStep[] {
+  const coreReady = hasValue(ad.title) && hasValue(ad.branch) && hasValue(ad.campaign);
+  const assetReady = ad.assetCount > 0;
+  const identityReady = hasValue(ad.owner) && hasValue(ad.payer);
+  const moneyReady = hasValue(ad.amount) && hasValue(ad.fundingSource);
+  const publicationReady = hasValue(ad.type) && hasValue(ad.publicationDateIso) && hasValue(ad.period) && hasValue(ad.distributionArea);
+  const targetingReady = ad.isTargeted ? hasValue(ad.targeting) && hasValue(ad.targetAudience) : true;
+  const approved = ad.workflowStatus === "APPROVED" || ad.workflowStatus === "PUBLISHED";
+  const published = ad.workflowStatus === "PUBLISHED";
+
+  return [
+    {
+      key: "record",
+      title: "1. Založit reklamu",
+      text: coreReady ? "Reklama je založená v kampani a pobočce." : "Záznam potřebuje název, kampaň a pobočku.",
+      nextAction: "Doplňte název, kampaň a pobočku.",
+      done: coreReady,
+    },
+    {
+      key: "asset",
+      title: "2. Nahrát podklad",
+      text: assetReady ? `${ad.assetCount} souborů je u reklamy.` : "Přidejte návrh, PDF, banner, video nebo tiskový soubor.",
+      nextAction: "Nahrajte podklad reklamy.",
+      done: assetReady,
+    },
+    {
+      key: "identity",
+      title: "3. Zadavatel a plátce",
+      text: identityReady ? "Zadavatel a plátce jsou vyplnění." : "Musí být jasné, kdo reklamu zadal a kdo ji platí.",
+      nextAction: "Doplňte zadavatele a plátce.",
+      done: identityReady,
+    },
+    {
+      key: "money",
+      title: "4. Náklady a původ financí",
+      text: moneyReady ? "Náklady a původ financí jsou v záznamu." : "Doplňte částku, rozpočet nebo náklady a původ financí.",
+      nextAction: "Doplňte náklady a původ financí.",
+      done: moneyReady,
+    },
+    {
+      key: "publication",
+      title: "5. Zveřejnění a šíření",
+      text: publicationReady ? "Typ, termín, období a oblast šíření jsou vyplněné." : "Datum zveřejnění určuje deadline pro doplnění údajů.",
+      nextAction: "Doplňte typ, datum, období a oblast šíření.",
+      done: publicationReady,
+    },
+    {
+      key: "targeting",
+      title: "6. Cílení",
+      text: targetingReady ? (ad.isTargeted ? "Cílení a cílové publikum jsou popsané." : "Reklama není vedená jako cílená.") : "U cílené reklamy chybí popis cílení nebo publikum.",
+      nextAction: "Doplňte cílení a cílové publikum, nebo cílení vypněte.",
+      done: targetingReady,
+    },
+    {
+      key: "approval",
+      title: "7. Schválení a označení",
+      text: approved ? "Reklama prošla kontrolou." : "Po doplnění údajů ji schvalovatel potvrdí nebo vrátí k úpravě.",
+      nextAction: ad.missing.length
+        ? "Nejdřív doplňte chybějící údaje."
+        : ad.canApprove
+          ? "Schvalte reklamu, nebo ji vraťte k doplnění."
+          : "Pošlete reklamu ke kontrole a schválení.",
+      done: approved,
+    },
+    {
+      key: "ttpa",
+      title: "8. V souladu s TTPA",
+      text: published
+        ? "Výsledek: reklama má označení, QR, transparentní oznámení a auditní balíček."
+        : "Cíl: mít hotové podklady pro Nařízení EU o transparentnosti a cílení politické reklamy (TTPA).",
+      nextAction: approved ? "Publikujte reklamu a držte auditní balíček k dispozici." : "Dokončete kontrolu, QR a transparentní oznámení.",
+      done: published,
+    },
+  ];
+}
+
 function reviewEventClass(status: AdRecord["reviewEvents"][number]["status"]) {
   if (status === "APPROVED" || status === "PUBLISHED") {
     return "border-emerald-200 bg-emerald-50 text-emerald-800";
@@ -3014,6 +3102,67 @@ function ReviewInbox({
   );
 }
 
+function AdComplianceProcess({ ad }: { ad: AdRecord }) {
+  const steps = adProcessSteps(ad);
+  const doneCount = steps.filter((step) => step.done).length;
+  const nextStep = steps.find((step) => !step.done);
+  const percent = Math.round((doneCount / steps.length) * 100);
+
+  return (
+    <div className="rounded-md border border-black/10 bg-white p-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-black">Kontrolní proces reklamy</h3>
+          <p className="mt-1 text-sm leading-6 text-[#59616b]">
+            Osm bodů od založení po výsledek podle Nařízení EU o transparentnosti a cílení politické reklamy (TTPA).
+          </p>
+        </div>
+        <div className="shrink-0 rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#25282d]">
+          {doneCount}/8 hotovo
+        </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eceff3]">
+        <div className="h-full rounded-full bg-[#f45d1f]" style={{ width: `${percent}%` }} />
+      </div>
+      {nextStep ? (
+        <div className="mt-3 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800">
+          Teď řešit: {nextStep.nextAction}
+        </div>
+      ) : (
+        <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+          Proces reklamy je uzavřený.
+        </div>
+      )}
+      <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-4">
+        {steps.map((step) => {
+          const active = nextStep?.key === step.key;
+          const statusClass = step.done
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            : active
+              ? "border-orange-200 bg-orange-50 text-orange-800"
+              : "border-black/10 bg-[#fbfbfc] text-[#68707a]";
+          const Icon = step.done ? CheckCircle2 : active ? AlertTriangle : CircleDot;
+
+          return (
+            <article key={step.key} className={`rounded-md border p-3 ${statusClass}`}>
+              <div className="flex items-start gap-2">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <div className="min-w-0">
+                  <h4 className="text-sm font-semibold text-black">{step.title}</h4>
+                  <p className="mt-1 text-xs leading-5 text-current">{step.text}</p>
+                  <div className="mt-2 text-xs font-semibold uppercase tracking-[0.08em]">
+                    {step.done ? "hotovo" : active ? "teď řešit" : "čeká"}
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DetailPanel({
   ad,
   writable,
@@ -3053,6 +3202,8 @@ function DetailPanel({
     );
   }
 
+  const steps = adProcessSteps(ad);
+  const nextStep = steps.find((step) => !step.done);
   const rows = [
     ["Veřejná URL", ad.publicUrl],
     ["Kampaň", ad.campaign],
@@ -3148,6 +3299,8 @@ function DetailPanel({
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
           <div className="grid gap-3">
+            <AdComplianceProcess ad={ad} />
+
             <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
               <h3 className="text-sm font-semibold text-black">Transparentní oznámení</h3>
               <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
@@ -3213,8 +3366,8 @@ function DetailPanel({
             <div className="rounded-md border border-black/10 bg-white p-3">
               <h3 className="text-sm font-semibold text-black">Další krok</h3>
               <p className="mt-1 text-sm leading-6 text-[#59616b]">
-                {ad.missing.length
-                  ? "Doplňte chybějící údaje. Potom půjde reklamu poslat ke kontrole nebo stáhnout výstupy."
+                {nextStep
+                  ? nextStep.nextAction
                   : ad.canApprove
                     ? "Reklama čeká na kontrolu. Můžete ji schválit, nebo ji vrátit k doplnění."
                     : ad.canPublish
