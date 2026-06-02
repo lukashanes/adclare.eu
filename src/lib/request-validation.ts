@@ -1,4 +1,4 @@
-import type { AppBranchInput, EditableAdInput, InviteInput, ReviewDecisionInput } from "@/lib/admin-demo-types";
+import type { AppBranchInput, AppMemberUpdateInput, AppProfileInput, EditableAdInput, InviteInput, ReviewDecisionInput } from "@/lib/admin-demo-types";
 
 export class RequestValidationError extends Error {
   readonly status = 400;
@@ -132,6 +132,25 @@ export function parseInviteInput(value: unknown): InviteInput {
     email: text(body.email, "email", { required: true, max: 240 }).toLowerCase(),
     role: text(body.role, "role", { max: 80 }) as InviteInput["role"],
     branchId: text(body.branchId, "branchId", { max: 120 }),
+  };
+}
+
+export function parseAppProfileInput(value: unknown): AppProfileInput {
+  const body = record(value);
+
+  return {
+    name: text(body.name, "name", { required: true, max: 120 }),
+  };
+}
+
+export function parseAppMemberUpdateInput(value: unknown): AppMemberUpdateInput {
+  const body = record(value);
+
+  return {
+    name: text(body.name, "name", { required: true, max: 120 }),
+    role: text(body.role, "role", { required: true, max: 80 }) as AppMemberUpdateInput["role"],
+    branchId: text(body.branchId, "branchId", { max: 120 }),
+    status: text(body.status, "status", { required: true, max: 40 }) as AppMemberUpdateInput["status"],
   };
 }
 

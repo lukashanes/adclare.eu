@@ -106,8 +106,10 @@ check(appWorkspace.includes("workspace.permissions.canCreateAds"), "Workspace sh
 check(adminDb.includes("createAppBranch") && existsSync(resolve(root, "src/app/api/app/branches/route.ts")), "App branch management route is missing.");
 check(appWorkspace.includes("Pobočky a oblasti") && appWorkspace.includes('type === "branch"'), "Workspace should use controlled branch management.");
 check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");
-check(existsSync(resolve(root, "src/app/api/app/users/[invitationId]/retry-email/route.ts")), "App invitation retry route is missing.");
-check(appWorkspace.includes("Lidé a pozvánky") && appWorkspace.includes("Poslat pozvánku"), "Workspace should expose people and invitation management.");
+check(existsSync(resolve(root, "src/app/api/app/profile/route.ts")), "App profile update route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/users/[id]/route.ts")), "App member update route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/users/[id]/retry-email/route.ts")), "App invitation retry route is missing.");
+check(appWorkspace.includes("Správa lidí") && appWorkspace.includes("Uložit profil") && appWorkspace.includes("Poslat pozvánku"), "Workspace should expose profile, people and invitation management.");
 check(appWorkspace.includes("Co je potřeba doplnit") && appWorkspace.includes("Doplnit údaje"), "Workspace should expose a missing data action queue.");
 check(appWorkspace.includes("Proces pro každou reklamu") && appWorkspace.includes("8. V souladu s TTPA") && appWorkspace.includes("setupProgress"), "Workspace should expose the eight-step ad process.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");

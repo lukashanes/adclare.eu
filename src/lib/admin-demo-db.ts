@@ -26,6 +26,8 @@ import type {
   AdImportInputRow,
   AdImportResult,
   AdminAdsPayload,
+  AppMemberUpdateInput,
+  AppProfileInput,
   AppBranchInput,
   AppWorkspacePayload,
   AdminInvitationRecord,
@@ -36,6 +38,7 @@ import type {
   InvitationNotice,
   InviteInput,
   Locale,
+  MemberStatusKey,
   PublicRepositoryAdRecord,
   PublicRepositoryFilters,
   PublicRepositoryOption,
@@ -503,8 +506,10 @@ function mapMember(member: MembershipWithUserAndUnit, locale: Locale): AdminMemb
     email: member.user.email,
     role: roleLabel(member.role, locale),
     roleKey: member.role as AdminRoleKey,
+    branchId: member.orgUnitId ?? "",
     scope: scopeLabel(member.orgUnit, locale),
     status: membershipStatusLabel(member.status, locale),
+    statusKey: member.status as MemberStatusKey,
   };
 }
 
@@ -1145,6 +1150,12 @@ function normalizeInviteRole(role: string): UserRole {
   ]);
 
   return allowedRoles.has(role as UserRole) ? (role as UserRole) : UserRole.LOCAL_ADMIN;
+}
+
+function normalizeMemberStatus(status: string): MembershipStatus {
+  const allowedStatuses = new Set<MembershipStatus>([MembershipStatus.ACTIVE, MembershipStatus.DISABLED]);
+
+  return allowedStatuses.has(status as MembershipStatus) ? (status as MembershipStatus) : MembershipStatus.ACTIVE;
 }
 
 export async function createDemoInvitation(input: InviteInput, locale: Locale) {
@@ -2571,6 +2582,161 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
   });
 
   return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
+}
+
+export async function updateAppProfile(userId: string, input: AppProfileInput) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context) {
+    return null;
+  }
+
+  const name = input.name.trim();
+
+  if (!name) {
+    throw new Error("Zadejte jméno.");
+  }
+
+  const user = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: {
+        id: context.membership.userId,
+      },
+      data: {
+        name,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "update_profile",
+        messageCs: `Uživatel ${context.membership.user.email} upravil svoje jméno.`,
+        messageEn: `User ${context.membership.user.email} updated their profile name.`,
+      },
+    });
+
+    return updated;
+  });
+
+  return {
+    name: user.name,
+    email: user.email,
+  };
+}
+
+export async function updateAppMember(userId: string, memberId: string, input: AppMemberUpdateInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppUsers(context.membership.role)) {
+    return null;
+  }
+
+  const name = input.name.trim();
+
+  if (!name) {
+    throw new Error("Zadejte jméno.");
+  }
+
+  const role = normalizeInviteRole(input.role);
+  const status = normalizeMemberStatus(input.status);
+  const orgUnit =
+    input.branchId && role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER
+      ? await prisma.organizationUnit.findFirst({
+          where: {
+            id: input.branchId,
+            tenantId: context.membership.tenantId,
+          },
+        })
+      : null;
+
+  if (role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER && !orgUnit) {
+    throw new Error("Vyberte pobočku pro člověka, který nemá pracovat s celou stranou.");
+  }
+
+  const existing = await prisma.tenantMembership.findFirst({
+    where: {
+      id: memberId,
+      tenantId: context.membership.tenantId,
+    },
+    include: {
+      user: true,
+      orgUnit: true,
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const targetWasActiveAdmin =
+    existing.status === MembershipStatus.ACTIVE && (existing.role === UserRole.PARTY_ADMIN || existing.role === UserRole.SUPER_ADMIN);
+  const targetStaysActiveAdmin = status === MembershipStatus.ACTIVE && (role === UserRole.PARTY_ADMIN || role === UserRole.SUPER_ADMIN);
+
+  if (targetWasActiveAdmin && !targetStaysActiveAdmin) {
+    const activeAdminCount = await prisma.tenantMembership.count({
+      where: {
+        tenantId: context.membership.tenantId,
+        status: MembershipStatus.ACTIVE,
+        role: {
+          in: [UserRole.PARTY_ADMIN, UserRole.SUPER_ADMIN],
+        },
+      },
+    });
+
+    if (activeAdminCount <= 1) {
+      throw new Error("Nelze odebrat posledního aktivního admina strany.");
+    }
+  }
+
+  const member = await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: {
+        id: existing.userId,
+      },
+      data: {
+        name,
+      },
+    });
+
+    const updated = await tx.tenantMembership.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        role,
+        status,
+        orgUnitId: role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER ? null : orgUnit?.id,
+      },
+      include: {
+        user: true,
+        orgUnit: true,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "update_member",
+        messageCs: `Upraven přístup uživatele ${updated.user.email}.`,
+        messageEn: `Updated access for ${updated.user.email}.`,
+        metadata: {
+          memberId: updated.id,
+          role,
+          status,
+          orgUnitId: updated.orgUnitId,
+        },
+      },
+    });
+
+    return updated;
+  });
+
+  return mapMember(member, locale);
 }
 
 export async function createAppAd(userId: string, input: EditableAdInput, locale: Locale) {

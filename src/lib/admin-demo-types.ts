@@ -12,6 +12,7 @@ export type AdminRoleKey =
   | "DESIGNER"
   | "READONLY_AUDITOR";
 export type EmailStatusKey = "PENDING_PROVIDER" | "SENT" | "FAILED";
+export type MemberStatusKey = "ACTIVE" | "INVITED" | "DISABLED";
 
 export type AdDeadlineState = "clear" | "upcoming" | "due-soon" | "overdue";
 
@@ -203,8 +204,10 @@ export type AdminMemberRecord = {
   email: string;
   role: string;
   roleKey: AdminRoleKey;
+  branchId: string;
   scope: string;
   status: string;
+  statusKey: MemberStatusKey;
 };
 
 export type AdminInvitationRecord = {
@@ -231,6 +234,17 @@ export type InviteInput = {
   email: string;
   role: AdminRoleKey;
   branchId?: string;
+};
+
+export type AppProfileInput = {
+  name: string;
+};
+
+export type AppMemberUpdateInput = {
+  name: string;
+  role: AdminRoleKey;
+  branchId?: string;
+  status: MemberStatusKey;
 };
 
 export type InvitationNotice = {

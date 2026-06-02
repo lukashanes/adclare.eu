@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, Paperclip, Plus, RefreshCw, Save, Search, Upload, X } from "lucide-react";
-import type { AdImportResult, AdRecord, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
+import type { AdImportResult, AdRecord, AppMemberUpdateInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
 
@@ -263,10 +263,14 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [branchName, setBranchName] = useState("");
   const [branchKind, setBranchKind] = useState("oblast");
   const [branchSaving, setBranchSaving] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const profileInputRef = useRef<HTMLInputElement>(null);
   const [inviteForm, setInviteForm] = useState<InviteInput>(() => blankInviteForm(initialWorkspace));
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteMessage, setInviteMessage] = useState("");
   const [retryingInviteId, setRetryingInviteId] = useState("");
+  const [memberSavingId, setMemberSavingId] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<AdImportResult | null>(null);
@@ -342,6 +346,95 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       setError(branchError instanceof Error ? branchError.message : "Pobočku se nepodařilo založit.");
     } finally {
       setBranchSaving(false);
+    }
+  }
+
+  async function saveProfile(name: string) {
+    const cleanName = name.trim();
+
+    if (profileSaving) {
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileMessage("");
+    setError("");
+
+    if (!cleanName) {
+      setError("Doplňte jméno profilu.");
+      setProfileSaving(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/app/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: cleanName,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { user?: AppWorkspacePayload["user"]; error?: string };
+
+      if (!response.ok || !payload.user) {
+        throw new Error(payload.error || `Profile update failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        user: payload.user as AppWorkspacePayload["user"],
+        users: {
+          ...current.users,
+          members: current.users.members.map((member) =>
+            member.email === payload.user?.email ? { ...member, name: payload.user.name } : member,
+          ),
+        },
+      }));
+      setProfileMessage("Jméno je uložené.");
+    } catch (profileError) {
+      setError(profileError instanceof Error ? profileError.message : "Profil se nepodařilo uložit.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function updateMember(memberId: string, input: AppMemberUpdateInput) {
+    if (!workspace.permissions.canManageUsers || memberSavingId) {
+      return;
+    }
+
+    setMemberSavingId(memberId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/app/users/${encodeURIComponent(memberId)}?locale=cs`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { member?: AppWorkspacePayload["users"]["members"][number]; error?: string };
+
+      if (!response.ok || !payload.member) {
+        throw new Error(payload.error || `Member update failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        user: payload.member?.email === current.user.email ? { ...current.user, name: payload.member.name } : current.user,
+        users: {
+          ...current.users,
+          members: current.users.members.map((member) => (member.id === payload.member?.id ? (payload.member as AppWorkspacePayload["users"]["members"][number]) : member)),
+        },
+      }));
+
+    } catch (memberError) {
+      setError(memberError instanceof Error ? memberError.message : "Přístup se nepodařilo uložit.");
+    } finally {
+      setMemberSavingId("");
     }
   }
 
@@ -588,7 +681,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   }
 
   return (
-    <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:px-8">
+    <section className="mx-auto grid w-full max-w-[1800px] min-w-0 gap-5 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <article className="rounded-md border border-black/10 bg-white p-5">
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Správa reklam</p>
@@ -599,10 +692,30 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           {error ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
         </article>
 
-        <aside className="rounded-md border border-black/10 bg-white p-5">
+        <aside className="min-w-0 rounded-md border border-black/10 bg-white p-5">
           <div className="text-sm font-semibold text-[#68707a]">Přihlášený uživatel</div>
-          <div className="mt-2 text-lg font-semibold text-black">{workspace.user.name}</div>
+          <label className="mt-2 grid gap-1.5 text-sm font-semibold text-[#20242a]">
+            Jméno
+            <input
+              key={workspace.user.name}
+              ref={profileInputRef}
+              name="name"
+              defaultValue={workspace.user.name}
+              onChange={() => setProfileMessage("")}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 text-base font-semibold text-black outline-none focus:border-[#f45d1f]"
+            />
+          </label>
           <div className="break-all text-sm text-[#59616b]">{workspace.user.email}</div>
+          <button
+            type="button"
+            onClick={() => saveProfile(profileInputRef.current?.value ?? "")}
+            disabled={profileSaving}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+          >
+            <Save size={15} />
+            {profileSaving ? "Ukládám" : "Uložit profil"}
+          </button>
+          {profileMessage ? <div className="mt-2 text-xs font-semibold text-emerald-700">{profileMessage}</div> : null}
           <div className="mt-4 grid gap-2 text-sm">
             <div className="flex justify-between gap-3">
               <span className="text-[#68707a]">Role</span>
@@ -711,10 +824,12 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           form={inviteForm}
           saving={inviteSaving}
           retryingInviteId={retryingInviteId}
+          memberSavingId={memberSavingId}
           message={inviteMessage}
           onChange={setInviteForm}
           onCreate={createInvitation}
           onRetryEmail={retryInvitationEmail}
+          onUpdateMember={updateMember}
         />
       ) : null}
 
@@ -1196,54 +1311,123 @@ function PeoplePanel({
   form,
   saving,
   retryingInviteId,
+  memberSavingId,
   message,
   onChange,
   onCreate,
   onRetryEmail,
+  onUpdateMember,
 }: {
   users: AppWorkspacePayload["users"];
   form: InviteInput;
   saving: boolean;
   retryingInviteId: string;
+  memberSavingId: string;
   message: string;
   onChange: (form: InviteInput) => void;
   onCreate: () => void;
   onRetryEmail: (invitationId: string) => void;
+  onUpdateMember: (memberId: string, input: AppMemberUpdateInput) => void;
 }) {
   const roleNeedsBranch = form.role !== "PARTY_ADMIN" && form.role !== "CENTRAL_REVIEWER";
+  const activeCount = users.members.filter((member) => member.statusKey === "ACTIVE").length;
 
   return (
-    <section id="people" className="grid scroll-mt-6 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <article className="rounded-md border border-black/10 bg-white p-4">
+    <section id="people" className="grid min-w-0 scroll-mt-6 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <article className="min-w-0 rounded-md border border-black/10 bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-black">Lidé a pozvánky</h2>
-            <p className="mt-1 text-sm text-[#59616b]">Pozvěte pobočku, kandidáta nebo externí grafiky. Každý dostane vlastní přístup a uvidí jen práci, kterou má řešit.</p>
+            <h2 className="text-lg font-semibold text-black">Správa lidí</h2>
+            <p className="mt-1 text-sm text-[#59616b]">Upravte jméno, roli, pobočku nebo stav přístupu. Každý člověk vidí jen práci podle svého rozsahu.</p>
           </div>
           <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
-            {users.members.length} aktivních
+            {activeCount} aktivních
           </span>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
-          <div>
-            <h3 className="text-sm font-semibold text-[#68707a]">Aktivní lidé</h3>
+        <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-[#68707a]">Členové týmu</h3>
             <div className="mt-2 grid gap-2">
-              {users.members.slice(0, 6).map((member) => (
-                <div key={member.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-                  <div className="font-semibold text-black">{member.name}</div>
-                  <div className="mt-1 break-all text-sm text-[#59616b]">{member.email}</div>
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
-                    <span className="rounded-md border border-black/10 bg-white px-2 py-1">{member.role}</span>
-                    <span className="rounded-md border border-black/10 bg-white px-2 py-1">{member.scope}</span>
-                  </div>
-                </div>
+              {users.members.map((member) => (
+                <form
+                  key={member.id}
+                  className="grid min-w-0 gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 xl:grid-cols-[minmax(160px,1.1fr)_minmax(180px,1fr)_170px_170px_140px] xl:items-end"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const formData = new FormData(event.currentTarget);
+                    onUpdateMember(member.id, {
+                      name: String(formData.get("name") ?? ""),
+                      role: String(formData.get("role") ?? member.roleKey) as AppMemberUpdateInput["role"],
+                      branchId: String(formData.get("branchId") ?? ""),
+                      status: String(formData.get("status") ?? member.statusKey) as AppMemberUpdateInput["status"],
+                    });
+                  }}
+                >
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                    Jméno
+                    <input
+                      name="name"
+                      defaultValue={member.name}
+                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]"
+                    />
+                    <span className="break-all text-xs font-medium text-[#59616b]">{member.email}</span>
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                    Role
+                    <select
+                      name="role"
+                      defaultValue={member.roleKey}
+                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
+                    >
+                      {inviteRoles.map((role) => (
+                        <option key={role.value} value={role.value}>
+                          {role.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                    Rozsah
+                    <select
+                      name="branchId"
+                      defaultValue={member.branchId}
+                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
+                    >
+                      <option value="">Celá strana</option>
+                      {users.branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                    Stav
+                    <select
+                      name="status"
+                      defaultValue={member.statusKey}
+                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
+                    >
+                      <option value="ACTIVE">Aktivní</option>
+                      <option value="DISABLED">Pozastavený</option>
+                    </select>
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={Boolean(memberSavingId)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+                  >
+                    <Save size={15} />
+                    {memberSavingId === member.id ? "Ukládám" : "Uložit"}
+                  </button>
+                </form>
               ))}
               {users.members.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není přidaný žádný člověk.</div> : null}
             </div>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm font-semibold text-[#68707a]">Poslední pozvánky</h3>
             <div className="mt-2 grid gap-2">
               {users.invitations.slice(0, 6).map((invitation) => (
@@ -1278,7 +1462,7 @@ function PeoplePanel({
         </div>
       </article>
 
-      <aside className="rounded-md border border-black/10 bg-white p-4">
+      <aside className="min-w-0 rounded-md border border-black/10 bg-white p-4">
         <h2 className="text-lg font-semibold text-black">Pozvat člověka</h2>
         <div className="mt-3 grid gap-3">
           <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
