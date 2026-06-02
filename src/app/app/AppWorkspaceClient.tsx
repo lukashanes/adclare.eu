@@ -3097,6 +3097,16 @@ function PeoplePanel({
   const activeCandidates = users.candidates.filter((candidate) => !candidate.archived);
   const inviteCandidate = users.candidates.find((candidate) => candidate.id === form.candidateId) ?? activeCandidates[0] ?? null;
   const activeCount = users.members.filter((member) => member.statusKey === "ACTIVE").length;
+  const disabledCount = users.members.filter((member) => member.statusKey === "DISABLED").length;
+  const pendingInvitations = users.invitations.filter((invitation) => invitation.statusKey === "PENDING").length;
+  const emailActionCount = users.invitations.filter((invitation) => invitation.statusKey === "PENDING" && invitation.emailStatusKey !== "SENT").length;
+  const roleCounts = Array.from(
+    users.members.reduce((counts, member) => counts.set(member.role, (counts.get(member.role) ?? 0) + 1), new Map<string, number>()),
+  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"));
+  const displayedMembers = [...users.members].sort(
+    (a, b) => Number(a.statusKey === "DISABLED") - Number(b.statusKey === "DISABLED") || a.name.localeCompare(b.name, "cs"),
+  );
+  const actionInvitations = users.invitations.filter((invitation) => invitation.statusKey === "PENDING" && invitation.emailStatusKey !== "SENT").slice(0, 3);
   const inviteCandidateMissing = inviteRoleNeedsCandidate && !form.candidateId;
 
   function updateInviteRole(role: InviteInput["role"]) {
@@ -3118,6 +3128,18 @@ function PeoplePanel({
     });
   }
 
+  function invitationEmailText(invitation: AppWorkspacePayload["users"]["invitations"][number]) {
+    if (invitation.emailStatusKey === "SENT") {
+      return "e-mail odeslán";
+    }
+
+    if (invitation.emailStatusKey === "FAILED") {
+      return "e-mail se nepodařilo odeslat";
+    }
+
+    return "čeká na odeslání";
+  }
+
   return (
     <section id="people" className="grid min-w-0 scroll-mt-6 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
       <article className="min-w-0 rounded-md border border-black/10 bg-white p-4">
@@ -3131,11 +3153,62 @@ function PeoplePanel({
           </span>
         </div>
 
+        <div className="mt-4 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-black">Přístupy a pozvánky</h3>
+              <p className="mt-1 text-sm leading-6 text-[#59616b]">
+                Rychlý přehled ukáže, kdo už pracuje v aplikaci, kdo čeká na pozvánku a kde je potřeba e-mail poslat znovu.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-4 lg:min-w-[560px]">
+              {[
+                ["Aktivní přístupy", activeCount],
+                ["Čeká na přijetí", pendingInvitations],
+                ["E-maily k odeslání", emailActionCount],
+                ["Pozastaveno", disabledCount],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md border border-black/10 bg-white p-2">
+                  <div className="text-xs font-semibold text-[#68707a]">{label}</div>
+                  <div className="mt-1 text-lg font-semibold text-black">{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="rounded-md border border-black/10 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Role v týmu</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {roleCounts.length ? roleCounts.map(([role, count]) => (
+                  <span key={role} className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">
+                    {role}: {count}
+                  </span>
+                )) : <span className="text-sm text-[#59616b]">Zatím bez členů.</span>}
+              </div>
+            </div>
+            <div className="rounded-md border border-black/10 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Pozvánky k dořešení</div>
+              {actionInvitations.length ? (
+                <div className="mt-2 grid gap-1.5">
+                  {actionInvitations.map((invitation) => (
+                    <div key={invitation.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md bg-orange-50 px-2 py-1.5 text-xs font-semibold text-orange-800">
+                      <span className="min-w-0 break-all">{invitation.email}</span>
+                      <span>{invitationEmailText(invitation)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-[#59616b]">Žádná pozvánka teď nečeká na dořešení e-mailu.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-[#68707a]">Členové týmu</h3>
             <div className="mt-2 grid gap-2">
-              {users.members.map((member) => (
+              {displayedMembers.map((member) => (
                 <form
                   key={member.id}
                   className="grid min-w-0 gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(160px,1.1fr)_minmax(150px,190px)_minmax(150px,190px)_minmax(150px,190px)_130px_120px] 2xl:items-end"
@@ -3244,7 +3317,7 @@ function PeoplePanel({
                     </div>
                     <span className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-[#25282d]">{invitation.status}</span>
                   </div>
-                  <div className="mt-2 text-xs font-semibold text-[#68707a]">{invitation.emailStatus} · do {invitation.expiresAt}</div>
+                  <div className="mt-2 text-xs font-semibold text-[#68707a]">{invitationEmailText(invitation)} · do {invitation.expiresAt}</div>
                   <a className="mt-2 block break-all text-xs font-semibold text-[#d94410]" href={invitation.inviteUrl}>
                     {invitation.inviteUrl}
                   </a>
