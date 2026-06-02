@@ -590,6 +590,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const progress = setupProgress(workspace);
   const sections = useMemo(() => {
     const missingCount = workspace.ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length;
+    const reviewCount = workspace.ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED").length;
 
     return [
       {
@@ -602,9 +603,9 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       {
         id: "review" as const,
         label: "Ke kontrole",
-        description: "Schvalování a položky k doplnění.",
-        count: workspace.counts.review + missingCount,
-        visible: reviewable || workspace.counts.review > 0 || missingCount > 0,
+        description: "Schválení, publikace a položky k doplnění.",
+        count: reviewCount + missingCount,
+        visible: reviewable || reviewCount > 0 || missingCount > 0,
       },
       {
         id: "campaigns" as const,
@@ -3277,35 +3278,71 @@ function ReviewInbox({
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
-  const reviewAds = ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW");
+  const reviewAds = ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED");
+  const waitingForApproval = reviewAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW").length;
+  const waitingForPublication = reviewAds.filter((ad) => ad.workflowStatus === "APPROVED").length;
 
   return (
     <section id="review" className="scroll-mt-6 rounded-md border border-sky-200 bg-sky-50/55 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-black">Ke kontrole</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Tyto reklamy už mají vyplněné údaje. Můžete je schválit, nebo je s komentářem vrátit k doplnění.</p>
+          <h2 className="text-lg font-semibold text-black">Ke kontrole a publikaci</h2>
+          <p className="mt-1 text-sm text-[#59616b]">
+            Reklamy připravené pro kontrolu, schválení nebo publikaci. Schvalovatel hned vidí, kde chybí podklad a co má udělat dál.
+          </p>
         </div>
-        <span className="inline-flex w-fit rounded-md border border-sky-200 bg-white px-3 py-1.5 text-sm font-semibold text-sky-800">
-          {reviewAds.length} ke kontrole
-        </span>
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex w-fit rounded-md border border-sky-200 bg-white px-3 py-1.5 text-sm font-semibold text-sky-800">
+            {waitingForApproval} ke schválení
+          </span>
+          <span className="inline-flex w-fit rounded-md border border-emerald-200 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800">
+            {waitingForPublication} k publikaci
+          </span>
+        </div>
       </div>
       {reviewAds.length ? (
         <div className="mt-3 grid gap-2 lg:grid-cols-3">
-          {reviewAds.map((ad) => (
-            <button
-              key={ad.id}
-              type="button"
-              onClick={() => onSelect(ad.id)}
-              className={`rounded-md border p-3 text-left ${
-                selectedId === ad.id ? "border-[#f45d1f] bg-white shadow-sm" : "border-sky-200 bg-white/75 hover:bg-white"
-              }`}
-            >
-              <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
-              <div className="mt-1 line-clamp-2 text-sm font-semibold text-black">{ad.title}</div>
-              <div className="mt-2 text-xs text-[#59616b]">{ad.branch} · {ad.publicationDate}</div>
-            </button>
-          ))}
+          {reviewAds.map((ad) => {
+            const assetReady = ad.assetCount > 0;
+            const actionText =
+              ad.workflowStatus === "APPROVED"
+                ? "Další krok: publikovat"
+                : assetReady
+                  ? "Další krok: schválit nebo vrátit"
+                  : "Další krok: nahrát podklad";
+
+            return (
+              <button
+                key={ad.id}
+                type="button"
+                onClick={() => onSelect(ad.id)}
+                className={`rounded-md border p-3 text-left ${
+                  selectedId === ad.id ? "border-[#f45d1f] bg-white shadow-sm" : "border-sky-200 bg-white/75 hover:bg-white"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
+                    <div className="mt-1 line-clamp-2 text-sm font-semibold text-black">{ad.title}</div>
+                    <div className="mt-2 text-xs text-[#59616b]">{ad.branch} · {ad.publicationDate}</div>
+                  </div>
+                  <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>
+                    {ad.workflowLabel}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <span className={`rounded-md px-2 py-1 text-xs font-semibold ${assetReady ? "bg-emerald-50 text-emerald-800" : "bg-orange-50 text-orange-800"}`}>
+                    {assetReady ? `${ad.assetCount} podkladů` : "chybí podklad"}
+                  </span>
+                  <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{ad.channel}</span>
+                  {ad.candidate ? <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{ad.candidate}</span> : null}
+                </div>
+                <div className={`mt-3 rounded-md border px-3 py-2 text-xs font-semibold ${assetReady ? "border-sky-200 bg-sky-50 text-sky-800" : "border-orange-200 bg-orange-50 text-orange-800"}`}>
+                  {actionText}
+                </div>
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="mt-3 rounded-md border border-sky-200 bg-white p-3 text-sm font-semibold text-[#59616b]">
