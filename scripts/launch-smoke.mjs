@@ -91,6 +91,8 @@ check(adminDb.includes("publicWorkflowStatuses"), "Public workflow status allowl
 check(adminDb.includes("in: publicWorkflowStatuses"), "Public repository should only query public workflow statuses.");
 check(adminDb.includes('status: "pending" as const'), "Transparency notice should return a pending state for unpublished QR links.");
 check(transparencyPage.includes('notice.status === "pending"'), "Transparency page should handle unpublished QR links without exposing ad details.");
+check(transparencyPage.includes("Transparentní oznámení podle TTPA") && transparencyPage.includes("Veřejný záznam"), "Transparency page should present public TTPA notice structure.");
+check(transparencyPage.includes("Identifikace reklamy") && transparencyPage.includes("Financování") && transparencyPage.includes("Cílení"), "Transparency page should group public notice data for readers.");
 check(loginRoute.includes("verifyTurnstileToken"), "Login link route should verify Turnstile when configured.");
 check(inviteRoute.includes("verifyTurnstileToken"), "Invite acceptance route should verify Turnstile when configured.");
 check(signupRoute.includes("createSignupWorkspace") && signupRoute.includes("verifyTurnstileToken"), "Signup route should create a workspace and verify Turnstile when configured.");
@@ -127,6 +129,7 @@ check(appWorkspace.includes("roleNeedsCandidate") && appWorkspace.includes('name
 check(seed.includes("kandidat@demo-strana.cz") && seed.includes("candidateId: janCandidate.id"), "Seed data should include a candidate-scoped demo user.");
 check(transparencyPage.includes('["Kandidát"') && adminDb.includes("candidate: true"), "Transparency notice should include assigned candidate data.");
 check(publicRepoPage.includes("texts.candidate") && publicRepoPage.includes("ad.candidate"), "Public repository should display assigned candidate data.");
+check(publicRepoPage.includes("grid gap-3 bg-white p-4") && !publicRepoPage.includes("min-w-[980px]"), "Public repository should use responsive cards instead of a horizontally scrolling table.");
 check(read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("candidate: ad.candidate"), "App QR package notice should include assigned candidate data.");
 check(read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("candidate: ad.candidate"), "Demo QR package notice should include assigned candidate data.");
 check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");

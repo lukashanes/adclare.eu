@@ -251,57 +251,53 @@ export default async function PublicRepositoryPage({ params, searchParams }: Pag
           </form>
 
           {payload.ads.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] border-collapse text-left">
-                <thead className="border-b border-black/10 bg-white text-xs font-semibold uppercase text-[#68707a]">
-                  <tr>
-                    <th className="px-5 py-3">{texts.table.code}</th>
-                    <th className="px-5 py-3">{texts.table.ad}</th>
-                    <th className="px-5 py-3">{texts.table.branch}</th>
-                    <th className="px-5 py-3">{texts.table.type}</th>
-                    <th className="px-5 py-3">{texts.table.date}</th>
-                    <th className="px-5 py-3">{texts.table.status}</th>
-                    <th className="px-5 py-3">{texts.table.notice}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-black/8 bg-white">
-                  {payload.ads.map((ad) => (
-                    <tr key={ad.id} className="align-top">
-                      <td className="px-5 py-4 font-mono text-sm font-semibold text-[#20242a]">{ad.id}</td>
-                      <td className="max-w-[340px] px-5 py-4">
-                        <div className="text-sm font-semibold text-[#11161c]">{ad.title}</div>
-                        {ad.candidate ? <div className="mt-1 text-xs font-semibold text-[#20242a]">{texts.candidate}: {ad.candidate}</div> : null}
-                        <div className="mt-1 text-xs leading-5 text-[#68707a]">
-                          {ad.campaign} · {texts.language}: {ad.language} · {texts.lastUpdated}: {ad.lastUpdated}
-                        </div>
-                        <div className="mt-2 text-xs leading-5 text-[#68707a]">
-                          {ad.missing.length > 0 ? `${texts.missing}: ${ad.missing.join(", ")}` : texts.complete}
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 text-sm font-medium text-[#20242a]">{ad.branch}</td>
-                      <td className="px-5 py-4">
-                        <div className="text-sm font-semibold text-[#20242a]">{ad.type}</div>
-                        <div className="mt-1 text-xs font-medium text-[#68707a]">{ad.channel === "online" ? texts.online : texts.offline}</div>
-                      </td>
-                      <td className="px-5 py-4 text-sm font-medium text-[#20242a]">{ad.publicationDate}</td>
-                      <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass(ad.status)}`}>
-                          {ad.statusLabel}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <a
-                          href={noticeHref(ad.publicUrl)}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#d94410] transition hover:border-[#f45d1f]"
-                        >
-                          {texts.notice}
-                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid gap-3 bg-white p-4 sm:p-5">
+              {payload.ads.map((ad) => (
+                <article key={ad.id} className="min-w-0 rounded-md border border-black/10 bg-white p-4">
+                  <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
+                      <h2 className="mt-1 break-words text-lg font-semibold leading-6 text-[#11161c]">{ad.title}</h2>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
+                        <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-[#59616b]">{ad.campaign}</span>
+                        {ad.candidate ? <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-[#59616b]">{texts.candidate}: {ad.candidate}</span> : null}
+                        <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-[#59616b]">{ad.channel === "online" ? texts.online : texts.offline}</span>
+                        <span className={`rounded-md border px-2 py-1 ${statusClass(ad.status)}`}>{ad.statusLabel}</span>
+                      </div>
+                    </div>
+                    <a
+                      href={noticeHref(ad.publicUrl)}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#d94410] transition hover:border-[#f45d1f] sm:w-fit"
+                    >
+                      {texts.notice}
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    </a>
+                  </div>
+
+                  <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                      <dt className="text-xs font-semibold uppercase text-[#68707a]">{texts.table.branch}</dt>
+                      <dd className="mt-1 break-words text-sm font-semibold text-[#20242a]">{ad.branch}</dd>
+                    </div>
+                    <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                      <dt className="text-xs font-semibold uppercase text-[#68707a]">{texts.table.type}</dt>
+                      <dd className="mt-1 break-words text-sm font-semibold text-[#20242a]">{ad.type}</dd>
+                    </div>
+                    <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                      <dt className="text-xs font-semibold uppercase text-[#68707a]">{texts.table.date}</dt>
+                      <dd className="mt-1 text-sm font-semibold text-[#20242a]">{ad.publicationDate}</dd>
+                    </div>
+                    <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+                      <dt className="text-xs font-semibold uppercase text-[#68707a]">{texts.lastUpdated}</dt>
+                      <dd className="mt-1 text-sm font-semibold text-[#20242a]">{ad.lastUpdated}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm leading-6 text-[#59616b]">
+                    {ad.missing.length > 0 ? `${texts.missing}: ${ad.missing.join(", ")}` : texts.complete}
+                  </div>
+                </article>
+              ))}
             </div>
           ) : (
             <div className="bg-white p-10 text-center text-sm font-semibold text-[#68707a]">{texts.empty}</div>
