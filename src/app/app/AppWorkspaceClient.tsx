@@ -1498,6 +1498,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       {activeSection === "branches" && (workspace.permissions.canManageBranches || workspace.permissions.canEditOwnBranch) ? (
         <BranchesPanel
           branches={workspace.branches}
+          ads={workspace.ads}
+          candidates={workspace.candidates}
           canCreate={workspace.permissions.canManageBranches}
           canArchive={workspace.permissions.canManageBranches}
           branchName={branchName}
@@ -1514,6 +1516,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       {activeSection === "campaigns" && workspace.permissions.canManageCampaigns ? (
         <CampaignsPanel
           campaigns={workspace.campaigns}
+          ads={workspace.ads}
+          candidates={workspace.candidates}
           campaignName={campaignName}
           campaignElection={campaignElection}
           campaignStartsAt={campaignStartsAt}
@@ -1535,6 +1539,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         <CandidatesPanel
           candidates={workspace.candidates}
           branches={workspace.branches}
+          ads={workspace.ads}
           candidateName={candidateName}
           candidateBranchId={candidateBranchId}
           candidateBallotNumber={candidateBallotNumber}
@@ -2446,6 +2451,8 @@ function SettingsPanel({
 
 function BranchesPanel({
   branches,
+  ads,
+  candidates,
   canCreate,
   canArchive,
   branchName,
@@ -2458,6 +2465,8 @@ function BranchesPanel({
   onUpdate,
 }: {
   branches: AppWorkspacePayload["branches"];
+  ads: AdRecord[];
+  candidates: AppWorkspacePayload["candidates"];
   canCreate: boolean;
   canArchive: boolean;
   branchName: string;
@@ -2469,6 +2478,24 @@ function BranchesPanel({
   onCreate: () => void;
   onUpdate: (branchId: string, input: AppBranchUpdateInput) => void;
 }) {
+  const branchCards = branches
+    .map((branch) => {
+      const branchAds = ads.filter((ad) => ad.branch === branch.name);
+      const activeCandidates = candidates.filter((candidate) => candidate.branchId === branch.id && !candidate.archived);
+
+      return {
+        ...branch,
+        adCount: branchAds.length,
+        missingCount: branchAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length,
+        publishedCount: branchAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
+        candidateCount: activeCandidates.length,
+      };
+    })
+    .sort((a, b) => Number(a.archived) - Number(b.archived) || b.adCount - a.adCount || a.name.localeCompare(b.name, "cs"));
+  const activeCount = branches.filter((branch) => !branch.archived).length;
+  const branchAdCount = branchCards.reduce((sum, branch) => sum + branch.adCount, 0);
+  const branchesNeedingData = branchCards.filter((branch) => branch.missingCount > 0).length;
+
   return (
     <section id="branches" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -2491,6 +2518,44 @@ function BranchesPanel({
             </button>
           </div>
         ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {[
+          ["Aktivní pobočky", activeCount],
+          ["Reklamy v pobočkách", branchAdCount],
+          ["Pobočky k doplnění", branchesNeedingData],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{label}</div>
+            <div className="mt-2 text-2xl font-semibold text-black">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 grid gap-2 xl:grid-cols-3">
+        {branchCards.slice(0, 6).map((branch) => (
+          <article key={branch.id} className={`rounded-md border p-3 ${branch.archived ? "border-neutral-200 bg-neutral-50" : "border-black/10 bg-white"}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{branch.kind}</div>
+                <h3 className="mt-1 truncate text-sm font-semibold text-black">{branch.name}</h3>
+              </div>
+              <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${branch.archived ? "border-neutral-200 bg-white text-neutral-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+                {branch.archived ? "archiv" : "aktivní"}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{branch.adCount} reklam</span>
+              <span className={`rounded-md px-2 py-1 text-xs font-semibold ${branch.missingCount ? "bg-orange-50 text-orange-800" : "bg-emerald-50 text-emerald-800"}`}>
+                {branch.missingCount} k doplnění
+              </span>
+              <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{branch.publishedCount} publikováno</span>
+              <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{branch.candidateCount} kandidátů</span>
+            </div>
+            {branch.contactEmail ? <div className="mt-3 truncate text-xs font-medium text-[#59616b]">{branch.contactEmail}</div> : null}
+          </article>
+        ))}
       </div>
 
       <div className="mt-4 grid gap-2">
@@ -2564,6 +2629,8 @@ function BranchesPanel({
 
 function CampaignsPanel({
   campaigns,
+  ads,
+  candidates,
   campaignName,
   campaignElection,
   campaignStartsAt,
@@ -2580,6 +2647,8 @@ function CampaignsPanel({
   onUpdate,
 }: {
   campaigns: AppWorkspacePayload["campaigns"];
+  ads: AdRecord[];
+  candidates: AppWorkspacePayload["candidates"];
   campaignName: string;
   campaignElection: string;
   campaignStartsAt: string;
@@ -2595,6 +2664,24 @@ function CampaignsPanel({
   onCreate: () => void;
   onUpdate: (campaignId: string, input: AppCampaignInput) => void;
 }) {
+  const activeCampaigns = campaigns.filter((campaign) => !campaign.archived);
+  const campaignCards = campaigns
+    .map((campaign) => {
+      const campaignAds = ads.filter((ad) => ad.campaignId === campaign.id);
+
+      return {
+        ...campaign,
+        missingCount: campaignAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length,
+        reviewCount: campaignAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED").length,
+        publishedCount: campaignAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
+      };
+    })
+    .sort((a, b) => Number(a.archived) - Number(b.archived) || b.adCount - a.adCount || a.name.localeCompare(b.name, "cs"));
+  const totalCampaignAds = campaignCards.reduce((sum, campaign) => sum + campaign.adCount, 0);
+  const topCampaign = campaignCards.find((campaign) => !campaign.archived) ?? campaignCards[0] ?? null;
+  const tagList = Array.from(new Set(campaigns.flatMap((campaign) => campaign.tags))).slice(0, 10);
+  const activeCandidates = candidates.filter((candidate) => !candidate.archived).length;
+
   return (
     <section id="campaigns" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -2613,6 +2700,52 @@ function CampaignsPanel({
             {campaignSaving ? "Ukládám" : "Přidat"}
           </button>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-black">Přehled kampaní</h3>
+            <p className="mt-1 text-sm leading-6 text-[#59616b]">
+              Vidíte, kde už běží reklamy, co čeká na doplnění a která kampaň nese nejvíc práce.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+            {[
+              ["Aktivní", activeCampaigns.length],
+              ["Reklamy", totalCampaignAds],
+              ["Kandidáti", activeCandidates],
+              ["Tagy", tagList.length],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md border border-black/10 bg-white p-2">
+                <div className="text-xs font-semibold text-[#68707a]">{label}</div>
+                <div className="mt-1 text-lg font-semibold text-black">{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {topCampaign ? (
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="rounded-md border border-black/10 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Největší kampaň</div>
+              <div className="mt-1 text-sm font-semibold text-black">{topCampaign.name}</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{topCampaign.adCount} reklam</span>
+                <span className="rounded-md bg-orange-50 px-2 py-1 text-xs font-semibold text-orange-800">{topCampaign.missingCount} k doplnění</span>
+                <span className="rounded-md bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800">{topCampaign.reviewCount} ke kontrole</span>
+                <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">{topCampaign.publishedCount} publikováno</span>
+              </div>
+            </div>
+            <div className="rounded-md border border-black/10 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Tagy pro třídění</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tagList.length ? tagList.map((tag) => (
+                  <span key={tag} className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{tag}</span>
+                )) : <span className="text-sm text-[#59616b]">Zatím bez tagů.</span>}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-4 grid gap-2">
@@ -2691,6 +2824,7 @@ function CampaignsPanel({
 function CandidatesPanel({
   candidates,
   branches,
+  ads,
   candidateName,
   candidateBranchId,
   candidateBallotNumber,
@@ -2704,6 +2838,7 @@ function CandidatesPanel({
 }: {
   candidates: AppWorkspacePayload["candidates"];
   branches: AppWorkspacePayload["branches"];
+  ads: AdRecord[];
   candidateName: string;
   candidateBranchId: string;
   candidateBallotNumber: string;
@@ -2717,6 +2852,19 @@ function CandidatesPanel({
 }) {
   const activeBranches = branches.filter((branch) => !branch.archived);
   const activeCount = candidates.filter((candidate) => !candidate.archived).length;
+  const candidateCards = candidates.map((candidate) => {
+    const candidateAds = ads.filter((ad) => ad.candidateId === candidate.id);
+
+    return {
+      ...candidate,
+      missingCount: candidateAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length,
+      reviewCount: candidateAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED").length,
+      publishedCount: candidateAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
+    };
+  });
+  const candidatesWithAds = candidateCards.filter((candidate) => !candidate.archived && candidate.adCount > 0).length;
+  const branchlessCandidates = candidateCards.filter((candidate) => !candidate.archived && !candidate.branchId).length;
+  const candidateAdCount = candidateCards.reduce((sum, candidate) => sum + candidate.adCount, 0);
 
   return (
     <section id="candidates" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
@@ -2728,6 +2876,20 @@ function CandidatesPanel({
         <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
           {activeCount} aktivních
         </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-4">
+        {[
+          ["Aktivní kandidáti", activeCount],
+          ["S reklamami", candidatesWithAds],
+          ["Bez pobočky", branchlessCandidates],
+          ["Reklamy kandidátů", candidateAdCount],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{label}</div>
+            <div className="mt-2 text-2xl font-semibold text-black">{value}</div>
+          </div>
+        ))}
       </div>
 
       <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_120px_auto]">
@@ -2767,7 +2929,7 @@ function CandidatesPanel({
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        {candidates.map((candidate) => (
+        {candidateCards.map((candidate) => (
           <form
             key={candidate.id}
             className={`grid min-w-0 gap-3 rounded-md border p-3 ${candidate.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"}`}
@@ -2789,7 +2951,12 @@ function CandidatesPanel({
               <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
                 Jméno
                 <input name="name" defaultValue={candidate.name} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
-                <span className="text-xs font-medium text-[#59616b]">{candidate.adCount} reklam</span>
+                <span className="flex flex-wrap gap-1 text-xs font-medium text-[#59616b]">
+                  <span>{candidate.adCount} reklam</span>
+                  <span>{candidate.missingCount} k doplnění</span>
+                  <span>{candidate.reviewCount} ke kontrole</span>
+                  <span>{candidate.publishedCount} publikováno</span>
+                </span>
               </label>
               <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
                 Pobočka / oblast

@@ -151,6 +151,7 @@ check(appWorkspace.includes("Doplnění pro TTPA") && appWorkspace.includes("dra
 check(appWorkspace.includes("setSelectedId(ad.id)") && appWorkspace.includes("setForm(formFromAd(ad))"), "Editing an ad should select the same ad in the detail panel.");
 check(appWorkspace.includes("QR, oznámení a audit") && appWorkspace.includes("Kopírovat URL") && appWorkspace.includes("Stáhnout QR balíček"), "Ad detail should expose a clear outputs panel with copy and download actions.");
 check(appWorkspace.includes("Ke kontrole a publikaci") && appWorkspace.includes("ke schválení") && appWorkspace.includes("k publikaci") && appWorkspace.includes("chybí podklad"), "Review inbox should distinguish approval, publication and missing asset states.");
+check(appWorkspace.includes("Přehled kampaní") && appWorkspace.includes("Aktivní pobočky") && appWorkspace.includes("Reklamy kandidátů"), "Workspace should expose campaign, branch and candidate agenda overviews.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");
