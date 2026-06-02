@@ -3005,40 +3005,155 @@ function CandidatesPanel({
 
 function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
   const assetCount = workspace.ads.reduce((sum, ad) => sum + ad.assetCount, 0);
+  const reviewCount = workspace.counts.review + workspace.counts.approved;
+  const archiveStats = [
+    ["Reklamy v balíku", workspace.counts.all],
+    ["K doplnění", workspace.counts.needsData],
+    ["Ke kontrole", reviewCount],
+    ["Publikováno", workspace.counts.published],
+  ];
+  const archiveContents = [
+    ["README.txt", "stručný popis exportu"],
+    ["archive.json", "kompletní strukturovaná data"],
+    ["ads.csv", "reklamy a transparentní odkazy"],
+    ["campaigns.csv, branches.csv, candidates.csv", "kampaně, pobočky a kandidáti"],
+    ["assets.csv, approvals.csv, audit-log.csv", "podklady, schválení a auditní stopa"],
+    ["access-members.csv, access-invitations.csv", "přístupy, pokud je máte ve svém oprávnění"],
+  ];
+  const lastAuditLog = [...workspace.auditLogs].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0] ?? null;
 
   return (
-    <section id="archive" className="grid min-w-0 scroll-mt-6 gap-4 rounded-md border border-black/10 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+    <section id="archive" className="grid min-w-0 scroll-mt-6 gap-4 rounded-md border border-black/10 bg-white p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0">
-        <div className="inline-flex items-center gap-2 rounded-md border border-[#f45d1f]/20 bg-[#fff4ef] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">
-          <FileArchive size={14} />
-          Kontrolní archiv
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 rounded-md border border-[#f45d1f]/20 bg-[#fff4ef] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">
+              <FileArchive size={14} />
+              Kontrolní archiv
+            </div>
+            <h2 className="mt-3 text-lg font-semibold text-black">Jeden balík pro kontrolu i vlastní archiv</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
+              ZIP obsahuje reklamy, kampaně, pobočky, kandidáty, podklady, schvalování a auditní stopu podle vašeho přístupu.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "/api/app/exports/archive?locale=cs";
+            }}
+            className="inline-flex w-fit items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white"
+          >
+            <Download size={15} />
+            Stáhnout archiv
+          </button>
         </div>
-        <h2 className="mt-3 text-lg font-semibold text-black">Jeden balík pro kontrolu i vlastní archiv</h2>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-          ZIP obsahuje reklamy, kampaně, pobočky, kandidáty, podklady, schvalování a auditní stopu podle vašeho přístupu.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2 text-sm">
-          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{workspace.counts.all} reklam</span>
-          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{workspace.campaigns.length} kampaní</span>
-          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{workspace.candidates.length} kandidátů</span>
-          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{assetCount} souborů</span>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          {archiveStats.map(([label, value]) => (
+            <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+              <div className="text-xs font-semibold text-[#68707a]">{label}</div>
+              <div className="mt-1 text-xl font-semibold text-black">{value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-4">
+          {[
+            ["Kampaně", workspace.campaigns.length],
+            ["Pobočky", workspace.branches.length],
+            ["Kandidáti", workspace.candidates.length],
+            ["Soubory", assetCount],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border border-black/10 bg-white p-3">
+              <div className="text-xs font-semibold text-[#68707a]">{label}</div>
+              <div className="mt-1 text-lg font-semibold text-black">{value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+          <h3 className="text-sm font-semibold text-black">Co archiv obsahuje</h3>
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {archiveContents.map(([file, description]) => (
+              <div key={file} className="rounded-md border border-black/10 bg-white p-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-black">
+                  <FileSpreadsheet size={15} />
+                  {file}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-[#59616b]">{description}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          window.location.href = "/api/app/exports/archive?locale=cs";
-        }}
-        className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white"
-      >
-        <Download size={15} />
-        Stáhnout archiv
-      </button>
+
+      <aside className="grid h-fit gap-3 rounded-md border border-black/10 bg-[#11161c] p-4 text-white xl:sticky xl:top-4">
+        <div>
+          <div className="inline-flex rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/70">
+            audit
+          </div>
+          <h3 className="mt-3 text-lg font-semibold">Poslední změna</h3>
+          <p className="mt-2 text-sm leading-6 text-white/72">
+            {lastAuditLog ? `${lastAuditLog.actor}: ${lastAuditLog.message}` : "Zatím tu není žádný auditní záznam."}
+          </p>
+        </div>
+        <div className="rounded-md border border-white/12 bg-white/8 p-3">
+          <div className="text-sm font-semibold">Archivní období</div>
+          <p className="mt-1 text-sm leading-6 text-white/72">
+            Data se drží podle nastavení pracovního prostoru: {workspace.tenant.retentionYears} let.
+          </p>
+        </div>
+        <div className="rounded-md border border-white/12 bg-white/8 p-3">
+          <div className="text-sm font-semibold">Auditních záznamů</div>
+          <p className="mt-1 text-2xl font-semibold">{workspace.auditLogs.length}</p>
+        </div>
+      </aside>
     </section>
   );
 }
 
 function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
+  function auditActionLabel(action: string) {
+    const labels: Record<string, string> = {
+      approve_ad: "Schválení reklamy",
+      attach_asset: "Nahrání podkladu",
+      create_ad: "Nová reklama",
+      create_branch: "Nová pobočka",
+      create_campaign: "Nová kampaň",
+      create_candidate: "Nový kandidát",
+      create_invitation: "Pozvánka",
+      export_workspace_archive: "Stažení kontrolního archivu",
+      import_ad: "Import reklamy",
+      import_ads_batch: "Import agendy",
+      login_magic_link: "Přihlášení e-mailem",
+      publish_ad: "Publikace reklamy",
+      request_changes: "Vrácení k doplnění",
+      retry_invitation_email: "Opětovné odeslání pozvánky",
+      revoke_invitation: "Zrušení pozvánky",
+      update_ad: "Úprava reklamy",
+      update_branch: "Úprava pobočky",
+      update_campaign: "Úprava kampaně",
+      update_candidate: "Úprava kandidáta",
+      update_member: "Úprava přístupu",
+      update_profile: "Úprava profilu",
+      update_tenant_settings: "Nastavení pracovního prostoru",
+    };
+    const key = action.toLowerCase();
+
+    return labels[key] ?? key.split("_").filter(Boolean).join(" ");
+  }
+
+  const sortedLogs = [...logs].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+  const actorCount = new Set(logs.map((log) => log.actor)).size;
+  const actionCounts = Array.from(logs.reduce((counts, log) => {
+    const label = auditActionLabel(log.action);
+
+    return counts.set(label, (counts.get(label) ?? 0) + 1);
+  }, new Map<string, number>())).sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"),
+  );
+  const latestLog = sortedLogs[0] ?? null;
+
   return (
     <section id="audit" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -3048,13 +3163,47 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
         </div>
         <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">{logs.length} záznamů</span>
       </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-4">
+        {[
+          ["Záznamy", logs.length],
+          ["Lidé v auditní stopě", actorCount],
+          ["Typy změn", actionCounts.length],
+          ["Poslední změna", latestLog ? new Date(latestLog.createdAt).toLocaleDateString("cs-CZ") : "zatím žádná"],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{label}</div>
+            <div className="mt-2 text-lg font-semibold text-black">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Nejčastější změny</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {actionCounts.length ? actionCounts.slice(0, 8).map(([action, count]) => (
+              <span key={action} className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-[#59616b]">
+                {action}: {count}
+              </span>
+            )) : <span className="text-sm text-[#59616b]">Zatím bez změn.</span>}
+          </div>
+        </div>
+        <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Poslední aktivita</div>
+          <p className="mt-2 text-sm leading-6 text-[#59616b]">
+            {latestLog ? `${latestLog.actor} upravil záznam ${new Date(latestLog.createdAt).toLocaleString("cs-CZ")}.` : "Zatím tu není žádná aktivita."}
+          </p>
+        </div>
+      </div>
+
       <div className="mt-4 grid gap-2">
-        {logs.slice(0, 12).map((log) => (
+        {sortedLogs.slice(0, 12).map((log) => (
           <article key={log.id} className="grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 lg:grid-cols-[180px_180px_minmax(0,1fr)]">
             <div className="text-xs font-semibold text-[#68707a]">{new Date(log.createdAt).toLocaleString("cs-CZ")}</div>
             <div className="break-all text-sm font-semibold text-[#20242a]">{log.actor}</div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">{log.action}</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">{auditActionLabel(log.action)}</div>
               <p className="mt-1 text-sm leading-6 text-[#59616b]">{log.message}</p>
             </div>
           </article>
