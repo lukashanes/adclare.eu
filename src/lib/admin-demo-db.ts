@@ -74,9 +74,11 @@ type AdWithRepositoryRelations = AdWithUnit;
 type MembershipWithUserAndUnit = TenantMembership & {
   user: User;
   orgUnit: OrganizationUnit | null;
+  candidate?: Candidate | null;
 };
 type InvitationWithUnit = Invitation & {
   orgUnit: OrganizationUnit | null;
+  candidate?: Candidate | null;
   emailMessages?: EmailMessage[];
 };
 type AuditPackageAd = AdWithUnit & {
@@ -344,10 +346,10 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#039;");
 }
 
-function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
+function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }) {
   const inviteUrl = `${publicAppUrl()}/invite/${invitation.token}`;
   const tenantName = invitation.tenant.nameCs;
-  const scope = scopeLabel(invitation.orgUnit, "cs");
+  const scope = accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, "cs");
   const role = roleLabel(invitation.role, "cs");
   const subject = `Pozvánka do Adclare: ${tenantName}`;
   const bodyText = [
@@ -451,7 +453,7 @@ async function deliverEmailMessage(email: EmailMessage, content?: { bodyText: st
   }
 }
 
-async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null }) {
+async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }) {
   const { subject, bodyText, bodyHtml, inviteUrl } = invitationEmailCopy(invitation);
   const storedBodyText = bodyText.replaceAll(inviteUrl, "[invitation link redacted]");
   const storedBodyHtml = bodyHtml.replaceAll(escapeHtml(inviteUrl), "#").replaceAll(inviteUrl, "#");
@@ -532,6 +534,24 @@ function scopeLabel(orgUnit: OrganizationUnit | null, locale: Locale) {
   }
 
   return locale === "cs" ? orgUnit.nameCs : orgUnit.nameEn;
+}
+
+function candidateLabel(candidate: Candidate | null | undefined, locale: Locale) {
+  if (!candidate) {
+    return "";
+  }
+
+  return locale === "cs" ? candidate.nameCs : candidate.nameEn;
+}
+
+function accessScopeLabel(orgUnit: OrganizationUnit | null, candidate: Candidate | null | undefined, locale: Locale) {
+  const candidateName = candidateLabel(candidate, locale);
+
+  if (candidateName) {
+    return `${candidateName}, ${scopeLabel(orgUnit, locale)}`;
+  }
+
+  return scopeLabel(orgUnit, locale);
 }
 
 function mapBranch(branch: OrganizationUnit, locale: Locale) {
@@ -647,7 +667,9 @@ function mapMember(member: MembershipWithUserAndUnit, locale: Locale): AdminMemb
     role: roleLabel(member.role, locale),
     roleKey: member.role as AdminRoleKey,
     branchId: member.orgUnitId ?? "",
-    scope: scopeLabel(member.orgUnit, locale),
+    candidateId: member.candidateId ?? "",
+    candidate: candidateLabel(member.candidate ?? null, locale),
+    scope: accessScopeLabel(member.orgUnit, member.candidate ?? null, locale),
     status: membershipStatusLabel(member.status, locale),
     statusKey: member.status as MemberStatusKey,
   };
@@ -661,7 +683,9 @@ function mapInvitation(invitation: InvitationWithUnit, locale: Locale): AdminInv
     email: invitation.email,
     role: roleLabel(invitation.role, locale),
     roleKey: invitation.role as AdminRoleKey,
-    scope: scopeLabel(invitation.orgUnit, locale),
+    candidateId: invitation.candidateId ?? "",
+    candidate: candidateLabel(invitation.candidate ?? null, locale),
+    scope: accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, locale),
     status: invitationStatusLabel(invitation.status, invitation.expiresAt, locale),
     statusKey: invitationStatusKey(invitation.status, invitation.expiresAt),
     emailStatus: emailStatusLabel(emailStatus, locale),
@@ -1222,7 +1246,7 @@ export async function getPublicRepositoryPayload(
 
 export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPayload> {
   const { tenant } = await getDemoTenantAndCampaign();
-  const [memberships, invitations, branches] = await Promise.all([
+  const [memberships, invitations, branches, candidates] = await Promise.all([
     prisma.tenantMembership.findMany({
       where: {
         tenantId: tenant.id,
@@ -1230,6 +1254,7 @@ export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPay
       include: {
         user: true,
         orgUnit: true,
+        candidate: true,
       },
       orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
     }),
@@ -1239,6 +1264,7 @@ export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPay
       },
       include: {
         orgUnit: true,
+        candidate: true,
         emailMessages: {
           orderBy: {
             createdAt: "desc",
@@ -1259,12 +1285,30 @@ export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPay
         slug: "asc",
       },
     }),
+    prisma.candidate.findMany({
+      where: {
+        tenantId: tenant.id,
+        archivedAt: null,
+      },
+      include: {
+        orgUnit: true,
+        _count: {
+          select: {
+            ads: true,
+          },
+        },
+      },
+      orderBy: {
+        nameCs: "asc",
+      },
+    }),
   ]);
 
   return {
     members: memberships.map((member) => mapMember(member, locale)),
     invitations: invitations.map((invitation) => mapInvitation(invitation, locale)),
     branches: branches.map((branch) => mapBranch(branch, locale)),
+    candidates: sortMappedCandidates(candidates.map((candidate) => mapCandidate(candidate, locale))),
     assignableRoles: assignableRolesForScope(true, locale),
   };
 }
@@ -1338,6 +1382,7 @@ export async function createDemoInvitation(input: InviteInput, locale: Locale) {
     include: {
       tenant: true,
       orgUnit: true,
+      candidate: true,
     },
   });
 
@@ -1403,6 +1448,7 @@ export async function getInvitationNotice(token: string, locale: Locale): Promis
     include: {
       tenant: true,
       orgUnit: true,
+      candidate: true,
     },
   });
 
@@ -1414,7 +1460,7 @@ export async function getInvitationNotice(token: string, locale: Locale): Promis
     token: invitation.token,
     email: invitation.email,
     role: roleLabel(invitation.role, locale),
-    scope: scopeLabel(invitation.orgUnit, locale),
+    scope: accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, locale),
     tenant: locale === "cs" ? invitation.tenant.nameCs : invitation.tenant.nameEn,
     status: invitationStatusKey(invitation.status, invitation.expiresAt),
     expiresAt: formatDate(invitation.expiresAt, locale),
@@ -1429,6 +1475,7 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
     include: {
       tenant: true,
       orgUnit: true,
+      candidate: true,
     },
   });
 
@@ -1461,11 +1508,13 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
         role: invitation.role,
         status: MembershipStatus.ACTIVE,
         orgUnitId: invitation.orgUnitId,
+        candidateId: invitation.candidateId,
       },
       create: {
         tenantId: invitation.tenantId,
         userId: user.id,
         orgUnitId: invitation.orgUnitId,
+        candidateId: invitation.candidateId,
         role: invitation.role,
         status: MembershipStatus.ACTIVE,
       },
@@ -2220,7 +2269,11 @@ function isTenantWideRole(role: UserRole) {
 }
 
 function roleNeedsOrgUnit(role: UserRole) {
-  return !isTenantWideRole(role);
+  return !isTenantWideRole(role) && role !== UserRole.CANDIDATE;
+}
+
+function roleNeedsCandidate(role: UserRole) {
+  return role === UserRole.CANDIDATE;
 }
 
 function canAssignRole(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, role: UserRole) {
@@ -2233,6 +2286,44 @@ function canAssignRole(context: NonNullable<Awaited<ReturnType<typeof getAppAcce
   }
 
   return role === UserRole.CAMPAIGN_MANAGER || role === UserRole.DESIGNER || role === UserRole.CANDIDATE;
+}
+
+async function candidateForAccessInput(
+  context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>,
+  role: UserRole,
+  candidateId: string | undefined,
+) {
+  if (!roleNeedsCandidate(role)) {
+    return null;
+  }
+
+  const candidateRef = candidateId?.trim();
+
+  if (!candidateRef) {
+    throw new Error("Vyberte kandidáta pro kandidátský přístup.");
+  }
+
+  const candidate = await prisma.candidate.findFirst({
+    where: {
+      tenantId: context.membership.tenantId,
+      archivedAt: null,
+      ...(context.tenantWideRole ? {} : { orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }),
+      OR: [{ id: candidateRef }, { slug: slugify(candidateRef) }, { nameCs: candidateRef }, { nameEn: candidateRef }],
+    },
+    include: {
+      orgUnit: true,
+    },
+  });
+
+  if (!candidate) {
+    throw new Error("Vyberte existujícího aktivního kandidáta.");
+  }
+
+  if (!candidate.orgUnit) {
+    throw new Error("Kandidát musí mít přiřazenou pobočku nebo oblast.");
+  }
+
+  return candidate;
 }
 
 function canCreateAppAds(role: UserRole) {
@@ -2321,6 +2412,7 @@ async function getAppAccessContext(userId: string) {
       user: true,
       tenant: true,
       orgUnit: true,
+      candidate: true,
     },
     orderBy: {
       createdAt: "asc",
@@ -2392,6 +2484,13 @@ async function getAppCampaignForInput(
 }
 
 function scopedCandidateWhere(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>) {
+  if (context.membership.role === UserRole.CANDIDATE) {
+    return {
+      tenantId: context.membership.tenantId,
+      id: context.membership.candidateId || "__missing_candidate_scope__",
+    };
+  }
+
   return {
     tenantId: context.membership.tenantId,
     ...(context.tenantWideRole
@@ -2404,6 +2503,18 @@ function scopedCandidateWhere(context: NonNullable<Awaited<ReturnType<typeof get
 
 async function getAppCandidateForInput(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, input: Pick<EditableAdInput, "candidateId">) {
   const candidateRef = input.candidateId?.trim();
+
+  if (context.membership.role === UserRole.CANDIDATE) {
+    if (!context.membership.candidateId || !context.membership.candidate) {
+      throw new Error("Uživatel nemá přiřazeného kandidáta.");
+    }
+
+    if (candidateRef && candidateRef !== context.membership.candidateId && slugify(candidateRef) !== context.membership.candidate.slug) {
+      throw new Error("Tento přístup může pracovat jen s přiřazeným kandidátem.");
+    }
+
+    return context.membership.candidate;
+  }
 
   if (!candidateRef) {
     return null;
@@ -2529,10 +2640,39 @@ async function uniqueImportCode(
 }
 
 function scopedAdWhere(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>) {
+  if (context.tenantWideRole) {
+    return {
+      tenantId: context.membership.tenantId,
+    };
+  }
+
+  if (context.membership.role === UserRole.CANDIDATE) {
+    return {
+      tenantId: context.membership.tenantId,
+      candidateId: context.membership.candidateId || "__missing_candidate_scope__",
+    };
+  }
+
   return {
     tenantId: context.membership.tenantId,
-    ...(context.tenantWideRole ? {} : { orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }),
+    orgUnitId: context.membership.orgUnitId || "__missing_org_scope__",
   };
+}
+
+function canAccessAppAd(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, ad: Pick<Ad, "tenantId" | "orgUnitId" | "candidateId">) {
+  if (ad.tenantId !== context.membership.tenantId) {
+    return false;
+  }
+
+  if (context.tenantWideRole) {
+    return true;
+  }
+
+  if (context.membership.role === UserRole.CANDIDATE) {
+    return Boolean(context.membership.candidateId && ad.candidateId === context.membership.candidateId);
+  }
+
+  return ad.orgUnitId === context.membership.orgUnitId;
 }
 
 async function getAppSuperAdminPayload(locale: Locale): Promise<AppSuperAdminPayload> {
@@ -2731,6 +2871,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           include: {
             user: true,
             orgUnit: true,
+            candidate: true,
           },
           orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
         })
@@ -2743,6 +2884,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
           },
           include: {
             orgUnit: true,
+            candidate: true,
             emailMessages: {
               orderBy: {
                 createdAt: "desc",
@@ -2773,8 +2915,8 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   const mappedAds = ads.map((ad) => mapAd(ad, locale));
   const membershipScope = tenantWideRole
     ? scopeLabel(null, locale)
-    : membership.orgUnit
-      ? scopeLabel(membership.orgUnit, locale)
+    : membership.orgUnit || membership.candidate
+      ? accessScopeLabel(membership.orgUnit, membership.candidate ?? null, locale)
       : locale === "cs"
         ? "bez pobočky"
         : "no branch assigned";
@@ -2806,6 +2948,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       members: memberships.map((member) => mapMember(member, locale)),
       invitations: invitations.map((invitation) => mapInvitation(invitation, locale)),
       branches: branches.filter((branch) => !branch.archivedAt).map((branch) => mapBranch(branch, locale)),
+      candidates: sortMappedCandidates(candidates.filter((candidate) => !candidate.archivedAt).map((candidate) => mapCandidate(candidate, locale))),
       assignableRoles: assignableRolesForContext(context, locale),
     },
     auditLogs: auditLogs.map((log): AppAuditRecord => ({
@@ -3569,9 +3712,11 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
     throw new Error("Tuto roli nemůžete přiřadit.");
   }
 
-  const branchId = context.tenantWideRole ? input.branchId : context.membership.orgUnitId || "";
+  const candidate = await candidateForAccessInput(context, role, input.candidateId);
+  const branchId = candidate?.orgUnitId ?? (context.tenantWideRole ? input.branchId : context.membership.orgUnitId || "");
   const orgUnit =
-    roleNeedsOrgUnit(role) && branchId
+    candidate?.orgUnit ??
+    (roleNeedsOrgUnit(role) && branchId
       ? await prisma.organizationUnit.findFirst({
           where: {
             id: branchId,
@@ -3579,7 +3724,7 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
             archivedAt: null,
           },
         })
-      : null;
+      : null);
 
   if (roleNeedsOrgUnit(role) && !orgUnit) {
     throw new Error("Vyberte pobočku pro člověka, který nemá pracovat s celou stranou.");
@@ -3599,7 +3744,8 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
   const invitation = await prisma.invitation.create({
     data: {
       tenantId: context.membership.tenantId,
-      orgUnitId: orgUnit?.id,
+      orgUnitId: orgUnit?.id ?? null,
+      candidateId: candidate?.id ?? null,
       email,
       role,
       token: createInviteToken(),
@@ -3609,6 +3755,7 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
     include: {
       tenant: true,
       orgUnit: true,
+      candidate: true,
     },
   });
 
@@ -3622,6 +3769,11 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
       action: "create_invitation",
       messageCs: `Pozván ${email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
       messageEn: `Invited ${email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
+      metadata: {
+        role,
+        orgUnitId: orgUnit?.id ?? null,
+        candidateId: candidate?.id ?? null,
+      },
     },
   });
 
@@ -3644,6 +3796,7 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
     include: {
       tenant: true,
       orgUnit: true,
+      candidate: true,
       emailMessages: {
         orderBy: {
           createdAt: "desc",
@@ -3689,6 +3842,7 @@ export async function revokeAppInvitation(userId: string, invitationId: string, 
     },
     include: {
       orgUnit: true,
+      candidate: true,
       emailMessages: {
         orderBy: {
           createdAt: "desc",
@@ -3716,6 +3870,7 @@ export async function revokeAppInvitation(userId: string, invitationId: string, 
       },
       include: {
         orgUnit: true,
+        candidate: true,
         emailMessages: {
           orderBy: {
             createdAt: "desc",
@@ -3810,6 +3965,7 @@ export async function updateAppMember(userId: string, memberId: string, input: A
     include: {
       user: true,
       orgUnit: true,
+      candidate: true,
     },
   });
 
@@ -3825,9 +3981,11 @@ export async function updateAppMember(userId: string, memberId: string, input: A
     throw new Error("Tuto roli nemůžete přiřadit.");
   }
 
-  const branchId = context.tenantWideRole ? input.branchId : context.membership.orgUnitId || "";
+  const candidate = await candidateForAccessInput(context, role, input.candidateId);
+  const branchId = candidate?.orgUnitId ?? (context.tenantWideRole ? input.branchId : context.membership.orgUnitId || "");
   const orgUnit =
-    roleNeedsOrgUnit(role) && branchId
+    candidate?.orgUnit ??
+    (roleNeedsOrgUnit(role) && branchId
       ? await prisma.organizationUnit.findFirst({
           where: {
             id: branchId,
@@ -3835,7 +3993,7 @@ export async function updateAppMember(userId: string, memberId: string, input: A
             archivedAt: null,
           },
         })
-      : null;
+      : null);
 
   if (roleNeedsOrgUnit(role) && !orgUnit) {
     throw new Error("Vyberte pobočku pro člověka, který nemá pracovat s celou stranou.");
@@ -3878,11 +4036,13 @@ export async function updateAppMember(userId: string, memberId: string, input: A
       data: {
         role,
         status,
-        orgUnitId: roleNeedsOrgUnit(role) ? orgUnit?.id : null,
+        orgUnitId: roleNeedsOrgUnit(role) || roleNeedsCandidate(role) ? orgUnit?.id ?? null : null,
+        candidateId: roleNeedsCandidate(role) ? candidate?.id ?? null : null,
       },
       include: {
         user: true,
         orgUnit: true,
+        candidate: true,
       },
     });
 
@@ -3899,6 +4059,7 @@ export async function updateAppMember(userId: string, memberId: string, input: A
           role,
           status,
           orgUnitId: updated.orgUnitId,
+          candidateId: updated.candidateId,
         },
       },
     });
@@ -4230,7 +4391,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
     },
   });
 
-  if (!existing || (!context.tenantWideRole && existing.orgUnitId !== context.membership.orgUnitId)) {
+  if (!existing || !canAccessAppAd(context, existing)) {
     return null;
   }
 
@@ -4405,7 +4566,7 @@ export async function getAppAdRecord(userId: string, code: string, locale: Local
     },
   });
 
-  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+  if (!ad || !canAccessAppAd(context, ad)) {
     return null;
   }
 
@@ -4428,7 +4589,7 @@ export async function prepareAppAuditExport(userId: string, code: string) {
     },
   });
 
-  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+  if (!ad || !canAccessAppAd(context, ad)) {
     return false;
   }
 
@@ -4489,7 +4650,7 @@ export async function getAppAuditPackage(userId: string, code: string, locale: L
     },
   });
 
-  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+  if (!ad || !canAccessAppAd(context, ad)) {
     return null;
   }
 
@@ -4581,7 +4742,7 @@ export async function getAppAdUploadTarget(userId: string, code: string) {
     },
   });
 
-  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+  if (!ad || !canAccessAppAd(context, ad)) {
     return null;
   }
 
@@ -4681,7 +4842,7 @@ export async function getAppAdAssetDownload(userId: string, code: string, assetI
     !asset ||
     asset.tenantId !== context.membership.tenantId ||
     asset.ad.code !== code ||
-    (!context.tenantWideRole && asset.ad.orgUnitId !== context.membership.orgUnitId)
+    !canAccessAppAd(context, asset.ad)
   ) {
     return null;
   }
@@ -4713,7 +4874,7 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
     },
   });
 
-  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+  if (!ad || !canAccessAppAd(context, ad)) {
     return null;
   }
 
@@ -4829,7 +4990,7 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
     },
   });
 
-  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+  if (!ad || !canAccessAppAd(context, ad)) {
     return null;
   }
 
@@ -4939,7 +5100,7 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
     },
   });
 
-  if (!ad || (!context.tenantWideRole && ad.orgUnitId !== context.membership.orgUnitId)) {
+  if (!ad || !canAccessAppAd(context, ad)) {
     return null;
   }
 

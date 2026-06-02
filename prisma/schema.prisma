@@ -114,19 +114,19 @@ model Campaign {
 }
 
 model OrganizationUnit {
-  id          String    @id @default(cuid())
-  tenantId    String
-  parentId    String?
-  slug        String
-  kind        String
-  nameCs      String
-  nameEn      String
-  contactEmail String   @default("")
-  descriptionCs String  @default("")
-  descriptionEn String  @default("")
-  archivedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  tenantId      String
+  parentId      String?
+  slug          String
+  kind          String
+  nameCs        String
+  nameEn        String
+  contactEmail  String    @default("")
+  descriptionCs String    @default("")
+  descriptionEn String    @default("")
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   parent      OrganizationUnit?  @relation("OrganizationUnitTree", fields: [parentId], references: [id], onDelete: SetNull)
@@ -186,22 +186,25 @@ model UserSession {
 }
 
 model TenantMembership {
-  id        String           @id @default(cuid())
-  tenantId  String
-  userId    String
-  orgUnitId String?
-  role      UserRole
-  status    MembershipStatus @default(ACTIVE)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id          String           @id @default(cuid())
+  tenantId    String
+  userId      String
+  orgUnitId   String?
+  candidateId String?
+  role        UserRole
+  status      MembershipStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgUnit OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgUnit   OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  candidate Candidate?        @relation(fields: [candidateId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, userId])
   @@index([tenantId, role])
   @@index([tenantId, status])
+  @@index([tenantId, candidateId])
   @@index([orgUnitId])
   @@map("tenant_memberships")
 }
@@ -210,6 +213,7 @@ model Invitation {
   id              String           @id @default(cuid())
   tenantId        String
   orgUnitId       String?
+  candidateId     String?
   email           String
   role            UserRole
   status          InvitationStatus @default(PENDING)
@@ -222,11 +226,13 @@ model Invitation {
 
   tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   orgUnit       OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  candidate     Candidate?        @relation(fields: [candidateId], references: [id], onDelete: SetNull)
   invitedBy     User?             @relation("InvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
   emailMessages EmailMessage[]
 
   @@index([tenantId, status])
   @@index([tenantId, email])
+  @@index([tenantId, candidateId])
   @@index([orgUnitId])
   @@map("invitations")
 }
@@ -246,9 +252,11 @@ model Candidate {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orgUnit OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
-  ads     Ad[]
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orgUnit     OrganizationUnit?  @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  ads         Ad[]
+  memberships TenantMembership[]
+  invitations Invitation[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -389,19 +397,19 @@ model AdAsset {
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  tenantId  String
-  adId      String?
-  actor     String
+  id          String   @id @default(cuid())
+  tenantId    String
+  adId        String?
+  actor       String
   actorUserId String?
-  action    String
-  messageCs String
-  messageEn String
-  ipAddress String   @default("")
-  userAgent String   @default("")
-  requestId String   @default("")
-  metadata  Json?
-  createdAt DateTime @default(now())
+  action      String
+  messageCs   String
+  messageEn   String
+  ipAddress   String   @default("")
+  userAgent   String   @default("")
+  requestId   String   @default("")
+  metadata    Json?
+  createdAt   DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ad     Ad?    @relation(fields: [adId], references: [id], onDelete: SetNull)

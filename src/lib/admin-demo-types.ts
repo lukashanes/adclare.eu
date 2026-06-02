@@ -274,6 +274,8 @@ export type AdminMemberRecord = {
   role: string;
   roleKey: AdminRoleKey;
   branchId: string;
+  candidateId: string;
+  candidate: string;
   scope: string;
   status: string;
   statusKey: MemberStatusKey;
@@ -284,6 +286,8 @@ export type AdminInvitationRecord = {
   email: string;
   role: string;
   roleKey: AdminRoleKey;
+  candidateId: string;
+  candidate: string;
   scope: string;
   status: string;
   statusKey: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
@@ -297,6 +301,7 @@ export type AdminUsersPayload = {
   members: AdminMemberRecord[];
   invitations: AdminInvitationRecord[];
   branches: AdminBranchOption[];
+  candidates: AppCandidateRecord[];
   assignableRoles: PublicRepositoryOption[];
 };
 
@@ -304,6 +309,7 @@ export type InviteInput = {
   email: string;
   role: AdminRoleKey;
   branchId?: string;
+  candidateId?: string;
 };
 
 export type AppProfileInput = {
@@ -314,6 +320,7 @@ export type AppMemberUpdateInput = {
   name: string;
   role: AdminRoleKey;
   branchId?: string;
+  candidateId?: string;
   status: MemberStatusKey;
 };
 

@@ -58,7 +58,11 @@ function workspaceWithAd(workspace: AppWorkspacePayload, nextAd: AdRecord) {
 }
 
 function roleNeedsBranch(role: InviteInput["role"]) {
-  return role !== "PARTY_ADMIN" && role !== "CENTRAL_REVIEWER" && role !== "READONLY_AUDITOR" && role !== "SUPER_ADMIN";
+  return role !== "PARTY_ADMIN" && role !== "CENTRAL_REVIEWER" && role !== "READONLY_AUDITOR" && role !== "SUPER_ADMIN" && role !== "CANDIDATE";
+}
+
+function roleNeedsCandidate(role: InviteInput["role"]) {
+  return role === "CANDIDATE";
 }
 
 function workspaceWithBranch(workspace: AppWorkspacePayload, branch: AppWorkspacePayload["branches"][number]) {
@@ -107,11 +111,13 @@ function defaultCampaign(workspace: AppWorkspacePayload) {
 function blankInviteForm(workspace: AppWorkspacePayload): InviteInput {
   const role = (workspace.users.assignableRoles[0]?.value as InviteInput["role"] | undefined) ?? "CAMPAIGN_MANAGER";
   const branch = workspace.users.branches.find((item) => !item.archived) ?? workspace.users.branches[0] ?? workspace.branches.find((item) => !item.archived);
+  const candidate = workspace.users.candidates.find((item) => !item.archived) ?? workspace.users.candidates[0] ?? workspace.candidates.find((item) => !item.archived);
 
   return {
     email: "",
     role,
-    branchId: branch?.id ?? "",
+    branchId: roleNeedsCandidate(role) ? candidate?.branchId ?? "" : branch?.id ?? "",
+    candidateId: roleNeedsCandidate(role) ? candidate?.id ?? "" : "",
   };
 }
 
@@ -736,7 +742,16 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           invitations: [payload.invitation as AppWorkspacePayload["users"]["invitations"][number], ...current.users.invitations.filter((item) => item.id !== payload.invitation?.id)],
         },
       }));
-      setInviteForm((current) => ({ ...blankInviteForm(workspace), role: current.role }));
+      setInviteForm((current) => {
+        const next = blankInviteForm(workspace);
+
+        return {
+          ...next,
+          role: current.role,
+          branchId: roleNeedsCandidate(current.role) ? current.branchId : next.branchId,
+          candidateId: roleNeedsCandidate(current.role) ? current.candidateId : "",
+        };
+      });
       setInviteMessage(payload.invitation.inviteUrl);
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : "Pozvánku se nepodařilo vytvořit.");
@@ -2366,7 +2381,30 @@ function PeoplePanel({
   onUpdateMember: (memberId: string, input: AppMemberUpdateInput) => void;
 }) {
   const inviteRoleNeedsBranch = roleNeedsBranch(form.role);
+  const inviteRoleNeedsCandidate = roleNeedsCandidate(form.role);
+  const activeCandidates = users.candidates.filter((candidate) => !candidate.archived);
+  const inviteCandidate = users.candidates.find((candidate) => candidate.id === form.candidateId) ?? activeCandidates[0] ?? null;
   const activeCount = users.members.filter((member) => member.statusKey === "ACTIVE").length;
+  const inviteCandidateMissing = inviteRoleNeedsCandidate && !form.candidateId;
+
+  function updateInviteRole(role: InviteInput["role"]) {
+    const nextCandidate = roleNeedsCandidate(role) ? inviteCandidate : null;
+    onChange({
+      ...form,
+      role,
+      candidateId: nextCandidate?.id ?? "",
+      branchId: roleNeedsCandidate(role) ? nextCandidate?.branchId ?? "" : form.branchId,
+    });
+  }
+
+  function updateInviteCandidate(candidateId: string) {
+    const candidate = users.candidates.find((item) => item.id === candidateId);
+    onChange({
+      ...form,
+      candidateId,
+      branchId: candidate?.branchId ?? form.branchId,
+    });
+  }
 
   return (
     <section id="people" className="grid min-w-0 scroll-mt-6 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -2374,7 +2412,7 @@ function PeoplePanel({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-black">Správa lidí</h2>
-            <p className="mt-1 text-sm text-[#59616b]">Upravte jméno, roli, pobočku nebo stav přístupu. Každý člověk vidí jen práci podle svého rozsahu.</p>
+            <p className="mt-1 text-sm text-[#59616b]">Nastavte, kdo vidí celou stranu, konkrétní pobočku nebo jen reklamy vybraného kandidáta.</p>
           </div>
           <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
             {activeCount} aktivních
@@ -2388,7 +2426,7 @@ function PeoplePanel({
               {users.members.map((member) => (
                 <form
                   key={member.id}
-                  className="grid min-w-0 gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 xl:grid-cols-[minmax(160px,1.1fr)_minmax(180px,1fr)_170px_170px_140px] xl:items-end"
+                  className="grid min-w-0 gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(160px,1.1fr)_minmax(150px,190px)_minmax(150px,190px)_minmax(150px,190px)_130px_120px] 2xl:items-end"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const formData = new FormData(event.currentTarget);
@@ -2396,6 +2434,7 @@ function PeoplePanel({
                       name: String(formData.get("name") ?? ""),
                       role: String(formData.get("role") ?? member.roleKey) as AppMemberUpdateInput["role"],
                       branchId: String(formData.get("branchId") ?? ""),
+                      candidateId: String(formData.get("candidateId") ?? ""),
                       status: String(formData.get("status") ?? member.statusKey) as AppMemberUpdateInput["status"],
                     });
                   }}
@@ -2427,7 +2466,7 @@ function PeoplePanel({
                     </select>
                   </label>
                   <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                    Rozsah
+                    Pobočka
                     <select
                       name="branchId"
                       defaultValue={member.branchId}
@@ -2437,6 +2476,21 @@ function PeoplePanel({
                       {users.branches.map((branch) => (
                         <option key={branch.id} value={branch.id}>
                           {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                    Kandidát
+                    <select
+                      name="candidateId"
+                      defaultValue={member.candidateId}
+                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
+                    >
+                      <option value="">Bez kandidáta</option>
+                      {users.candidates.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name}
                         </option>
                       ))}
                     </select>
@@ -2530,7 +2584,7 @@ function PeoplePanel({
             Role
             <select
               value={form.role}
-              onChange={(event) => onChange({ ...form, role: event.target.value as InviteInput["role"] })}
+              onChange={(event) => updateInviteRole(event.target.value as InviteInput["role"])}
               className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
             >
               {users.assignableRoles.map((role) => (
@@ -2540,6 +2594,24 @@ function PeoplePanel({
               ))}
             </select>
           </label>
+
+          {inviteRoleNeedsCandidate ? (
+            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
+              Kandidát
+              <select
+                value={form.candidateId ?? ""}
+                onChange={(event) => updateInviteCandidate(event.target.value)}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
+              >
+                <option value="">Vyberte kandidáta</option>
+                {activeCandidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
             Pobočka nebo oblast
@@ -2561,7 +2633,7 @@ function PeoplePanel({
           <button
             type="button"
             onClick={onCreate}
-            disabled={saving || !form.email.trim() || (inviteRoleNeedsBranch && !form.branchId)}
+            disabled={saving || !form.email.trim() || (inviteRoleNeedsBranch && !form.branchId) || inviteCandidateMissing}
             className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
           >
             <Plus size={15} />

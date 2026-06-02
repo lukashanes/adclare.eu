@@ -41,6 +41,7 @@ const appAuth = read("src/lib/app-auth.ts");
 const turnstile = read("src/lib/turnstile.ts");
 const license = read("LICENSE");
 const changelog = read("CHANGELOG.md");
+const seed = read("prisma/seed.ts");
 const packageJson = JSON.parse(read("package.json"));
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
@@ -119,6 +120,11 @@ check(existsSync(resolve(root, "src/app/api/app/candidates/[id]/route.ts")), "Ap
 check(adminDb.includes("createAppCandidate") && adminDb.includes("update_candidate") && adminDb.includes("canManageAppCandidates"), "App candidate management handlers are missing.");
 check(appWorkspace.includes("Kandidáti") && appWorkspace.includes('type === "candidate"') && appWorkspace.includes("Bez kandidáta"), "Workspace should expose candidate management and ad assignment.");
 check(xlsxImport.includes("candidateId") && adminDb.includes("getAppCandidateForInput"), "Excel import should map candidate names to stored candidates.");
+check(schema.includes("memberships TenantMembership[]") && schema.includes("invitations Invitation[]"), "Candidate schema should expose membership and invitation relations.");
+check(adminDb.includes("roleNeedsCandidate") && adminDb.includes("candidateForAccessInput") && adminDb.includes("canAccessAppAd"), "Candidate-scoped access helpers are missing.");
+check(adminDb.includes("candidateId: invitation.candidateId") && adminDb.includes("role === UserRole.CANDIDATE"), "Accepted invitations and ad scopes should persist candidate access.");
+check(appWorkspace.includes("roleNeedsCandidate") && appWorkspace.includes('name="candidateId"') && appWorkspace.includes("inviteCandidateMissing"), "People management should expose candidate-scoped invitations and members.");
+check(seed.includes("kandidat@demo-strana.cz") && seed.includes("candidateId: janCandidate.id"), "Seed data should include a candidate-scoped demo user.");
 check(transparencyPage.includes('["Kandidát"') && adminDb.includes("candidate: true"), "Transparency notice should include assigned candidate data.");
 check(publicRepoPage.includes("texts.candidate") && publicRepoPage.includes("ad.candidate"), "Public repository should display assigned candidate data.");
 check(read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("candidate: ad.candidate"), "App QR package notice should include assigned candidate data.");

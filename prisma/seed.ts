@@ -363,12 +363,50 @@ async function main() {
       role: UserRole.SUPER_ADMIN,
       status: MembershipStatus.ACTIVE,
       orgUnitId: null,
+      candidateId: null,
     },
     create: {
       tenantId: tenant.id,
       userId: adminUser.id,
       role: UserRole.SUPER_ADMIN,
       status: MembershipStatus.ACTIVE,
+    },
+  });
+
+  const candidateUser = await prisma.user.upsert({
+    where: { email: "kandidat@demo-strana.cz" },
+    update: { name: "Jan Novák" },
+    create: {
+      email: "kandidat@demo-strana.cz",
+      name: "Jan Novák",
+    },
+  });
+  const janCandidate = candidateBySlug.get("jan-novak");
+
+  if (!janCandidate?.orgUnitId) {
+    throw new Error("Seed candidate jan-novak must have an organization unit.");
+  }
+
+  await prisma.tenantMembership.upsert({
+    where: {
+      tenantId_userId: {
+        tenantId: tenant.id,
+        userId: candidateUser.id,
+      },
+    },
+    update: {
+      role: UserRole.CANDIDATE,
+      status: MembershipStatus.ACTIVE,
+      orgUnitId: janCandidate.orgUnitId,
+      candidateId: janCandidate.id,
+    },
+    create: {
+      tenantId: tenant.id,
+      userId: candidateUser.id,
+      role: UserRole.CANDIDATE,
+      status: MembershipStatus.ACTIVE,
+      orgUnitId: janCandidate.orgUnitId,
+      candidateId: janCandidate.id,
     },
   });
 

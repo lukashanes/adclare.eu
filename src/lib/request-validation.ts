@@ -256,6 +256,7 @@ export function parseInviteInput(value: unknown): InviteInput {
     email: text(body.email, "email", { required: true, max: 240 }).toLowerCase(),
     role: text(body.role, "role", { max: 80 }) as InviteInput["role"],
     branchId: text(body.branchId, "branchId", { max: 120 }),
+    candidateId: text(body.candidateId, "candidateId", { max: 120 }),
   };
 }
 
@@ -274,6 +275,7 @@ export function parseAppMemberUpdateInput(value: unknown): AppMemberUpdateInput 
     name: text(body.name, "name", { required: true, max: 120 }),
     role: text(body.role, "role", { required: true, max: 80 }) as AppMemberUpdateInput["role"],
     branchId: text(body.branchId, "branchId", { max: 120 }),
+    candidateId: text(body.candidateId, "candidateId", { max: 120 }),
     status: text(body.status, "status", { required: true, max: 40 }) as AppMemberUpdateInput["status"],
   };
 }
