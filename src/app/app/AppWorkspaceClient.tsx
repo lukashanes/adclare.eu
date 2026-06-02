@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, RefreshCw, Save, Search, ShieldCheck, Tags, Upload, Users, X } from "lucide-react";
 import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppCandidateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
+type WorkspaceSection = "ads" | "review" | "campaigns" | "branches" | "people" | "archive" | "settings";
 
 const workflowClass: Record<AdRecord["workflowStatus"], string> = {
   DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
@@ -14,6 +15,22 @@ const workflowClass: Record<AdRecord["workflowStatus"], string> = {
   PUBLISHED: "border-[#b9e0d2] bg-[#ecf8f2] text-[#0f6b45]",
   ARCHIVED: "border-neutral-200 bg-neutral-50 text-neutral-700",
 };
+
+const workspaceSectionIds = ["ads", "review", "campaigns", "branches", "people", "archive", "settings"] as const;
+
+function sectionFromHash(hash: string): WorkspaceSection | null {
+  const value = hash.replace(/^#/, "");
+
+  return workspaceSectionIds.includes(value as WorkspaceSection) ? (value as WorkspaceSection) : null;
+}
+
+function accessSentence(workspace: AppWorkspacePayload) {
+  if (workspace.membership.scope === "celá strana") {
+    return "Vidíte data celé strany.";
+  }
+
+  return `Vidíte data pro ${workspace.membership.scope}.`;
+}
 
 function canManageAds(workspace: AppWorkspacePayload) {
   return workspace.permissions.canEditAds;
@@ -343,11 +360,73 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<AdImportResult | null>(null);
   const [error, setError] = useState("");
+  const [activeSectionId, setActiveSectionId] = useState<WorkspaceSection>(() => {
+    if (typeof window === "undefined") {
+      return "ads";
+    }
+
+    return sectionFromHash(window.location.hash) ?? "ads";
+  });
 
   const selectedAd = workspace.ads.find((ad) => ad.id === selectedId) ?? workspace.ads[0] ?? null;
   const writable = canManageAds(workspace);
   const reviewable = canReviewAds(workspace);
   const progress = setupProgress(workspace);
+  const sections = useMemo(() => {
+    const missingCount = workspace.ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length;
+
+    return [
+      {
+        id: "ads" as const,
+        label: "Reklamy",
+        description: "Evidence, údaje, QR a detail materiálu.",
+        count: workspace.counts.all,
+        visible: true,
+      },
+      {
+        id: "review" as const,
+        label: "Ke kontrole",
+        description: "Schvalování a položky k doplnění.",
+        count: workspace.counts.review + missingCount,
+        visible: reviewable || workspace.counts.review > 0 || missingCount > 0,
+      },
+      {
+        id: "campaigns" as const,
+        label: "Kampaně",
+        description: "Volby, období a tagy kampaní.",
+        count: workspace.campaigns.length,
+        visible: workspace.permissions.canManageCampaigns,
+      },
+      {
+        id: "branches" as const,
+        label: "Pobočky",
+        description: "Regiony, oblasti a lokální týmy.",
+        count: workspace.branches.length,
+        visible: workspace.permissions.canManageBranches || workspace.permissions.canEditOwnBranch,
+      },
+      {
+        id: "people" as const,
+        label: "Lidé",
+        description: "Role, pozvánky a přístupy.",
+        count: workspace.users.members.length,
+        visible: workspace.permissions.canManageUsers,
+      },
+      {
+        id: "archive" as const,
+        label: "Archiv",
+        description: "Kontrolní exporty a auditní stopa.",
+        count: workspace.permissions.canViewAudit ? workspace.auditLogs.length : undefined,
+        visible: workspace.permissions.canExportArchive || workspace.permissions.canViewAudit,
+      },
+      {
+        id: "settings" as const,
+        label: "Nastavení",
+        description: "Profil, pracovní prostor a instalace.",
+        visible: true,
+      },
+    ].filter((section) => section.visible);
+  }, [reviewable, workspace]);
+  const activeSection = sections.some((section) => section.id === activeSectionId) ? activeSectionId : "ads";
   const filteredAds = useMemo(() => {
     const normalized = query.trim().toLowerCase();
 
@@ -361,6 +440,21 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       ),
     );
   }, [query, workspace.ads]);
+
+  useEffect(() => {
+    function syncSectionFromHash() {
+      const section = sectionFromHash(window.location.hash);
+
+      if (section) {
+        setActiveSectionId(section);
+      }
+    }
+
+    syncSectionFromHash();
+    window.addEventListener("hashchange", syncSectionFromHash);
+
+    return () => window.removeEventListener("hashchange", syncSectionFromHash);
+  }, []);
 
   async function refreshWorkspace() {
     setRefreshing(true);
@@ -824,13 +918,23 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
   }
 
+  function openSection(section: WorkspaceSection) {
+    setActiveSectionId(section);
+
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${section}`);
+    }
+  }
+
   function openCreate() {
+    openSection("ads");
     setForm(blankForm(workspace));
     setMode("create");
     setError("");
   }
 
   function openEdit(ad: AdRecord) {
+    openSection("ads");
     setForm(formFromAd(ad));
     setMode("edit");
     setError("");
@@ -1000,38 +1104,18 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     <section className="mx-auto grid w-full max-w-[1800px] min-w-0 gap-5 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <article className="rounded-md border border-black/10 bg-white p-5">
-          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Správa reklam</p>
-          <h1 className="mt-2 text-3xl font-semibold text-black">Všechny reklamy na jednom místě</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Pracovní prostor</p>
+          <h1 className="mt-2 text-3xl font-semibold text-black">Adclare pro {workspace.tenant.name}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#59616b]">
-            Nahrajte materiál, doplňte údaje, pošlete reklamu ke kontrole a stáhněte QR balíček. Pokud něco chybí, reklama se označí a nejde omylem pustit dál.
+            Reklamy, pobočky, schvalování, QR kódy a archiv jsou rozdělené do jasných pracovních částí. {accessSentence(workspace)}
           </p>
           {error ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
         </article>
 
         <aside className="min-w-0 rounded-md border border-black/10 bg-white p-5">
           <div className="text-sm font-semibold text-[#68707a]">Přihlášený uživatel</div>
-          <label className="mt-2 grid gap-1.5 text-sm font-semibold text-[#20242a]">
-            Jméno
-            <input
-              key={workspace.user.name}
-              ref={profileInputRef}
-              name="name"
-              defaultValue={workspace.user.name}
-              onChange={() => setProfileMessage("")}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-base font-semibold text-black outline-none focus:border-[#f45d1f]"
-            />
-          </label>
+          <div className="mt-2 text-lg font-semibold text-black">{workspace.user.name}</div>
           <div className="break-all text-sm text-[#59616b]">{workspace.user.email}</div>
-          <button
-            type="button"
-            onClick={() => saveProfile(profileInputRef.current?.value ?? "")}
-            disabled={profileSaving}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-          >
-            <Save size={15} />
-            {profileSaving ? "Ukládám" : "Uložit profil"}
-          </button>
-          {profileMessage ? <div className="mt-2 text-xs font-semibold text-emerald-700">{profileMessage}</div> : null}
           <div className="mt-4 grid gap-2 text-sm">
             <div className="flex justify-between gap-3">
               <span className="text-[#68707a]">Role</span>
@@ -1063,6 +1147,14 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
               </span>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={() => openSection("settings")}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d]"
+          >
+            Nastavení profilu
+            <ArrowUpRight size={14} />
+          </button>
         </aside>
       </div>
 
@@ -1081,11 +1173,41 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         ))}
       </section>
 
-      {workspace.permissions.canManageAllTenants && workspace.superAdmin ? <SuperAdminPanel data={workspace.superAdmin} /> : null}
+      <nav aria-label="Pracovní části aplikace" className="rounded-md border border-black/10 bg-white p-2">
+        <div className="flex flex-wrap gap-2">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => openSection(section.id)}
+              className={`min-w-0 rounded-md border px-3 py-2 text-left transition ${
+                activeSection === section.id
+                  ? "border-[#f45d1f]/30 bg-[#fff4ef] text-[#d94410]"
+                  : "border-transparent bg-white text-[#20242a] hover:border-black/10 hover:bg-[#fbfbfc]"
+              }`}
+              aria-current={activeSection === section.id ? "page" : undefined}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                {section.label}
+                {typeof section.count === "number" ? (
+                  <span className={`rounded-md px-1.5 py-0.5 text-xs ${activeSection === section.id ? "bg-white text-[#d94410]" : "bg-[#f1f2f4] text-[#68707a]"}`}>
+                    {section.count}
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-0.5 block max-w-[220px] text-xs leading-5 text-[#68707a]">{section.description}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
 
-      <OnboardingPanel progress={progress} onCreateAd={openCreate} />
+      {activeSection === "settings" && workspace.permissions.canManageAllTenants && workspace.superAdmin ? (
+        <SuperAdminPanel data={workspace.superAdmin} onOpenPeople={() => openSection("people")} />
+      ) : null}
 
-      {workspace.permissions.canCreateAds ? (
+      {activeSection === "ads" ? <OnboardingPanel progress={progress} onCreateAd={openCreate} /> : null}
+
+      {activeSection === "ads" && workspace.permissions.canCreateAds ? (
         <ImportPanel
           campaigns={workspace.campaigns}
           campaignId={importCampaignId}
@@ -1096,7 +1218,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
-      {mode ? (
+      {activeSection === "ads" && mode ? (
         <Editor
           mode={mode}
           form={form}
@@ -1111,7 +1233,19 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
-      {workspace.permissions.canManageTenantSettings ? (
+      {activeSection === "settings" ? (
+        <ProfilePanel
+          user={workspace.user}
+          membership={workspace.membership}
+          inputRef={profileInputRef}
+          saving={profileSaving}
+          message={profileMessage}
+          onChange={() => setProfileMessage("")}
+          onSave={saveProfile}
+        />
+      ) : null}
+
+      {activeSection === "settings" && workspace.permissions.canManageTenantSettings ? (
         <SettingsPanel
           tenant={workspace.tenant}
           saving={settingsSaving}
@@ -1120,7 +1254,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
-      {workspace.permissions.canManageBranches || workspace.permissions.canEditOwnBranch ? (
+      {activeSection === "branches" && (workspace.permissions.canManageBranches || workspace.permissions.canEditOwnBranch) ? (
         <BranchesPanel
           branches={workspace.branches}
           canCreate={workspace.permissions.canManageBranches}
@@ -1136,7 +1270,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
-      {workspace.permissions.canManageCampaigns ? (
+      {activeSection === "campaigns" && workspace.permissions.canManageCampaigns ? (
         <CampaignsPanel
           campaigns={workspace.campaigns}
           campaignName={campaignName}
@@ -1156,7 +1290,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
-      {workspace.permissions.canManageCandidates ? (
+      {activeSection === "campaigns" && workspace.permissions.canManageCandidates ? (
         <CandidatesPanel
           candidates={workspace.candidates}
           branches={workspace.branches}
@@ -1173,7 +1307,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
-      {workspace.permissions.canManageUsers ? (
+      {activeSection === "people" && workspace.permissions.canManageUsers ? (
         <PeoplePanel
           users={workspace.users}
           form={inviteForm}
@@ -1190,14 +1324,37 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
-      {workspace.permissions.canExportArchive ? <ArchiveExportPanel workspace={workspace} /> : null}
+      {activeSection === "archive" && workspace.permissions.canExportArchive ? <ArchiveExportPanel workspace={workspace} /> : null}
 
-      {workspace.permissions.canViewAudit ? <AuditPanel logs={workspace.auditLogs} /> : null}
+      {activeSection === "archive" && workspace.permissions.canViewAudit ? <AuditPanel logs={workspace.auditLogs} /> : null}
 
-      <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
+      {activeSection === "ads" ? <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} /> : null}
 
-      {reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
+      {activeSection === "review" && reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={setSelectedId} /> : null}
 
+      {activeSection === "review" ? (
+        <section className="grid scroll-mt-6 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
+          <DetailPanel
+            ad={selectedAd}
+            writable={writable}
+            reviewable={reviewable}
+            uploadable={workspace.permissions.canUploadAssets}
+            actioning={actioning}
+            uploading={uploading}
+            storage={workspace.storage}
+            reviewNote={reviewNote}
+            onEdit={openEdit}
+            onUpload={uploadAsset}
+            onApprove={(ad) => runWorkflowAction(ad, "approve")}
+            onPublish={(ad) => runWorkflowAction(ad, "publish")}
+            onRequestChanges={(ad) => runWorkflowAction(ad, "request-changes")}
+            onReviewNoteChange={setReviewNote}
+          />
+        </section>
+      ) : null}
+
+      {activeSection === "ads" ? (
       <section id="ads" className="grid scroll-mt-6 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 overflow-hidden rounded-md border border-black/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-black/10 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1316,6 +1473,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           onReviewNoteChange={setReviewNote}
         />
       </section>
+      ) : null}
     </section>
   );
 }
@@ -1585,7 +1743,7 @@ function formatSuperAdminDate(value: string) {
   });
 }
 
-function SuperAdminPanel({ data }: { data: NonNullable<AppWorkspacePayload["superAdmin"]> }) {
+function SuperAdminPanel({ data, onOpenPeople }: { data: NonNullable<AppWorkspacePayload["superAdmin"]>; onOpenPeople: () => void }) {
   const stats = [
     { label: "Pracovní prostory", value: data.counts.tenants, icon: Building2 },
     { label: "Reklamy", value: data.counts.ads, icon: FileArchive },
@@ -1608,13 +1766,14 @@ function SuperAdminPanel({ data }: { data: NonNullable<AppWorkspacePayload["supe
             Přehled všech pracovních prostorů, přístupů a stavů reklam. Provozovatel rychle vidí, kde se doplňují údaje, kde už běží veřejný archiv a kdo je za daný prostor odpovědný.
           </p>
         </div>
-        <a
-          href="#people"
+        <button
+          type="button"
+          onClick={onOpenPeople}
           className="inline-flex w-fit items-center gap-2 rounded-md border border-white/15 bg-white px-3 py-2 text-sm font-semibold text-[#11161c]"
         >
           Správa lidí
           <ArrowUpRight size={14} />
-        </a>
+        </button>
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
@@ -1858,6 +2017,66 @@ function ImportPanel({
           </div>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+function ProfilePanel({
+  user,
+  membership,
+  inputRef,
+  saving,
+  message,
+  onChange,
+  onSave,
+}: {
+  user: AppWorkspacePayload["user"];
+  membership: AppWorkspacePayload["membership"];
+  inputRef: RefObject<HTMLInputElement | null>;
+  saving: boolean;
+  message: string;
+  onChange: () => void;
+  onSave: (name: string) => void;
+}) {
+  return (
+    <section id="profile" className="rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Můj profil</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Jméno se zobrazuje v týmu, auditní stopě a schvalování.</p>
+        </div>
+        {message ? <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800">{message}</span> : null}
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_160px] lg:items-end">
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Jméno
+          <input
+            key={user.name}
+            ref={inputRef}
+            defaultValue={user.name}
+            onChange={onChange}
+            className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]"
+          />
+        </label>
+        <div className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          E-mail a přístup
+          <div className="min-w-0 rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm">
+            <div className="break-all font-semibold text-[#20242a]">{user.email}</div>
+            <div className="mt-1 text-xs font-semibold text-[#68707a]">
+              {membership.role} · {membership.scope}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onSave(inputRef.current?.value ?? "")}
+          disabled={saving}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+        >
+          <Save size={15} />
+          {saving ? "Ukládám" : "Uložit profil"}
+        </button>
+      </div>
     </section>
   );
 }
