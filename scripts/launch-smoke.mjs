@@ -132,6 +132,8 @@ check(publicRepoPage.includes("texts.candidate") && publicRepoPage.includes("ad.
 check(publicRepoPage.includes("grid gap-3 bg-white p-4") && !publicRepoPage.includes("min-w-[980px]"), "Public repository should use responsive cards instead of a horizontally scrolling table.");
 check(read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("candidate: ad.candidate"), "App QR package notice should include assigned candidate data.");
 check(read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("candidate: ad.candidate"), "Demo QR package notice should include assigned candidate data.");
+check(read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("-qr.png") && read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("manifest.json") && read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("README.txt"), "App QR package should include PNG, manifest and README outputs.");
+check(read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("-qr.png") && read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("manifest.json") && read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("README.txt"), "Demo QR package should include PNG, manifest and README outputs.");
 check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/profile/route.ts")), "App profile update route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/users/[id]/route.ts")), "App member update route is missing.");
@@ -147,6 +149,7 @@ check(appWorkspace.includes("Kontrolní proces reklamy") && appWorkspace.include
 check(adminDb.includes("hasAdAsset") && adminDb.includes("Nahrajte podklad reklamy před schválením.") && adminDb.includes("Nahrajte podklad reklamy před publikací."), "Approval and publication should require an uploaded ad asset.");
 check(appWorkspace.includes("Doplnění pro TTPA") && appWorkspace.includes("draftProcessSteps") && appWorkspace.includes("Uložit rozpracované"), "Ad editor should expose draft TTPA guidance.");
 check(appWorkspace.includes("setSelectedId(ad.id)") && appWorkspace.includes("setForm(formFromAd(ad))"), "Editing an ad should select the same ad in the detail panel.");
+check(appWorkspace.includes("QR, oznámení a audit") && appWorkspace.includes("Kopírovat URL") && appWorkspace.includes("Stáhnout QR balíček"), "Ad detail should expose a clear outputs panel with copy and download actions.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), "App approval route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");

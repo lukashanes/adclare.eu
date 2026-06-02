@@ -1,7 +1,7 @@
 "use client";
 
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, RefreshCw, Save, Search, ShieldCheck, Tags, Upload, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleDot, Copy, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, QrCode, RefreshCw, Save, Search, ShieldCheck, Tags, Upload, Users, X } from "lucide-react";
 import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppCandidateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
@@ -205,6 +205,14 @@ function noticeHref(publicUrl: string) {
   } catch {
     return publicUrl;
   }
+}
+
+function qrPackageHref(adId: string) {
+  return `/api/app/ads/${encodeURIComponent(adId)}/qr-package?locale=cs`;
+}
+
+function auditPackageHref(adId: string) {
+  return `/api/app/ads/${encodeURIComponent(adId)}/audit-export?locale=cs`;
 }
 
 function deadlineIcon(ad: AdRecord) {
@@ -3400,6 +3408,8 @@ function DetailPanel({
   onRequestChanges: (ad: AdRecord) => void;
   onReviewNoteChange: (value: string) => void;
 }) {
+  const [copiedUrlFor, setCopiedUrlFor] = useState("");
+
   if (!ad) {
     return (
       <aside id="ad-detail" className="min-w-0 scroll-mt-4 rounded-md border border-black/10 bg-white p-5 text-sm text-[#59616b]">
@@ -3410,6 +3420,24 @@ function DetailPanel({
 
   const steps = adProcessSteps(ad);
   const nextStep = steps.find((step) => !step.done);
+  const copiedPublicUrl = copiedUrlFor === ad.id;
+  const outputItems = [
+    {
+      label: "Oznámení",
+      value: ad.missing.length === 0 ? "Veřejný link je připravený." : "Po doplnění údajů se link zobrazí veřejně.",
+      ready: ad.missing.length === 0,
+    },
+    {
+      label: "QR balíček",
+      value: ad.canDownloadQr ? "SVG, PNG, tiskový štítek, manifest a data oznámení." : "Po doplnění povinných údajů půjde stáhnout.",
+      ready: ad.canDownloadQr,
+    },
+    {
+      label: "Auditní balíček",
+      value: "JSON, CSV historie, oznámení a schvalování.",
+      ready: true,
+    },
+  ];
   const rows = [
     ["Veřejná URL", ad.publicUrl],
     ["Kampaň", ad.campaign],
@@ -3460,27 +3488,6 @@ function DetailPanel({
               Oznámení
               <ArrowUpRight size={15} />
             </a>
-            <button
-              type="button"
-              disabled={!ad.canDownloadQr}
-              onClick={() => {
-                window.location.href = `/api/app/ads/${encodeURIComponent(ad.id)}/qr-package?locale=cs`;
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#25282d] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
-            >
-              <Download size={15} />
-              QR balíček
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = `/api/app/ads/${encodeURIComponent(ad.id)}/audit-export?locale=cs`;
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#25282d]"
-            >
-              <FileArchive size={15} />
-              Stáhnout auditní balíček
-            </button>
           </div>
         </div>
       </div>
@@ -3502,6 +3509,94 @@ function DetailPanel({
             Reklama má vyplněné povinné údaje.
           </div>
         )}
+
+        <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-md border border-[#f45d1f]/25 bg-[#fff4ef] px-2.5 py-1 text-xs font-semibold text-[#d94410]">
+                <QrCode size={14} />
+                Výstupy
+              </div>
+              <h3 className="mt-3 text-lg font-semibold text-black">QR, oznámení a audit</h3>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
+                Zkontrolujte veřejný odkaz, stáhněte QR podklady pro grafiku nebo auditní balíček pro kontrolu.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={ad.canDownloadQr ? qrPackageHref(ad.id) : undefined}
+                aria-disabled={!ad.canDownloadQr}
+                className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
+                  ad.canDownloadQr ? "border border-black/10 bg-white text-[#25282d]" : "cursor-not-allowed border border-black/10 bg-white text-[#9aa0a8]"
+                }`}
+              >
+                <Download size={15} />
+                Stáhnout QR balíček
+              </a>
+              <a
+                href={auditPackageHref(ad.id)}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d]"
+              >
+                <FileArchive size={15} />
+                Stáhnout auditní balíček
+              </a>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0 rounded-md border border-black/10 bg-white p-3">
+              <div className="text-xs font-semibold uppercase text-[#68707a]">Veřejná URL v QR kódu</div>
+              <a className="mt-1 block break-all text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
+                {ad.publicUrl}
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const copyWithFallback = () => {
+                  const textarea = document.createElement("textarea");
+                  textarea.value = ad.publicUrl;
+                  textarea.setAttribute("readonly", "true");
+                  textarea.style.position = "fixed";
+                  textarea.style.left = "-9999px";
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand("copy");
+                  textarea.remove();
+                };
+
+                try {
+                  if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(ad.publicUrl);
+                  } else {
+                    copyWithFallback();
+                  }
+                } catch {
+                  copyWithFallback();
+                }
+
+                setCopiedUrlFor(ad.id);
+                window.setTimeout(() => setCopiedUrlFor((current) => (current === ad.id ? "" : current)), 1800);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d]"
+            >
+              <Copy size={15} />
+              {copiedPublicUrl ? "Zkopírováno" : "Kopírovat URL"}
+            </button>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            {outputItems.map((item) => (
+              <div key={item.label} className="rounded-md border border-black/10 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm font-semibold text-black">{item.label}</div>
+                  <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${item.ready ? "bg-emerald-50 text-emerald-800" : "bg-orange-50 text-orange-800"}`}>
+                    {item.ready ? "připraveno" : "čeká"}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-5 text-[#59616b]">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
           <div className="grid gap-3">
