@@ -2380,6 +2380,10 @@ function canViewAppAudit(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.READONLY_AUDITOR;
 }
 
+function canExportAppArchive(role: UserRole) {
+  return canViewAppAudit(role) || role === UserRole.LOCAL_ADMIN;
+}
+
 function canManageAllTenants(role: UserRole) {
   return role === UserRole.SUPER_ADMIN;
 }
@@ -2398,6 +2402,7 @@ function appRolePermissions(role: UserRole) {
     canManageUsers: canManageAppUsers(role),
     canManageTenantSettings: canManageTenantSettings(role),
     canViewAudit: canViewAppAudit(role),
+    canExportArchive: canExportAppArchive(role),
     canManageAllTenants: canManageAllTenants(role),
   };
 }
@@ -4712,6 +4717,239 @@ export async function getAppAuditPackage(userId: string, code: string, locale: L
       message: locale === "cs" ? log.messageCs : log.messageEn,
       createdAt: log.createdAt.toISOString(),
     })),
+  };
+}
+
+export async function getAppArchivePackage(userId: string, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canExportAppArchive(context.membership.role)) {
+    return null;
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: context.membership.tenantId,
+      actor: context.membership.user.email,
+      actorUserId: context.membership.userId,
+      action: "export_workspace_archive",
+      messageCs: "Stažen kontrolní archiv pracovního prostoru.",
+      messageEn: "Workspace control archive downloaded.",
+      metadata: {
+        role: context.membership.role,
+        orgUnitId: context.membership.orgUnitId,
+        candidateId: context.membership.candidateId,
+      },
+    },
+  });
+
+  const ads = (await prisma.ad.findMany({
+    where: scopedAdWhere(context),
+    include: {
+      orgUnit: true,
+      campaign: true,
+      candidate: true,
+      tenant: true,
+      assets: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      approvals: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      auditLogs: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      versions: {
+        orderBy: {
+          version: "asc",
+        },
+      },
+    },
+    orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
+  })) as AuditPackageAd[];
+
+  const campaignIds = [...new Set(ads.map((ad) => ad.campaignId))];
+  const orgUnitIds = [...new Set(ads.map((ad) => ad.orgUnitId))];
+  const candidateIds = [...new Set(ads.map((ad) => ad.candidateId).filter((value): value is string => Boolean(value)))];
+  const scopedIdFilter = (ids: string[]) => ({ in: ids.length ? ids : ["__none__"] });
+  const includeAccessDirectory = canManageAppUsers(context.membership.role);
+
+  const [campaigns, branches, candidates, memberships, invitations, auditLogs] = await Promise.all([
+    prisma.campaign.findMany({
+      where: {
+        tenantId: context.membership.tenantId,
+        ...(context.tenantWideRole ? {} : { id: scopedIdFilter(campaignIds) }),
+      },
+      include: {
+        _count: {
+          select: {
+            ads: true,
+          },
+        },
+      },
+      orderBy: [{ archivedAt: "asc" }, { startsAt: "desc" }, { nameCs: "asc" }],
+    }),
+    prisma.organizationUnit.findMany({
+      where: {
+        tenantId: context.membership.tenantId,
+        ...(context.tenantWideRole ? {} : { id: scopedIdFilter(orgUnitIds) }),
+      },
+      orderBy: [{ archivedAt: "asc" }, { kind: "asc" }, { nameCs: "asc" }],
+    }),
+    prisma.candidate.findMany({
+      where: {
+        tenantId: context.membership.tenantId,
+        ...(context.tenantWideRole ? {} : { id: scopedIdFilter(candidateIds) }),
+      },
+      include: {
+        orgUnit: true,
+        _count: {
+          select: {
+            ads: true,
+          },
+        },
+      },
+      orderBy: [{ archivedAt: "asc" }, { nameCs: "asc" }],
+    }),
+    includeAccessDirectory
+      ? prisma.tenantMembership.findMany({
+          where: {
+            tenantId: context.membership.tenantId,
+            ...(context.tenantWideRole ? {} : { orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }),
+          },
+          include: {
+            user: true,
+            orgUnit: true,
+            candidate: true,
+          },
+          orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+        })
+      : Promise.resolve([]),
+    includeAccessDirectory
+      ? prisma.invitation.findMany({
+          where: {
+            tenantId: context.membership.tenantId,
+            ...(context.tenantWideRole ? {} : { orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }),
+          },
+          include: {
+            orgUnit: true,
+            candidate: true,
+            emailMessages: {
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 1,
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        })
+      : Promise.resolve([]),
+    context.tenantWideRole
+      ? prisma.auditLog.findMany({
+          where: {
+            tenantId: context.membership.tenantId,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const scopedAdAuditLogs = context.tenantWideRole
+    ? auditLogs
+    : ads
+        .flatMap((ad) => ad.auditLogs)
+        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  const mappedAuditLogs = scopedAdAuditLogs.map((log) => ({
+    id: log.id,
+    actor: log.actor,
+    action: log.action,
+    message: locale === "cs" ? log.messageCs : log.messageEn,
+    createdAt: log.createdAt.toISOString(),
+  }));
+  const mappedAds = ads.map((ad) => mapAd(ad, locale));
+  const mappedCampaigns = sortMappedCampaigns(campaigns.map((campaign) => mapCampaign(campaign, locale)));
+  const mappedBranches = branches.map((branch) => mapBranch(branch, locale));
+  const mappedCandidates = sortMappedCandidates(candidates.map((candidate) => mapCandidate(candidate, locale)));
+  const mappedMembers = memberships.map((member) => mapMember(member, locale));
+  const mappedInvitations = invitations.map((invitation) => mapInvitation(invitation, locale));
+
+  return {
+    exportedAt: new Date().toISOString(),
+    tenant: {
+      id: context.membership.tenant.id,
+      slug: context.membership.tenant.slug,
+      name: locale === "cs" ? context.membership.tenant.nameCs : context.membership.tenant.nameEn,
+      contactEmail: context.membership.tenant.contactEmail,
+      retentionYears: context.membership.tenant.retentionYears,
+    },
+    exportedBy: {
+      name: context.membership.user.name,
+      email: context.membership.user.email,
+      role: roleLabel(context.membership.role, locale),
+      scope: accessScopeLabel(context.membership.orgUnit, context.membership.candidate ?? null, locale),
+    },
+    counts: {
+      ads: mappedAds.length,
+      campaigns: mappedCampaigns.length,
+      branches: mappedBranches.length,
+      candidates: mappedCandidates.length,
+      assets: ads.reduce((sum, ad) => sum + ad.assets.length, 0),
+      auditLogs: mappedAuditLogs.length,
+    },
+    ads: mappedAds,
+    campaigns: mappedCampaigns,
+    branches: mappedBranches,
+    candidates: mappedCandidates,
+    assets: ads.flatMap((ad) =>
+      ad.assets.map((asset) => ({
+        adId: ad.code,
+        id: asset.id,
+        fileName: asset.fileName,
+        originalName: asset.originalName,
+        contentType: asset.contentType,
+        byteSize: asset.byteSize,
+        checksumSha256: asset.checksumSha256,
+        storageProvider: asset.storageProvider,
+        storageBucket: asset.storageBucket,
+        storageKey: asset.storageKey,
+        uploadedBy: asset.uploadedBy,
+        createdAt: asset.createdAt.toISOString(),
+      })),
+    ),
+    approvals: ads.flatMap((ad) =>
+      ad.approvals.map((approval) => ({
+        adId: ad.code,
+        actor: approval.actor,
+        status: approval.status,
+        note: locale === "cs" ? approval.noteCs : approval.noteEn,
+        createdAt: approval.createdAt.toISOString(),
+      })),
+    ),
+    versions: ads.flatMap((ad) =>
+      ad.versions.map((version) => ({
+        adId: ad.code,
+        version: version.version,
+        reason: version.reason,
+        createdAt: version.createdAt.toISOString(),
+        snapshot: version.snapshot,
+      })),
+    ),
+    auditLogs: mappedAuditLogs,
+    accessDirectory: {
+      included: includeAccessDirectory,
+      members: mappedMembers,
+      invitations: mappedInvitations,
+    },
   };
 }
 

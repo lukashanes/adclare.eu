@@ -145,6 +145,7 @@ check(existsSync(resolve(root, "src/app/api/app/ads/[code]/approve/route.ts")), 
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), "App publish route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/request-changes/route.ts")), "App request changes route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/audit-export/route.ts")), "App audit export route is missing.");
+check(existsSync(resolve(root, "src/app/api/app/exports/archive/route.ts")), "App workspace archive export route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/import/route.ts")), "App Excel import route is missing.");
 check(xlsxImport.includes("parseXlsxAdImport") && xlsxImport.includes("JSZip"), "XLSX ad import parser is missing.");
 check(adminDb.includes("importAppAds") && adminDb.includes("import_ads_batch"), "Database ad import handler or audit log is missing.");
@@ -155,6 +156,7 @@ check(adminDb.includes("requestAppAdChanges"), "Review change request handler is
 check(appWorkspace.includes("Ke kontrole") && appWorkspace.includes("Vrátit k doplnění"), "Workspace should expose review inbox and change requests.");
 check(appWorkspace.includes("Historie kontroly") && adminDb.includes("mapReviewEvent"), "Workspace should expose review decision history.");
 check(appWorkspace.includes("Stáhnout auditní balíček") && adminDb.includes("getAppAuditPackage"), "Workspace should expose app audit packages.");
+check(appWorkspace.includes("Kontrolní archiv") && appWorkspace.includes("Stáhnout archiv") && adminDb.includes("getAppArchivePackage"), "Workspace should expose whole-workspace archive exports.");
 check(!marketingPage.includes("2FA"), "Marketing page should not claim 2FA before it is implemented.");
 check(adminAuth.includes("isDemoAdminEnabled"), "Demo admin feature flag is missing.");
 check(adminAuth.includes('process.env.NODE_ENV !== "production"'), "Demo admin should default to disabled in production.");

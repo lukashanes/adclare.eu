@@ -431,6 +431,7 @@ export type AppWorkspacePayload = {
     canManageUsers: boolean;
     canManageTenantSettings: boolean;
     canViewAudit: boolean;
+    canExportArchive: boolean;
     canManageAllTenants: boolean;
   };
   storage: {

@@ -1190,6 +1190,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         />
       ) : null}
 
+      {workspace.permissions.canExportArchive ? <ArchiveExportPanel workspace={workspace} /> : null}
+
       {workspace.permissions.canViewAudit ? <AuditPanel logs={workspace.auditLogs} /> : null}
 
       <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={setSelectedId} onEdit={openEdit} />
@@ -2322,6 +2324,41 @@ function CandidatesPanel({
         ))}
         {candidates.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není přidaný žádný kandidát.</div> : null}
       </div>
+    </section>
+  );
+}
+
+function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
+  const assetCount = workspace.ads.reduce((sum, ad) => sum + ad.assetCount, 0);
+
+  return (
+    <section id="archive" className="grid min-w-0 scroll-mt-6 gap-4 rounded-md border border-black/10 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+      <div className="min-w-0">
+        <div className="inline-flex items-center gap-2 rounded-md border border-[#f45d1f]/20 bg-[#fff4ef] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">
+          <FileArchive size={14} />
+          Kontrolní archiv
+        </div>
+        <h2 className="mt-3 text-lg font-semibold text-black">Jeden balík pro kontrolu i vlastní archiv</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
+          ZIP obsahuje reklamy, kampaně, pobočky, kandidáty, podklady, schvalování a auditní stopu podle vašeho přístupu.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{workspace.counts.all} reklam</span>
+          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{workspace.campaigns.length} kampaní</span>
+          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{workspace.candidates.length} kandidátů</span>
+          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 font-semibold text-[#25282d]">{assetCount} souborů</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          window.location.href = "/api/app/exports/archive?locale=cs";
+        }}
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white"
+      >
+        <Download size={15} />
+        Stáhnout archiv
+      </button>
     </section>
   );
 }
