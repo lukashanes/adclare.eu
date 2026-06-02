@@ -75,6 +75,7 @@ model Tenant {
 
   campaigns         Campaign[]
   organizationUnits OrganizationUnit[]
+  candidates        Candidate[]
   ads               Ad[]
   auditLogs         AuditLog[]
   memberships       TenantMembership[]
@@ -130,6 +131,7 @@ model OrganizationUnit {
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   parent      OrganizationUnit?  @relation("OrganizationUnitTree", fields: [parentId], references: [id], onDelete: SetNull)
   children    OrganizationUnit[] @relation("OrganizationUnitTree")
+  candidates  Candidate[]
   ads         Ad[]
   memberships TenantMembership[]
   invitations Invitation[]
@@ -229,11 +231,38 @@ model Invitation {
   @@map("invitations")
 }
 
+model Candidate {
+  id            String    @id @default(cuid())
+  tenantId      String
+  orgUnitId     String?
+  slug          String
+  nameCs        String
+  nameEn        String
+  contactEmail  String    @default("")
+  ballotNumber  String    @default("")
+  descriptionCs String    @default("")
+  descriptionEn String    @default("")
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orgUnit OrganizationUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  ads     Ad[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([tenantId, orgUnitId])
+  @@index([tenantId, archivedAt])
+  @@map("candidates")
+}
+
 model Ad {
   id                 String           @id @default(cuid())
   tenantId           String
   campaignId         String
   orgUnitId          String
+  candidateId        String?
   code               String
   publicToken        String           @unique
   titleCs            String
@@ -283,6 +312,7 @@ model Ad {
   tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   campaign  Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   orgUnit   OrganizationUnit @relation(fields: [orgUnitId], references: [id], onDelete: Restrict)
+  candidate Candidate?       @relation(fields: [candidateId], references: [id], onDelete: SetNull)
   auditLogs AuditLog[]
   versions  AdVersion[]
   approvals Approval[]
@@ -293,6 +323,7 @@ model Ad {
   @@index([tenantId, workflowStatus])
   @@index([tenantId, campaignId])
   @@index([tenantId, orgUnitId])
+  @@index([tenantId, candidateId])
   @@map("ads")
 }
 

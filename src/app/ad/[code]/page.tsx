@@ -94,6 +94,7 @@ export default async function TransparencyNoticePage({ params }: PageProps) {
     ["Název materiálu", notice.ad.title],
     ["Typ reklamy", notice.ad.type],
     ["Online / offline", notice.ad.channel],
+    ["Kandidát", notice.ad.candidate || "neuvedeno"],
     ["Zadavatel", notice.ad.owner],
     ["Plátce", notice.ad.payer],
     ["Dodavatel", notice.ad.supplier || "neuvedeno"],

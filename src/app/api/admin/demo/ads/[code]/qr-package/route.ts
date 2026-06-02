@@ -38,6 +38,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
   const notice = {
     id: ad.id,
     title: ad.title,
+    candidate: ad.candidate,
     publicUrl,
     version: ad.version,
     workflowStatus: ad.workflowStatus,

@@ -12,6 +12,7 @@ import {
   MembershipStatus,
   UserRole,
   type Ad,
+  type Candidate,
   type Campaign,
   type EmailMessage,
   type Invitation,
@@ -29,6 +30,8 @@ import type {
   AppAuditRecord,
   AppBranchUpdateInput,
   AppCampaignInput,
+  AppCandidateInput,
+  AppCandidateRecord,
   AppMemberUpdateInput,
   AppProfileInput,
   AppBranchInput,
@@ -62,6 +65,7 @@ const publicWorkflowStatuses: AdWorkflowStatus[] = [AdWorkflowStatus.PUBLISHED, 
 type AdWithUnit = Ad & {
   orgUnit: OrganizationUnit;
   campaign: Campaign;
+  candidate?: Candidate | null;
   tenant?: Tenant;
   assets?: AdAsset[];
   approvals?: Approval[];
@@ -82,6 +86,12 @@ type AuditPackageAd = AdWithUnit & {
   assets: AdAsset[];
 };
 type CampaignWithCount = Campaign & {
+  _count?: {
+    ads: number;
+  };
+};
+type CandidateWithCount = Candidate & {
+  orgUnit?: OrganizationUnit | null;
   _count?: {
     ads: number;
   };
@@ -256,6 +266,8 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     campaign: isCs ? ad.campaign.nameCs : ad.campaign.nameEn,
     campaignSlug: ad.campaign.slug,
     campaignTags: ad.campaign.tags,
+    candidateId: ad.candidateId ?? "",
+    candidate: ad.candidate ? (isCs ? ad.candidate.nameCs : ad.candidate.nameEn) : "",
     branch: isCs ? ad.orgUnit.nameCs : ad.orgUnit.nameEn,
     owner: isCs ? ad.ownerCs : ad.ownerEn,
     type: isCs ? ad.mediaTypeCs : ad.mediaTypeEn,
@@ -551,6 +563,21 @@ function mapCampaign(campaign: CampaignWithCount, locale: Locale) {
   };
 }
 
+function mapCandidate(candidate: CandidateWithCount, locale: Locale): AppCandidateRecord {
+  return {
+    id: candidate.id,
+    name: locale === "cs" ? candidate.nameCs : candidate.nameEn,
+    slug: candidate.slug,
+    branchId: candidate.orgUnitId ?? "",
+    branch: candidate.orgUnit ? scopeLabel(candidate.orgUnit, locale) : locale === "cs" ? "celý prostor" : "whole workspace",
+    contactEmail: candidate.contactEmail,
+    ballotNumber: candidate.ballotNumber,
+    description: locale === "cs" ? candidate.descriptionCs : candidate.descriptionEn,
+    archived: Boolean(candidate.archivedAt),
+    adCount: candidate._count?.ads ?? 0,
+  };
+}
+
 function sortMappedCampaigns(campaigns: ReturnType<typeof mapCampaign>[]) {
   return [...campaigns].sort((left, right) => {
     if (left.archived !== right.archived) {
@@ -558,6 +585,16 @@ function sortMappedCampaigns(campaigns: ReturnType<typeof mapCampaign>[]) {
     }
 
     return right.startsAtIso.localeCompare(left.startsAtIso) || left.name.localeCompare(right.name, "cs");
+  });
+}
+
+function sortMappedCandidates(candidates: AppCandidateRecord[]) {
+  return [...candidates].sort((left, right) => {
+    if (left.archived !== right.archived) {
+      return left.archived ? 1 : -1;
+    }
+
+    return left.name.localeCompare(right.name, "cs");
   });
 }
 
@@ -970,6 +1007,7 @@ function matchesSearch(ad: PublicRepositoryAdRecord, query: string) {
     ad.id,
     ad.title,
     ad.branch,
+    ad.candidate,
     ad.owner,
     ad.type,
     ad.campaign,
@@ -1068,6 +1106,7 @@ export async function getDemoAdsPayload(locale: Locale) {
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -1133,6 +1172,7 @@ export async function getPublicRepositoryPayload(
     include: {
       orgUnit: true,
       campaign: true,
+      candidate: true,
       tenant: true,
     },
     orderBy: [{ publicationDate: "desc" }, { code: "asc" }],
@@ -1464,6 +1504,7 @@ export async function getDemoTransparencyNotice(publicToken: string, locale: Loc
     include: {
       orgUnit: true,
       campaign: true,
+      candidate: true,
       tenant: true,
     },
   });
@@ -1543,6 +1584,7 @@ export async function completeDemoAd(code: string, locale: Locale) {
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -1640,6 +1682,7 @@ export async function createDemoAd(input: EditableAdInput, locale: Locale) {
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
       },
     });
@@ -1678,6 +1721,7 @@ function adSnapshot(ad: Ad) {
   return {
     code: ad.code,
     publicToken: ad.publicToken,
+    candidateId: ad.candidateId,
     titleCs: ad.titleCs,
     titleEn: ad.titleEn,
     ownerCs: ad.ownerCs,
@@ -1819,6 +1863,7 @@ export async function updateDemoAd(code: string, input: EditableAdInput, locale:
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
       },
     });
@@ -1865,6 +1910,7 @@ async function findTenantAd(code: string) {
     include: {
       orgUnit: true,
       campaign: true,
+      candidate: true,
       tenant: true,
     },
   });
@@ -1910,6 +1956,7 @@ export async function approveDemoAd(code: string, locale: Locale) {
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
       },
     });
@@ -1943,6 +1990,7 @@ export async function approveDemoAd(code: string, locale: Locale) {
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -2003,6 +2051,7 @@ export async function publishDemoAd(code: string, locale: Locale) {
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
       },
     });
@@ -2076,6 +2125,7 @@ export async function getDemoAuditPackage(code: string, locale: Locale) {
     include: {
       orgUnit: true,
       campaign: true,
+      candidate: true,
       tenant: true,
       auditLogs: {
         orderBy: {
@@ -2219,6 +2269,10 @@ function canManageAppCampaigns(role: UserRole) {
   return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN;
 }
 
+function canManageAppCandidates(role: UserRole) {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.LOCAL_ADMIN || role === UserRole.CAMPAIGN_MANAGER;
+}
+
 function canEditOwnAppBranch(role: UserRole) {
   return role === UserRole.LOCAL_ADMIN;
 }
@@ -2249,6 +2303,7 @@ function appRolePermissions(role: UserRole) {
     canManageBranches: canManageAppBranches(role),
     canEditOwnBranch: canEditOwnAppBranch(role),
     canManageCampaigns: canManageAppCampaigns(role),
+    canManageCandidates: canManageAppCandidates(role),
     canManageUsers: canManageAppUsers(role),
     canManageTenantSettings: canManageTenantSettings(role),
     canViewAudit: canViewAppAudit(role),
@@ -2334,6 +2389,39 @@ async function getAppCampaignForInput(
   }
 
   return campaign;
+}
+
+function scopedCandidateWhere(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>) {
+  return {
+    tenantId: context.membership.tenantId,
+    ...(context.tenantWideRole
+      ? {}
+      : {
+          OR: [{ orgUnitId: context.membership.orgUnitId || "__missing_org_scope__" }, { orgUnitId: null }],
+        }),
+  };
+}
+
+async function getAppCandidateForInput(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, input: Pick<EditableAdInput, "candidateId">) {
+  const candidateRef = input.candidateId?.trim();
+
+  if (!candidateRef) {
+    return null;
+  }
+
+  const candidate = await prisma.candidate.findFirst({
+    where: {
+      ...scopedCandidateWhere(context),
+      archivedAt: null,
+      OR: [{ id: candidateRef }, { slug: slugify(candidateRef) }, { nameCs: candidateRef }, { nameEn: candidateRef }],
+    },
+  });
+
+  if (!candidate) {
+    throw new Error("Vyberte existujícího aktivního kandidáta nebo pole nechte prázdné.");
+  }
+
+  return candidate;
 }
 
 async function getAppUnitForInput(
@@ -2576,12 +2664,13 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
   const managedOrgUnitId = tenantWideRole ? "" : membership.orgUnitId || "__missing_org_scope__";
-  const [ads, branches, campaigns, memberships, invitations, auditLogs, superAdmin] = await Promise.all([
+  const [ads, branches, campaigns, candidates, memberships, invitations, auditLogs, superAdmin] = await Promise.all([
     prisma.ad.findMany({
       where: scopedAdWhere(context),
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -2617,6 +2706,21 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
         },
       },
       orderBy: [{ archivedAt: "asc" }, { startsAt: "desc" }, { nameCs: "asc" }],
+    }),
+    prisma.candidate.findMany({
+      where: {
+        ...scopedCandidateWhere(context),
+        ...(permissions.canManageCandidates ? {} : { archivedAt: null }),
+      },
+      include: {
+        orgUnit: true,
+        _count: {
+          select: {
+            ads: true,
+          },
+        },
+      },
+      orderBy: [{ archivedAt: "asc" }, { nameCs: "asc" }],
     }),
     permissions.canManageUsers
       ? prisma.tenantMembership.findMany({
@@ -2696,6 +2800,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
     },
     branches: branches.map((branch) => mapBranch(branch, locale)),
     campaigns: sortMappedCampaigns(campaigns.map((campaign) => mapCampaign(campaign, locale))),
+    candidates: sortMappedCandidates(candidates.map((candidate) => mapCandidate(candidate, locale))),
     permissions,
     users: {
       members: memberships.map((member) => mapMember(member, locale)),
@@ -2827,6 +2932,31 @@ async function uniqueCampaignSlug(tenantId: string, preferredSlug: string, name:
   for (let index = 0; index < 50; index += 1) {
     const slug = index === 0 ? baseSlug : `${baseSlug}-${index + 1}`;
     const existing = await prisma.campaign.findUnique({
+      where: {
+        tenantId_slug: {
+          tenantId,
+          slug,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing || existing.id === currentId) {
+      return slug;
+    }
+  }
+
+  return `${baseSlug}-${randomBytes(4).toString("hex")}`;
+}
+
+async function uniqueCandidateSlug(tenantId: string, preferredSlug: string, name: string, currentId = "") {
+  const baseSlug = slugify(preferredSlug || name);
+
+  for (let index = 0; index < 50; index += 1) {
+    const slug = index === 0 ? baseSlug : `${baseSlug}-${index + 1}`;
+    const existing = await prisma.candidate.findUnique({
       where: {
         tenantId_slug: {
           tenantId,
@@ -3039,6 +3169,212 @@ export async function updateAppCampaign(userId: string, campaignId: string, inpu
   });
 
   return mapCampaign({ ...campaign, _count: { ads: existing._count.ads } }, locale);
+}
+
+async function candidateOrgUnitForInput(context: NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>, branchId: string | undefined) {
+  const requestedBranchId = branchId?.trim();
+
+  if (!context.tenantWideRole) {
+    if (!context.membership.orgUnitId) {
+      throw new Error("Uživatel nemá přiřazenou pobočku.");
+    }
+
+    const orgUnit = await prisma.organizationUnit.findFirst({
+      where: {
+        id: context.membership.orgUnitId,
+        tenantId: context.membership.tenantId,
+        archivedAt: null,
+      },
+    });
+
+    if (!orgUnit) {
+      throw new Error("Pobočka uživatele není aktivní.");
+    }
+
+    return orgUnit;
+  }
+
+  if (!requestedBranchId) {
+    return null;
+  }
+
+  const orgUnit = await prisma.organizationUnit.findFirst({
+    where: {
+      id: requestedBranchId,
+      tenantId: context.membership.tenantId,
+      archivedAt: null,
+    },
+  });
+
+  if (!orgUnit) {
+    throw new Error("Vyberte existující aktivní pobočku kandidáta.");
+  }
+
+  return orgUnit;
+}
+
+export async function createAppCandidate(userId: string, input: AppCandidateInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppCandidates(context.membership.role)) {
+    return null;
+  }
+
+  const name = input.name.trim();
+  const contactEmail = normalizeEmail(input.contactEmail || "");
+  const ballotNumber = (input.ballotNumber || "").trim();
+  const description = (input.description || "").trim();
+
+  if (!name) {
+    throw new Error("Zadejte jméno kandidáta.");
+  }
+
+  if (contactEmail && !isValidEmail(contactEmail)) {
+    throw new Error("Zadejte platný kontaktní e-mail kandidáta.");
+  }
+
+  const [orgUnit, slug] = await Promise.all([
+    candidateOrgUnitForInput(context, input.branchId),
+    uniqueCandidateSlug(context.membership.tenantId, input.slug || "", name),
+  ]);
+
+  const candidate = await prisma.$transaction(async (tx) => {
+    const created = await tx.candidate.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        orgUnitId: orgUnit?.id ?? null,
+        slug,
+        nameCs: name,
+        nameEn: name,
+        contactEmail,
+        ballotNumber,
+        descriptionCs: description,
+        descriptionEn: description,
+      },
+      include: {
+        orgUnit: true,
+        _count: {
+          select: {
+            ads: true,
+          },
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "create_candidate",
+        messageCs: `Přidán kandidát ${created.nameCs}.`,
+        messageEn: `Created candidate ${created.nameEn}.`,
+        metadata: {
+          candidateId: created.id,
+          slug: created.slug,
+          orgUnitId: created.orgUnitId,
+        },
+      },
+    });
+
+    return created;
+  });
+
+  return mapCandidate(candidate, locale);
+}
+
+export async function updateAppCandidate(userId: string, candidateId: string, input: AppCandidateInput, locale: Locale) {
+  const context = await getAppAccessContext(userId);
+
+  if (!context || !canManageAppCandidates(context.membership.role)) {
+    return null;
+  }
+
+  const existing = await prisma.candidate.findFirst({
+    where: {
+      id: candidateId,
+      ...scopedCandidateWhere(context),
+    },
+    include: {
+      orgUnit: true,
+      _count: {
+        select: {
+          ads: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const name = input.name.trim();
+  const contactEmail = normalizeEmail(input.contactEmail || "");
+  const ballotNumber = (input.ballotNumber || "").trim();
+  const description = (input.description || "").trim();
+
+  if (!name) {
+    throw new Error("Zadejte jméno kandidáta.");
+  }
+
+  if (contactEmail && !isValidEmail(contactEmail)) {
+    throw new Error("Zadejte platný kontaktní e-mail kandidáta.");
+  }
+
+  const [orgUnit, slug] = await Promise.all([
+    candidateOrgUnitForInput(context, input.branchId ?? existing.orgUnitId ?? ""),
+    uniqueCandidateSlug(context.membership.tenantId, input.slug || existing.slug, name, existing.id),
+  ]);
+  const archivedAt = input.archived ? existing.archivedAt || new Date() : null;
+
+  const candidate = await prisma.$transaction(async (tx) => {
+    const updated = await tx.candidate.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        orgUnitId: orgUnit?.id ?? null,
+        slug,
+        nameCs: name,
+        nameEn: name,
+        contactEmail,
+        ballotNumber,
+        descriptionCs: description,
+        descriptionEn: description,
+        archivedAt,
+      },
+      include: {
+        orgUnit: true,
+        _count: {
+          select: {
+            ads: true,
+          },
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: context.membership.tenantId,
+        actor: context.membership.user.email,
+        actorUserId: context.membership.userId,
+        action: "update_candidate",
+        messageCs: `Upraven kandidát ${updated.nameCs}.`,
+        messageEn: `Updated candidate ${updated.nameEn}.`,
+        metadata: {
+          candidateId: updated.id,
+          slug: updated.slug,
+          orgUnitId: updated.orgUnitId,
+          archived: Boolean(updated.archivedAt),
+        },
+      },
+    });
+
+    return updated;
+  });
+
+  return mapCandidate(candidate, locale);
 }
 
 export async function updateAppTenantSettings(userId: string, input: AppTenantSettingsInput) {
@@ -3580,7 +3916,11 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
     return null;
   }
 
-  const [campaign, unit] = await Promise.all([getAppCampaignForInput(context, input), getAppUnitForInput(context, input)]);
+  const [campaign, unit, candidate] = await Promise.all([
+    getAppCampaignForInput(context, input),
+    getAppUnitForInput(context, input),
+    getAppCandidateForInput(context, input),
+  ]);
   const code = normalizeCode(input.code || "") || nextCode(unit.nameCs || input.branch);
   const missingCs = requiredMissing(input, "cs");
   const missingEn = requiredMissing(input, "en");
@@ -3592,6 +3932,7 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
         tenantId: context.membership.tenantId,
         campaignId: campaign.id,
         orgUnitId: unit.id,
+        candidateId: candidate?.id ?? null,
         code,
         publicToken: createPublicToken(),
         titleCs: input.title.trim(),
@@ -3638,6 +3979,7 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -3711,6 +4053,7 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
         campaignCache.set(campaignKey, campaign);
       }
 
+      const candidate = await getAppCandidateForInput(context, input);
       const ad = await prisma.$transaction(async (tx) => {
         const unit = await getAppUnitForImport(tx, context, input.branch);
         const code = await uniqueImportCode(tx, context.membership.tenantId, input.code || "", unit.nameCs || input.branch, row.rowNumber, reservedCodes);
@@ -3734,6 +4077,7 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
             tenantId: context.membership.tenantId,
             campaignId: campaign.id,
             orgUnitId: unit.id,
+            candidateId: candidate?.id ?? null,
             code,
             publicToken: createPublicToken(),
             titleCs: title,
@@ -3780,6 +4124,7 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
           include: {
             orgUnit: true,
             campaign: true,
+            candidate: true,
             tenant: true,
             assets: {
               orderBy: {
@@ -3889,7 +4234,11 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
     return null;
   }
 
-  const [campaign, unit] = await Promise.all([getAppCampaignForInput(context, input), getAppUnitForInput(context, input)]);
+  const [campaign, unit, candidate] = await Promise.all([
+    getAppCampaignForInput(context, input),
+    getAppUnitForInput(context, input),
+    getAppCandidateForInput(context, input),
+  ]);
   const missingCs = requiredMissing(input, "cs");
   const missingEn = requiredMissing(input, "en");
   const status = statusForInput(input);
@@ -3929,6 +4278,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
       data: {
         campaignId: campaign.id,
         orgUnitId: unit.id,
+        candidateId: candidate?.id ?? null,
         titleCs: input.title.trim(),
         titleEn: input.title.trim(),
         ownerCs: input.owner.trim(),
@@ -3981,6 +4331,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -4038,6 +4389,7 @@ export async function getAppAdRecord(userId: string, code: string, locale: Local
     include: {
       orgUnit: true,
       campaign: true,
+      candidate: true,
       tenant: true,
       assets: {
         orderBy: {
@@ -4112,6 +4464,7 @@ export async function getAppAuditPackage(userId: string, code: string, locale: L
     include: {
       orgUnit: true,
       campaign: true,
+      candidate: true,
       tenant: true,
       auditLogs: {
         orderBy: {
@@ -4294,6 +4647,7 @@ export async function attachAppAdAsset(userId: string, code: string, input: Stor
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -4399,6 +4753,7 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -4438,6 +4793,7 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -4507,6 +4863,7 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -4546,6 +4903,7 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -4623,6 +4981,7 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {
@@ -4662,6 +5021,7 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
       include: {
         orgUnit: true,
         campaign: true,
+        candidate: true,
         tenant: true,
         assets: {
           orderBy: {

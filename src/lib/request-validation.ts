@@ -2,6 +2,7 @@ import type {
   AppBranchInput,
   AppBranchUpdateInput,
   AppCampaignInput,
+  AppCandidateInput,
   AppMemberUpdateInput,
   AppProfileInput,
   AppTenantSettingsInput,
@@ -124,6 +125,7 @@ export function parseEditableAdInput(value: unknown): EditableAdInput {
   return {
     code: text(body.code, "code", { max: 80 }),
     campaignId: text(body.campaignId, "campaignId", { max: 120 }),
+    candidateId: text(body.candidateId, "candidateId", { max: 120 }),
     title: text(body.title, "title", { required: true, max: 180 }),
     branch: text(body.branch, "branch", { required: true, max: 140 }),
     owner: text(body.owner, "owner", { max: 180 }),
@@ -207,6 +209,20 @@ export function parseAppCampaignInput(value: unknown): AppCampaignInput {
     tags: textArray(body.tags, "tags", { maxItems: 16, maxItemLength: 48 }),
     startsAt,
     endsAt,
+    archived: body.archived === true,
+  };
+}
+
+export function parseAppCandidateInput(value: unknown): AppCandidateInput {
+  const body = record(value);
+
+  return {
+    name: text(body.name, "name", { required: true, max: 160 }),
+    slug: text(body.slug, "slug", { max: 100 }),
+    branchId: text(body.branchId, "branchId", { max: 120 }),
+    contactEmail: text(body.contactEmail, "contactEmail", { max: 240 }).toLowerCase(),
+    ballotNumber: text(body.ballotNumber, "ballotNumber", { max: 40 }),
+    description: text(body.description, "description", { max: 700 }),
     archived: body.archived === true,
   };
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleDot, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, RefreshCw, Save, Search, ShieldCheck, Tags, Upload, Users, X } from "lucide-react";
-import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
+import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppCandidateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
 
 type EditorMode = "create" | "edit";
 
@@ -89,6 +89,17 @@ function workspaceWithCampaign(workspace: AppWorkspacePayload, campaign: AppWork
   };
 }
 
+function workspaceWithCandidate(workspace: AppWorkspacePayload, candidate: AppWorkspacePayload["candidates"][number]) {
+  const candidates = workspace.candidates.some((item) => item.id === candidate.id)
+    ? workspace.candidates.map((item) => (item.id === candidate.id ? candidate : item))
+    : [candidate, ...workspace.candidates];
+
+  return {
+    ...workspace,
+    candidates,
+  };
+}
+
 function defaultCampaign(workspace: AppWorkspacePayload) {
   return workspace.campaigns.find((campaign) => !campaign.archived) ?? workspace.campaigns[0] ?? null;
 }
@@ -121,6 +132,7 @@ function blankForm(workspace: AppWorkspacePayload): EditableAdInput {
   return {
     code: "",
     campaignId: campaign?.id ?? "",
+    candidateId: "",
     title: "",
     branch: defaultBranch,
     owner: workspace.tenant.name,
@@ -144,6 +156,7 @@ function formFromAd(ad: AdRecord): EditableAdInput {
   return {
     code: ad.id,
     campaignId: ad.campaignId,
+    candidateId: ad.candidateId,
     title: ad.title,
     branch: ad.branch,
     owner: ad.owner,
@@ -303,6 +316,11 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [campaignTags, setCampaignTags] = useState("");
   const [campaignSaving, setCampaignSaving] = useState(false);
   const [campaignSavingId, setCampaignSavingId] = useState("");
+  const [candidateName, setCandidateName] = useState("");
+  const [candidateBranchId, setCandidateBranchId] = useState("");
+  const [candidateBallotNumber, setCandidateBallotNumber] = useState("");
+  const [candidateSaving, setCandidateSaving] = useState(false);
+  const [candidateSavingId, setCandidateSavingId] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
@@ -332,7 +350,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
 
     return workspace.ads.filter((ad) =>
-      [ad.id, ad.title, ad.branch, ad.campaign, ad.campaignTags.join(" "), ad.owner, ad.supplier, ad.distributionArea].some((value) =>
+      [ad.id, ad.title, ad.branch, ad.campaign, ad.candidate, ad.campaignTags.join(" "), ad.owner, ad.supplier, ad.distributionArea].some((value) =>
         value.toLowerCase().includes(normalized),
       ),
     );
@@ -528,6 +546,74 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       setError(campaignError instanceof Error ? campaignError.message : "Kampaň se nepodařilo uložit.");
     } finally {
       setCampaignSavingId("");
+    }
+  }
+
+  async function createCandidate() {
+    if (!workspace.permissions.canManageCandidates || !candidateName.trim() || candidateSaving) {
+      return;
+    }
+
+    setCandidateSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/app/candidates?locale=cs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: candidateName,
+          branchId: candidateBranchId,
+          ballotNumber: candidateBallotNumber,
+        } satisfies AppCandidateInput),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { candidate?: AppWorkspacePayload["candidates"][number]; error?: string };
+
+      if (!response.ok || !payload.candidate) {
+        throw new Error(payload.error || `Candidate create failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => workspaceWithCandidate(current, payload.candidate as AppWorkspacePayload["candidates"][number]));
+      setCandidateName("");
+      setCandidateBallotNumber("");
+      await refreshWorkspace();
+    } catch (candidateError) {
+      setError(candidateError instanceof Error ? candidateError.message : "Kandidáta se nepodařilo založit.");
+    } finally {
+      setCandidateSaving(false);
+    }
+  }
+
+  async function updateCandidate(candidateId: string, input: AppCandidateInput) {
+    if (!workspace.permissions.canManageCandidates || candidateSavingId) {
+      return;
+    }
+
+    setCandidateSavingId(candidateId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/app/candidates/${encodeURIComponent(candidateId)}?locale=cs`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { candidate?: AppWorkspacePayload["candidates"][number]; error?: string };
+
+      if (!response.ok || !payload.candidate) {
+        throw new Error(payload.error || `Candidate update failed with ${response.status}`);
+      }
+
+      setWorkspace((current) => workspaceWithCandidate(current, payload.candidate as AppWorkspacePayload["candidates"][number]));
+      await refreshWorkspace();
+    } catch (candidateError) {
+      setError(candidateError instanceof Error ? candidateError.message : "Kandidáta se nepodařilo uložit.");
+    } finally {
+      setCandidateSavingId("");
     }
   }
 
@@ -1001,6 +1087,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           form={form}
           branches={workspace.branches}
           campaigns={workspace.campaigns}
+          candidates={workspace.candidates}
           saving={saving}
           writable={writable}
           onCancel={() => setMode(null)}
@@ -1051,6 +1138,23 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           onCampaignTagsChange={setCampaignTags}
           onCreate={createCampaign}
           onUpdate={updateCampaign}
+        />
+      ) : null}
+
+      {workspace.permissions.canManageCandidates ? (
+        <CandidatesPanel
+          candidates={workspace.candidates}
+          branches={workspace.branches}
+          candidateName={candidateName}
+          candidateBranchId={candidateBranchId}
+          candidateBallotNumber={candidateBallotNumber}
+          candidateSaving={candidateSaving}
+          candidateSavingId={candidateSavingId}
+          onCandidateNameChange={setCandidateName}
+          onCandidateBranchChange={setCandidateBranchId}
+          onCandidateBallotNumberChange={setCandidateBallotNumber}
+          onCreate={createCandidate}
+          onUpdate={updateCandidate}
         />
       ) : null}
 
@@ -1133,7 +1237,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
                         {ad.id}
                       </button>
                     </td>
-                    <td className="px-4 py-4 font-medium text-[#20242a]">{ad.title}</td>
+                    <td className="px-4 py-4">
+                      <div className="font-medium text-[#20242a]">{ad.title}</div>
+                      {ad.candidate ? <div className="mt-1 text-xs font-semibold text-[#68707a]">{ad.candidate}</div> : null}
+                    </td>
                     <td className="px-4 py-4 text-[#59616b]">{ad.branch}</td>
                     <td className="px-4 py-4 text-[#59616b]">{ad.campaign}</td>
                     <td className="px-4 py-4">
@@ -1201,6 +1308,7 @@ function Editor({
   mode,
   branches,
   campaigns,
+  candidates,
   saving,
   writable,
   onCancel,
@@ -1211,6 +1319,7 @@ function Editor({
   mode: EditorMode;
   branches: AppWorkspacePayload["branches"];
   campaigns: AppWorkspacePayload["campaigns"];
+  candidates: AppWorkspacePayload["candidates"];
   saving: boolean;
   writable: boolean;
   onCancel: () => void;
@@ -1237,6 +1346,7 @@ function Editor({
       title: "Materiál",
       fields: [
         ["campaignId", "Kampaň", "campaign"],
+        ["candidateId", "Kandidát", "candidate"],
         ["title", "Název reklamy", "text"],
         ["branch", "Pobočka / oblast", "branch"],
         ["type", "Typ materiálu", "text"],
@@ -1333,6 +1443,22 @@ function Editor({
                             </option>
                           ))}
                       </select>
+                    ) : type === "candidate" ? (
+                      <select
+                        value={form.candidateId ?? ""}
+                        onChange={(event) => onChange({ ...form, candidateId: event.target.value })}
+                        className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
+                      >
+                        <option value="">Bez kandidáta</option>
+                        {candidates
+                          .filter((candidate) => !candidate.archived || candidate.id === form.candidateId)
+                          .map((candidate) => (
+                            <option key={candidate.id} value={candidate.id}>
+                              {candidate.name}
+                              {candidate.ballotNumber ? ` · č. ${candidate.ballotNumber}` : ""}
+                            </option>
+                          ))}
+                      </select>
                     ) : type === "branch" ? (
                       <select
                         value={form.branch}
@@ -1401,7 +1527,10 @@ function MobileAdCards({
               <div className="min-w-0">
                 <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
                 <h3 className="mt-1 text-base font-semibold leading-6 text-black">{ad.title}</h3>
-                <p className="mt-1 text-sm text-[#59616b]">{ad.branch} · {ad.campaign}</p>
+                <p className="mt-1 text-sm text-[#59616b]">
+                  {ad.branch} · {ad.campaign}
+                  {ad.candidate ? ` · ${ad.candidate}` : ""}
+                </p>
               </div>
               <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
             </div>
@@ -2034,6 +2163,154 @@ function CampaignsPanel({
   );
 }
 
+function CandidatesPanel({
+  candidates,
+  branches,
+  candidateName,
+  candidateBranchId,
+  candidateBallotNumber,
+  candidateSaving,
+  candidateSavingId,
+  onCandidateNameChange,
+  onCandidateBranchChange,
+  onCandidateBallotNumberChange,
+  onCreate,
+  onUpdate,
+}: {
+  candidates: AppWorkspacePayload["candidates"];
+  branches: AppWorkspacePayload["branches"];
+  candidateName: string;
+  candidateBranchId: string;
+  candidateBallotNumber: string;
+  candidateSaving: boolean;
+  candidateSavingId: string;
+  onCandidateNameChange: (value: string) => void;
+  onCandidateBranchChange: (value: string) => void;
+  onCandidateBallotNumberChange: (value: string) => void;
+  onCreate: () => void;
+  onUpdate: (candidateId: string, input: AppCandidateInput) => void;
+}) {
+  const activeBranches = branches.filter((branch) => !branch.archived);
+  const activeCount = candidates.filter((candidate) => !candidate.archived).length;
+
+  return (
+    <section id="candidates" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">Kandidáti</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Udržujte kandidáty jako samostatný seznam a přiřazujte k nim reklamy bez opisování jmen do každého materiálu.</p>
+        </div>
+        <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
+          {activeCount} aktivních
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_120px_auto]">
+        <input
+          value={candidateName}
+          onChange={(event) => onCandidateNameChange(event.target.value)}
+          placeholder="Jméno kandidáta"
+          className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]"
+        />
+        <select
+          value={candidateBranchId}
+          onChange={(event) => onCandidateBranchChange(event.target.value)}
+          className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold outline-none focus:border-[#f45d1f]"
+        >
+          <option value="">Celý pracovní prostor</option>
+          {activeBranches.map((branch) => (
+            <option key={branch.id} value={branch.id}>
+              {branch.name}
+            </option>
+          ))}
+        </select>
+        <input
+          value={candidateBallotNumber}
+          onChange={(event) => onCandidateBallotNumberChange(event.target.value)}
+          placeholder="Číslo"
+          className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]"
+        />
+        <button
+          type="button"
+          onClick={onCreate}
+          disabled={candidateSaving || !candidateName.trim()}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
+        >
+          <Plus size={15} />
+          {candidateSaving ? "Ukládám" : "Přidat"}
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {candidates.map((candidate) => (
+          <form
+            key={candidate.id}
+            className={`grid min-w-0 gap-3 rounded-md border p-3 ${candidate.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"}`}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const formData = new FormData(event.currentTarget);
+              onUpdate(candidate.id, {
+                name: String(formData.get("name") ?? ""),
+                slug: String(formData.get("slug") ?? ""),
+                branchId: String(formData.get("branchId") ?? ""),
+                contactEmail: String(formData.get("contactEmail") ?? ""),
+                ballotNumber: String(formData.get("ballotNumber") ?? ""),
+                description: String(formData.get("description") ?? ""),
+                archived: formData.get("archived") === "on",
+              });
+            }}
+          >
+            <div className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_minmax(160px,220px)_100px]">
+              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                Jméno
+                <input name="name" defaultValue={candidate.name} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
+                <span className="text-xs font-medium text-[#59616b]">{candidate.adCount} reklam</span>
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                Pobočka / oblast
+                <select name="branchId" defaultValue={candidate.branchId} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]">
+                  <option value="">Celý prostor</option>
+                  {activeBranches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                Číslo
+                <input name="ballotNumber" defaultValue={candidate.ballotNumber} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+              </label>
+            </div>
+            <div className="grid gap-2 md:grid-cols-[minmax(180px,240px)_minmax(220px,1fr)_120px] md:items-end">
+              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                E-mail
+                <input name="contactEmail" defaultValue={candidate.contactEmail} type="email" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+                Poznámka
+                <input name="description" defaultValue={candidate.description} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+                <input name="slug" type="hidden" defaultValue={candidate.slug} />
+              </label>
+              <div className="grid gap-2">
+                <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-[#20242a]">
+                  <input name="archived" type="checkbox" defaultChecked={candidate.archived} className="size-4 accent-[#f45d1f]" />
+                  Archiv
+                </label>
+                <button type="submit" disabled={Boolean(candidateSavingId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
+                  <Save size={15} />
+                  {candidateSavingId === candidate.id ? "Ukládám" : "Uložit"}
+                </button>
+              </div>
+            </div>
+          </form>
+        ))}
+        {candidates.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není přidaný žádný kandidát.</div> : null}
+      </div>
+    </section>
+  );
+}
+
 function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
   return (
     <section id="audit" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
@@ -2466,6 +2743,7 @@ function DetailPanel({
     ["Veřejná URL", ad.publicUrl],
     ["Kampaň", ad.campaign],
     ["Tagy kampaně", ad.campaignTags.length ? ad.campaignTags.join(", ") : "bez tagů"],
+    ["Kandidát", ad.candidate || "nepřiřazen"],
     ["Plátce", ad.payer || "chybí"],
     ["Dodavatel", ad.supplier || "chybí"],
     ["Částka", ad.amount || "chybí"],

@@ -46,6 +46,8 @@ export type AdRecord = {
   campaign: string;
   campaignSlug: string;
   campaignTags: string[];
+  candidateId: string;
+  candidate: string;
   branch: string;
   owner: string;
   type: string;
@@ -161,6 +163,7 @@ export type PublicRepositoryPayload = {
 export type EditableAdInput = {
   code?: string;
   campaignId?: string;
+  candidateId?: string;
   title: string;
   branch: string;
   owner: string;
@@ -234,6 +237,29 @@ export type AppCampaignInput = {
   tags?: string[];
   startsAt: string;
   endsAt: string;
+  archived?: boolean;
+};
+
+export type AppCandidateRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  branchId: string;
+  branch: string;
+  contactEmail: string;
+  ballotNumber: string;
+  description: string;
+  archived: boolean;
+  adCount: number;
+};
+
+export type AppCandidateInput = {
+  name: string;
+  slug?: string;
+  branchId?: string;
+  contactEmail?: string;
+  ballotNumber?: string;
+  description?: string;
   archived?: boolean;
 };
 
@@ -384,6 +410,7 @@ export type AppWorkspacePayload = {
   };
   branches: AdminBranchOption[];
   campaigns: AppCampaignRecord[];
+  candidates: AppCandidateRecord[];
   permissions: {
     canCreateAds: boolean;
     canEditAds: boolean;
@@ -393,6 +420,7 @@ export type AppWorkspacePayload = {
     canManageBranches: boolean;
     canEditOwnBranch: boolean;
     canManageCampaigns: boolean;
+    canManageCandidates: boolean;
     canManageUsers: boolean;
     canManageTenantSettings: boolean;
     canViewAudit: boolean;

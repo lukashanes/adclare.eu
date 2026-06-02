@@ -52,6 +52,7 @@ const copy = {
     complete: "Povinné údaje vyplněny",
     lastUpdated: "Aktualizace",
     language: "Jazyk",
+    candidate: "Kandidát",
   },
   en: {
     back: "Adclare",
@@ -89,6 +90,7 @@ const copy = {
     complete: "Required data complete",
     lastUpdated: "Updated",
     language: "Language",
+    candidate: "Candidate",
   },
 } as const;
 
@@ -268,6 +270,7 @@ export default async function PublicRepositoryPage({ params, searchParams }: Pag
                       <td className="px-5 py-4 font-mono text-sm font-semibold text-[#20242a]">{ad.id}</td>
                       <td className="max-w-[340px] px-5 py-4">
                         <div className="text-sm font-semibold text-[#11161c]">{ad.title}</div>
+                        {ad.candidate ? <div className="mt-1 text-xs font-semibold text-[#20242a]">{texts.candidate}: {ad.candidate}</div> : null}
                         <div className="mt-1 text-xs leading-5 text-[#68707a]">
                           {ad.campaign} · {texts.language}: {ad.language} · {texts.lastUpdated}: {ad.lastUpdated}
                         </div>

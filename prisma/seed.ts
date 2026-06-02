@@ -32,10 +32,54 @@ const units = [
   ["plzen", "oblast", "Plzeň", "Pilsen"],
 ];
 
+const candidates = [
+  {
+    slug: "jan-novak",
+    unitSlug: "ostrava-jih",
+    nameCs: "Jan Novák",
+    nameEn: "Jan Novák",
+    contactEmail: "jan.novak@example.org",
+    ballotNumber: "1",
+    descriptionCs: "Lídr kandidátky pro Ostravu-Jih.",
+    descriptionEn: "Lead candidate for Ostrava-South.",
+  },
+  {
+    slug: "eva-svobodova",
+    unitSlug: "brno-stred",
+    nameCs: "Eva Svobodová",
+    nameEn: "Eva Svobodová",
+    contactEmail: "eva.svobodova@example.org",
+    ballotNumber: "2",
+    descriptionCs: "Kandidátka pro dopravu a veřejný prostor.",
+    descriptionEn: "Candidate focused on transport and public space.",
+  },
+  {
+    slug: "petr-dvorak",
+    unitSlug: "liberec",
+    nameCs: "Petr Dvořák",
+    nameEn: "Petr Dvořák",
+    contactEmail: "petr.dvorak@example.org",
+    ballotNumber: "3",
+    descriptionCs: "Krajský kandidát pro energetiku a rozpočet.",
+    descriptionEn: "Regional candidate focused on energy and budget.",
+  },
+  {
+    slug: "tereza-kralova",
+    unitSlug: "praha-3",
+    nameCs: "Tereza Králová",
+    nameEn: "Tereza Králová",
+    contactEmail: "tereza.kralova@example.org",
+    ballotNumber: "4",
+    descriptionCs: "Kandidátka pro bydlení a městské služby.",
+    descriptionEn: "Candidate focused on housing and city services.",
+  },
+];
+
 const ads = [
   {
     code: "OST-011",
     unitSlug: "ostrava-jih",
+    candidateSlug: "jan-novak",
     titleCs: "Leták: čisté ulice",
     titleEn: "Leaflet: cleaner streets",
     ownerCs: "Lokální tým Ostrava",
@@ -71,6 +115,7 @@ const ads = [
   {
     code: "BRN-032",
     unitSlug: "brno-stred",
+    candidateSlug: "eva-svobodova",
     titleCs: "Video: doprava v centru",
     titleEn: "Video: city transport",
     ownerCs: "Mediální tým Brno",
@@ -106,6 +151,7 @@ const ads = [
   {
     code: "LBC-006",
     unitSlug: "liberec",
+    candidateSlug: "petr-dvorak",
     titleCs: "Billboard: dostupná energie",
     titleEn: "Billboard: energy costs",
     ownerCs: "Krajský tým Liberec",
@@ -141,6 +187,7 @@ const ads = [
   {
     code: "PHA-014",
     unitSlug: "praha-3",
+    candidateSlug: "tereza-kralova",
     titleCs: "Citylight: dostupné bydlení",
     titleEn: "Citylight: housing access",
     ownerCs: "Praha 3",
@@ -176,6 +223,7 @@ const ads = [
   {
     code: "PLZ-019",
     unitSlug: "plzen",
+    candidateSlug: "",
     titleCs: "Banner: školky bez čekání",
     titleEn: "Banner: childcare capacity",
     ownerCs: "Online tým Plzeň",
@@ -265,6 +313,36 @@ async function main() {
     unitBySlug.set(slug, unit);
   }
 
+  const candidateBySlug = new Map();
+  for (const candidate of candidates) {
+    const unit = unitBySlug.get(candidate.unitSlug);
+    const savedCandidate = await prisma.candidate.upsert({
+      where: { tenantId_slug: { tenantId: tenant.id, slug: candidate.slug } },
+      update: {
+        orgUnitId: unit?.id ?? null,
+        nameCs: candidate.nameCs,
+        nameEn: candidate.nameEn,
+        contactEmail: candidate.contactEmail,
+        ballotNumber: candidate.ballotNumber,
+        descriptionCs: candidate.descriptionCs,
+        descriptionEn: candidate.descriptionEn,
+        archivedAt: null,
+      },
+      create: {
+        tenantId: tenant.id,
+        orgUnitId: unit?.id ?? null,
+        slug: candidate.slug,
+        nameCs: candidate.nameCs,
+        nameEn: candidate.nameEn,
+        contactEmail: candidate.contactEmail,
+        ballotNumber: candidate.ballotNumber,
+        descriptionCs: candidate.descriptionCs,
+        descriptionEn: candidate.descriptionEn,
+      },
+    });
+    candidateBySlug.set(candidate.slug, savedCandidate);
+  }
+
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@demo-strana.cz" },
     update: { name: "Instalační admin" },
@@ -296,11 +374,13 @@ async function main() {
 
   for (const ad of ads) {
     const unit = unitBySlug.get(ad.unitSlug);
+    const candidate = ad.candidateSlug ? candidateBySlug.get(ad.candidateSlug) : null;
     const savedAd = await prisma.ad.upsert({
       where: { tenantId_code: { tenantId: tenant.id, code: ad.code } },
       update: {
         campaignId: campaign.id,
         orgUnitId: unit.id,
+        candidateId: candidate?.id ?? null,
         titleCs: ad.titleCs,
         titleEn: ad.titleEn,
         ownerCs: ad.ownerCs,
@@ -362,6 +442,7 @@ async function main() {
         tenantId: tenant.id,
         campaignId: campaign.id,
         orgUnitId: unit.id,
+        candidateId: candidate?.id ?? null,
         code: ad.code,
         publicToken: createPublicToken(),
         titleCs: ad.titleCs,

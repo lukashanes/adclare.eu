@@ -39,6 +39,7 @@ export default async function AppPage() {
     workspace.tenant.slug,
     workspace.ads.map((ad) => `${ad.id}:${ad.updatedAt}:${ad.version}:${ad.campaignId}`).join("|"),
     workspace.campaigns.map((campaign) => `${campaign.id}:${campaign.slug}:${campaign.election}:${campaign.tags.join(",")}:${campaign.archived}`).join("|"),
+    workspace.candidates.map((candidate) => `${candidate.id}:${candidate.slug}:${candidate.branchId}:${candidate.archived}:${candidate.adCount}`).join("|"),
   ].join("::");
 
   return (
