@@ -53,9 +53,14 @@ export async function POST(request: Request) {
     }
 
     return Response.json({
-      sheetName: parsed.sheetName,
-      headerRow: parsed.headerRow,
-      result,
+      result: {
+        ...result,
+        source: {
+          fileName: file.name,
+          sheetName: parsed.sheetName,
+          headerRow: parsed.headerRow,
+        },
+      },
     });
   } catch (error) {
     console.error(error);

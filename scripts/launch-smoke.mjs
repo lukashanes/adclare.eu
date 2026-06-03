@@ -169,6 +169,8 @@ check(existsSync(resolve(root, "src/app/api/app/ads/import/route.ts")), "App Exc
 check(xlsxImport.includes("parseXlsxAdImport") && xlsxImport.includes("JSZip"), "XLSX ad import parser is missing.");
 check(adminDb.includes("importAppAds") && adminDb.includes("import_ads_batch"), "Database ad import handler or audit log is missing.");
 check(appWorkspace.includes("Import agendy") && appWorkspace.includes("Importovat Excel"), "Workspace should expose Excel agenda import.");
+check(appWorkspace.includes("Založené reklamy") && appWorkspace.includes("Řádky k opravě") && appWorkspace.includes("hlavička na řádku"), "Excel import should show readable created ads and row issues.");
+check(read("src/app/api/app/ads/import/route.ts").includes("sheetName") && read("src/app/api/app/ads/import/route.ts").includes("headerRow"), "Excel import API should return source sheet metadata.");
 check(!existsSync(resolve(root, "src/app/app/activate/page.tsx")), "Open source app should not include hosted activation pages.");
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
 check(adminDb.includes("requestAppAdChanges"), "Review change request handler is missing.");

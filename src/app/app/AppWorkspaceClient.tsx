@@ -1455,6 +1455,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           result={importResult}
           onCampaignChange={setImportCampaignId}
           onImport={importAds}
+          onSelect={(adId) => {
+            setSelectedId(adId);
+            window.setTimeout(() => document.getElementById("ad-detail")?.scrollIntoView({ block: "start" }), 50);
+          }}
         />
       ) : null}
 
@@ -2221,6 +2225,7 @@ function ImportPanel({
   result,
   onCampaignChange,
   onImport,
+  onSelect,
 }: {
   campaigns: AppWorkspacePayload["campaigns"];
   campaignId: string;
@@ -2228,8 +2233,15 @@ function ImportPanel({
   result: AdImportResult | null;
   onCampaignChange: (campaignId: string) => void;
   onImport: (file: File | null) => void;
+  onSelect: (adId: string) => void;
 }) {
   const activeCampaigns = campaigns.filter((campaign) => !campaign.archived);
+  const canImport = !importing && activeCampaigns.length > 0;
+  const issueRows = result ? [...result.skipped, ...result.errors] : [];
+  const shownIssues = issueRows.slice(0, 8);
+  const shownCreated = result?.created.slice(0, 6) ?? [];
+  const unresolvedCount = result ? result.skippedCount + result.failedCount : 0;
+  const cleanImport = Boolean(result && unresolvedCount === 0);
 
   return (
     <section className="rounded-md border border-black/10 bg-white p-4">
@@ -2267,14 +2279,14 @@ function ImportPanel({
               ))}
             </select>
           </label>
-          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-black">
+          <label className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-white transition ${canImport ? "cursor-pointer bg-[#11161c] hover:bg-black" : "cursor-not-allowed bg-[#c9cdd3]"}`}>
             <Upload size={16} />
             {importing ? "Importuji" : "Importovat Excel"}
             <input
               type="file"
               accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               className="sr-only"
-              disabled={importing || activeCampaigns.length === 0}
+              disabled={!canImport}
               onChange={(event) => {
                 onImport(event.target.files?.[0] ?? null);
                 event.currentTarget.value = "";
@@ -2285,29 +2297,78 @@ function ImportPanel({
       </div>
 
       {result ? (
-        <div className="mt-4 grid gap-3 lg:grid-cols-[260px_1fr]">
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-            <div className="font-semibold">Import dokončen</div>
-            <div className="mt-2 grid gap-1">
-              <div>Založeno: {result.createdCount}</div>
-              <div>Přeskočeno: {result.skippedCount}</div>
-              <div>Chyby: {result.failedCount}</div>
+        <div className="mt-4 grid gap-3">
+          <div className={`rounded-md border p-3 text-sm ${cleanImport ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-orange-200 bg-orange-50 text-orange-950"}`}>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="font-semibold">{cleanImport ? "Import dokončen bez řádků k opravě" : "Import dokončen, část řádků chce opravu"}</div>
+                <p className="mt-1 leading-5">
+                  {result.source
+                    ? `${result.source.fileName} · list ${result.source.sheetName} · hlavička na řádku ${result.source.headerRow}`
+                    : `Zpracováno ${result.totalRows} řádků.`}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs font-semibold sm:grid-cols-4">
+                {[
+                  ["Řádků", result.totalRows],
+                  ["Založeno", result.createdCount],
+                  ["Přeskočeno", result.skippedCount],
+                  ["Chyby", result.failedCount],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-md border border-black/10 bg-white/80 px-3 py-2">
+                    <div className="text-[#68707a]">{label}</div>
+                    <div className="mt-1 text-base text-black">{value}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="grid gap-2">
-            {[...result.skipped, ...result.errors].slice(0, 6).map((issue) => (
-              <div key={`${issue.rowNumber}:${issue.code}:${issue.message}`} className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
-                <span className="font-semibold">Řádek {issue.rowNumber}</span>
-                {issue.code ? ` · ${issue.code}` : ""}
-                {issue.title ? ` · ${issue.title}` : ""}
-                <span className="block text-orange-800">{issue.message}</span>
+
+          {shownCreated.length ? (
+            <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
+              <div className="text-sm font-semibold text-black">Založené reklamy</div>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {shownCreated.map((ad) => (
+                  <button key={ad.id} type="button" onClick={() => onSelect(ad.id)} className="rounded-md border border-black/10 bg-white px-3 py-2 text-left text-sm text-[#20242a]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold">{ad.id}</span>
+                      <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
+                    </div>
+                    <div className="mt-1 font-semibold">{ad.title}</div>
+                    <div className="mt-1 text-xs text-[#68707a]">{ad.statusLabel}</div>
+                  </button>
+                ))}
               </div>
-            ))}
-            {result.skippedCount + result.failedCount > 6 ? (
-              <div className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#59616b]">
-                Další řádky jsou v odpovědi importu. Opravte zdrojovou tabulku a nahrajte ji znovu.
+              {result.createdCount > shownCreated.length ? <div className="mt-2 text-xs font-semibold text-[#68707a]">Další založené reklamy jsou v seznamu reklam.</div> : null}
+            </div>
+          ) : null}
+
+          <div className="rounded-md border border-black/10 bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-black">Řádky k opravě</div>
+              <div className={`rounded-md border px-2 py-1 text-xs font-semibold ${cleanImport ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-800"}`}>
+                {cleanImport ? "Bez chyb" : `${unresolvedCount} řádků`}
               </div>
-            ) : null}
+            </div>
+            {shownIssues.length ? (
+              <div className="mt-2 grid gap-2">
+                {shownIssues.map((issue) => (
+                  <div key={`${issue.rowNumber}:${issue.code}:${issue.message}`} className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+                    <span className="font-semibold">Řádek {issue.rowNumber}</span>
+                    {issue.code ? ` · ${issue.code}` : ""}
+                    {issue.title ? ` · ${issue.title}` : ""}
+                    <span className="block text-orange-800">{issue.message}</span>
+                  </div>
+                ))}
+                {unresolvedCount > shownIssues.length ? (
+                  <div className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#59616b]">
+                    Další řádky opravte ve zdrojové tabulce a nahrajte import znovu.
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm leading-6 text-[#59616b]">Všechny načtené řádky se podařilo založit. Zkontrolujte nové reklamy a doplňte podklady před schválením.</p>
+            )}
           </div>
         </div>
       ) : null}

@@ -200,6 +200,11 @@ export type AdImportResult = {
   createdCount: number;
   skippedCount: number;
   failedCount: number;
+  source?: {
+    fileName: string;
+    sheetName: string;
+    headerRow: number;
+  };
   created: AdRecord[];
   skipped: AdImportIssue[];
   errors: AdImportIssue[];
