@@ -32,6 +32,7 @@ const turnstileLib = read("src/lib/turnstile.ts");
 const schema = read("prisma/schema.prisma");
 const prismaConfig = read("prisma.config.ts");
 const objectStorage = read("src/lib/object-storage.ts");
+const exportManifest = read("src/lib/export-manifest.ts");
 const appWorkspace = read("src/app/app/AppWorkspaceClient.tsx");
 const xlsxImport = read("src/lib/xlsx-ad-import.ts");
 const publicRepoPage = read("src/app/repo/[tenant]/page.tsx");
@@ -100,6 +101,7 @@ check(!turnstileField.includes("process.env"), "Turnstile client component must 
 check(turnstileLib.includes("TURNSTILE_SITE_KEY"), "Turnstile site key should be readable from a server runtime variable.");
 check(schema.includes("model AdAsset"), "Ad asset storage model is missing.");
 check(objectStorage.includes("@aws-sdk/client-s3") && objectStorage.includes("uploadAdAssetObject"), "S3 object storage upload helper is missing.");
+check(exportManifest.includes("buildExportManifest") && exportManifest.includes("SHA-256") && exportManifest.includes("sha256"), "Export manifest helper should record SHA-256 file hashes.");
 check(existsSync(resolve(root, "scripts/check-object-storage.mjs")), "Object storage validation script is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/route.ts")), "App ad asset upload route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/assets/[assetId]/route.ts")), "App ad asset download route is missing.");
@@ -134,6 +136,7 @@ check(read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("candidate
 check(read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("candidate: ad.candidate"), "Demo QR package notice should include assigned candidate data.");
 check(read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("-qr.png") && read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("manifest.json") && read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("README.txt"), "App QR package should include PNG, manifest and README outputs.");
 check(read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("-qr.png") && read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("manifest.json") && read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("README.txt"), "Demo QR package should include PNG, manifest and README outputs.");
+check(read("src/app/api/app/ads/[code]/qr-package/route.ts").includes("buildExportManifest") && read("src/app/api/admin/demo/ads/[code]/qr-package/route.ts").includes("buildExportManifest"), "QR packages should use verifiable export manifests.");
 check(existsSync(resolve(root, "src/app/api/app/users/route.ts")), "App user invitation route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/profile/route.ts")), "App profile update route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/users/[id]/route.ts")), "App member update route is missing.");
@@ -143,6 +146,7 @@ check(appWorkspace.includes("Správa lidí") && appWorkspace.includes("Uložit p
 check(appWorkspace.includes("Přístupy a pozvánky") && appWorkspace.includes("Čeká na přijetí") && appWorkspace.includes("Role v týmu") && appWorkspace.includes("Pozvánky k dořešení"), "People management should expose access and invitation overview.");
 check(appWorkspace.includes("Audit") && adminDb.includes("update_tenant_settings") && adminDb.includes("update_branch"), "Workspace should expose audit and log admin changes.");
 check(appWorkspace.includes("Co archiv obsahuje") && appWorkspace.includes("Nejčastější změny") && appWorkspace.includes("Archivní období") && appWorkspace.includes("Přihlášení e-mailem"), "Archive and audit should expose clear control package overview.");
+check(appWorkspace.includes("manifest.json") && appWorkspace.includes("SHA-256"), "Archive overview should show the verifiable export manifest.");
 check(adminDb.includes("getAppSuperAdminPayload") && adminDb.includes("canManageAllTenants"), "Super admin payload and permission are missing.");
 check(appWorkspace.includes("Správa celé instalace") && appWorkspace.includes("workspace.permissions.canManageAllTenants"), "Workspace should expose the super admin installation overview.");
 check(appWorkspace.includes("Co je potřeba doplnit") && appWorkspace.includes("Doplnit údaje"), "Workspace should expose a missing data action queue.");
@@ -160,6 +164,7 @@ check(existsSync(resolve(root, "src/app/api/app/ads/[code]/publish/route.ts")), 
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/request-changes/route.ts")), "App request changes route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/ads/[code]/audit-export/route.ts")), "App audit export route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/exports/archive/route.ts")), "App workspace archive export route is missing.");
+check(read("src/app/api/app/ads/[code]/audit-export/route.ts").includes("buildExportManifest") && read("src/app/api/app/exports/archive/route.ts").includes("buildExportManifest"), "Audit and archive exports should include verifiable manifests.");
 check(existsSync(resolve(root, "src/app/api/app/ads/import/route.ts")), "App Excel import route is missing.");
 check(xlsxImport.includes("parseXlsxAdImport") && xlsxImport.includes("JSZip"), "XLSX ad import parser is missing.");
 check(adminDb.includes("importAppAds") && adminDb.includes("import_ads_batch"), "Database ad import handler or audit log is missing.");

@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import QRCode from "qrcode";
 import { requireAdminRequest } from "@/lib/admin-auth";
 import { getDemoAdsPayload, normalizeLocale } from "@/lib/admin-demo-db";
+import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -67,45 +68,43 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     targetAudience: ad.targetAudience,
   };
   const label = locale === "cs" ? "Informace o politické reklamě" : "Political advertising information";
-  const packageFiles = [
-    `${ad.id}-qr.svg`,
-    `${ad.id}-qr.png`,
-    `${ad.id}-notice.json`,
-    `${ad.id}-manifest.json`,
-    `${ad.id}-print-label.html`,
-    "README.txt",
-  ];
   const zip = new JSZip();
+  const files: ExportManifestFile[] = [];
+  const generatedAt = new Date().toISOString();
+  const noticeJson = JSON.stringify(notice, null, 2);
+  const printLabelHtml = `<!doctype html><html lang="${locale}"><meta charset="utf-8"><title>${escapeHtml(ad.id)}</title><body style="font-family:Arial,sans-serif;padding:24px"><div style="display:inline-flex;gap:16px;align-items:center;border:1px solid #111;padding:16px;max-width:720px"><div style="width:180px">${qrSvg}</div><div style="font-size:16px;line-height:1.45;word-break:break-word"><strong>${escapeHtml(label)}</strong><br>${escapeHtml(ad.id)}<br>${escapeHtml(publicUrl)}</div></div></body></html>`;
+  const readme =
+    locale === "cs"
+      ? `QR balíček pro reklamu ${ad.id}\n\nQR kód vede na:\n${publicUrl}\n\nObsah balíčku:\n- ${ad.id}-qr.svg: vektorový QR kód pro grafiku a tisk\n- ${ad.id}-qr.png: bitmapový QR kód ve vysokém rozlišení\n- ${ad.id}-print-label.html: jednoduchý tiskový štítek\n- ${ad.id}-notice.json: data transparentního oznámení\n- ${ad.id}-manifest.json: kontrolní manifest balíčku se SHA-256 otisky\n`
+      : `QR package for ad ${ad.id}\n\nThe QR code points to:\n${publicUrl}\n\nPackage contents:\n- ${ad.id}-qr.svg: vector QR code for design and print\n- ${ad.id}-qr.png: high-resolution bitmap QR code\n- ${ad.id}-print-label.html: simple printable label\n- ${ad.id}-notice.json: transparency notice data\n- ${ad.id}-manifest.json: package manifest with SHA-256 hashes\n`;
 
-  zip.file(`${ad.id}-qr.svg`, qrSvg);
-  zip.file(`${ad.id}-qr.png`, qrPng);
-  zip.file(`${ad.id}-notice.json`, JSON.stringify(notice, null, 2));
+  addExportFile(zip, files, `${ad.id}-qr.svg`, qrSvg, "image/svg+xml");
+  addExportFile(zip, files, `${ad.id}-qr.png`, qrPng, "image/png");
+  addExportFile(zip, files, `${ad.id}-notice.json`, noticeJson, "application/json");
+  addExportFile(zip, files, `${ad.id}-print-label.html`, printLabelHtml, "text/html; charset=utf-8");
+  addExportFile(zip, files, "README.txt", readme, "text/plain; charset=utf-8");
   zip.file(
     `${ad.id}-manifest.json`,
     JSON.stringify(
-      {
-        id: ad.id,
-        title: ad.title,
-        publicUrl,
-        generatedAt: new Date().toISOString(),
-        qrTarget: publicUrl,
-        packageFiles,
-        printLabel: `${ad.id}-print-label.html`,
-        formats: ["svg", "png", "html", "json"],
-      },
+      buildExportManifest({
+        packageType: "qr-package",
+        locale,
+        generatedAt,
+        subject: {
+          adId: ad.id,
+          adTitle: ad.title,
+          publicUrl,
+          qrTarget: publicUrl,
+          workflowStatus: ad.workflowStatus,
+          version: ad.version,
+          printLabel: `${ad.id}-print-label.html`,
+          formats: "svg,png,html,json",
+        },
+        files,
+      }),
       null,
       2,
     ),
-  );
-  zip.file(
-    `${ad.id}-print-label.html`,
-    `<!doctype html><html lang="${locale}"><meta charset="utf-8"><title>${escapeHtml(ad.id)}</title><body style="font-family:Arial,sans-serif;padding:24px"><div style="display:inline-flex;gap:16px;align-items:center;border:1px solid #111;padding:16px;max-width:720px"><div style="width:180px">${qrSvg}</div><div style="font-size:16px;line-height:1.45;word-break:break-word"><strong>${escapeHtml(label)}</strong><br>${escapeHtml(ad.id)}<br>${escapeHtml(publicUrl)}</div></div></body></html>`,
-  );
-  zip.file(
-    "README.txt",
-    locale === "cs"
-      ? `QR balíček pro reklamu ${ad.id}\n\nQR kód vede na:\n${publicUrl}\n\nObsah balíčku:\n- ${ad.id}-qr.svg: vektorový QR kód pro grafiku a tisk\n- ${ad.id}-qr.png: bitmapový QR kód ve vysokém rozlišení\n- ${ad.id}-print-label.html: jednoduchý tiskový štítek\n- ${ad.id}-notice.json: data transparentního oznámení\n- ${ad.id}-manifest.json: technický souhrn balíčku\n`
-      : `QR package for ad ${ad.id}\n\nThe QR code points to:\n${publicUrl}\n\nPackage contents:\n- ${ad.id}-qr.svg: vector QR code for design and print\n- ${ad.id}-qr.png: high-resolution bitmap QR code\n- ${ad.id}-print-label.html: simple printable label\n- ${ad.id}-notice.json: transparency notice data\n- ${ad.id}-manifest.json: package manifest\n`,
   );
 
   const bytes = await zip.generateAsync({ type: "arraybuffer" });

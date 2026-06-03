@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { getAppSession } from "@/lib/app-auth";
 import { getAppArchivePackage, normalizeLocale } from "@/lib/admin-demo-db";
+import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +27,8 @@ export async function GET(request: Request) {
   }
 
   const zip = new JSZip();
+  const files: ExportManifestFile[] = [];
+  const generatedAt = new Date().toISOString();
   const readme =
     locale === "cs"
       ? [
@@ -41,9 +44,11 @@ export async function GET(request: Request) {
           "archive.json contains the full structured data. CSV files are included for quick spreadsheet review.",
         ].join("\n");
 
-  zip.file("README.txt", readme);
-  zip.file("archive.json", JSON.stringify(archive, null, 2));
-  zip.file(
+  addExportFile(zip, files, "README.txt", readme, "text/plain; charset=utf-8");
+  addExportFile(zip, files, "archive.json", JSON.stringify(archive, null, 2), "application/json");
+  addExportFile(
+    zip,
+    files,
     "ads.csv",
     toCsv(
       ["id", "title", "campaign", "candidate", "branch", "workflowStatus", "workflowLabel", "statusLabel", "publicationDate", "period", "payer", "amount", "publicUrl", "updatedAt"],
@@ -64,8 +69,11 @@ export async function GET(request: Request) {
         updatedAt: ad.updatedAt,
       })),
     ),
+    "text/csv; charset=utf-8",
   );
-  zip.file(
+  addExportFile(
+    zip,
+    files,
     "campaigns.csv",
     toCsv(
       ["id", "name", "slug", "election", "tags", "startsAt", "endsAt", "archived", "adCount"],
@@ -81,8 +89,11 @@ export async function GET(request: Request) {
         adCount: campaign.adCount,
       })),
     ),
+    "text/csv; charset=utf-8",
   );
-  zip.file(
+  addExportFile(
+    zip,
+    files,
     "branches.csv",
     toCsv(
       ["id", "name", "kind", "parentId", "contactEmail", "description", "archived"],
@@ -96,8 +107,11 @@ export async function GET(request: Request) {
         archived: branch.archived,
       })),
     ),
+    "text/csv; charset=utf-8",
   );
-  zip.file(
+  addExportFile(
+    zip,
+    files,
     "candidates.csv",
     toCsv(
       ["id", "name", "slug", "branch", "contactEmail", "ballotNumber", "description", "archived", "adCount"],
@@ -113,19 +127,25 @@ export async function GET(request: Request) {
         adCount: candidate.adCount,
       })),
     ),
+    "text/csv; charset=utf-8",
   );
-  zip.file(
+  addExportFile(
+    zip,
+    files,
     "assets.csv",
     toCsv(
       ["adId", "id", "fileName", "originalName", "contentType", "byteSize", "checksumSha256", "storageProvider", "storageBucket", "storageKey", "uploadedBy", "createdAt"],
       archive.assets,
     ),
+    "text/csv; charset=utf-8",
   );
-  zip.file("approvals.csv", toCsv(["adId", "actor", "status", "note", "createdAt"], archive.approvals));
-  zip.file("audit-log.csv", toCsv(["id", "actor", "action", "message", "createdAt"], archive.auditLogs));
+  addExportFile(zip, files, "approvals.csv", toCsv(["adId", "actor", "status", "note", "createdAt"], archive.approvals), "text/csv; charset=utf-8");
+  addExportFile(zip, files, "audit-log.csv", toCsv(["id", "actor", "action", "message", "createdAt"], archive.auditLogs), "text/csv; charset=utf-8");
 
   if (archive.accessDirectory.included) {
-    zip.file(
+    addExportFile(
+      zip,
+      files,
       "access-members.csv",
       toCsv(
         ["id", "name", "email", "role", "scope", "status"],
@@ -138,8 +158,11 @@ export async function GET(request: Request) {
           status: member.status,
         })),
       ),
+      "text/csv; charset=utf-8",
     );
-    zip.file(
+    addExportFile(
+      zip,
+      files,
       "access-invitations.csv",
       toCsv(
         ["id", "email", "role", "scope", "status", "emailStatus", "expiresAt"],
@@ -153,8 +176,37 @@ export async function GET(request: Request) {
           expiresAt: invitation.expiresAt,
         })),
       ),
+      "text/csv; charset=utf-8",
     );
   }
+
+  zip.file(
+    "manifest.json",
+    JSON.stringify(
+      buildExportManifest({
+        packageType: "workspace-control-archive",
+        locale,
+        generatedAt,
+        subject: {
+          tenantId: archive.tenant.id,
+          tenantSlug: archive.tenant.slug,
+          tenantName: archive.tenant.name,
+          exportedBy: archive.exportedBy.email,
+          exportedByRole: archive.exportedBy.role,
+          accessScope: archive.exportedBy.scope,
+          ads: archive.counts.ads,
+          campaigns: archive.counts.campaigns,
+          branches: archive.counts.branches,
+          candidates: archive.counts.candidates,
+          assets: archive.counts.assets,
+          auditLogs: archive.counts.auditLogs,
+        },
+        files,
+      }),
+      null,
+      2,
+    ),
+  );
 
   const bytes = await zip.generateAsync({ type: "arraybuffer" });
   const filename = `${archive.tenant.slug}-control-archive.zip`;

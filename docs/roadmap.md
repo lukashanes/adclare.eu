@@ -26,6 +26,7 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 - Uploads for advert files and supporting assets.
 - Public transparency notice URLs with unguessable tokens.
 - QR package download and audit package download.
+- Export manifests with SHA-256 file hashes for QR packages, ad audit packages and workspace control archives.
 - Approval, publish, archive and version lock workflow.
 - Public repository for published and archived adverts.
 - Append-only audit log.
@@ -47,7 +48,6 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 
 - Richer public repository filters and export formats.
 - More configurable TTPA field presets for different election contexts.
-- Stronger audit package manifests with asset hashes and verification notes.
 - Better object storage lifecycle documentation.
 - Optional outbound email queue worker for high-volume installations.
 - More granular permission editor for large organizations.

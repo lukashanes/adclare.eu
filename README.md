@@ -47,6 +47,7 @@ Adclare gives teams one place to:
 - Public repository for published/archived adverts with JSON endpoint.
 - Ad asset upload to S3-compatible object storage.
 - QR package and audit package downloads.
+- Export manifests with SHA-256 hashes for QR packages, ad audit packages and workspace archives.
 - Append-only audit log.
 - Turnstile validation for public forms when configured.
 - Production health endpoint at `/api/health`.

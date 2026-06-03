@@ -3014,6 +3014,7 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
   ];
   const archiveContents = [
     ["README.txt", "stručný popis exportu"],
+    ["manifest.json", "kontrolní seznam souborů a SHA-256 otisků"],
     ["archive.json", "kompletní strukturovaná data"],
     ["ads.csv", "reklamy a transparentní odkazy"],
     ["campaigns.csv, branches.csv, candidates.csv", "kampaně, pobočky a kandidáti"],
