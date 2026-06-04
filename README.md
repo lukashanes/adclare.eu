@@ -61,17 +61,26 @@ Local development requires Node.js 20.19 or newer.
 git clone https://github.com/lukashanes/adclare.eu.git
 cd adclare.eu
 cp .env.example .env
-npm install
+npm ci
 docker compose up -d db
-npm run db:migrate -- --name init
+npm run db:migrate
 npm run db:generate
-npm run db:seed
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
 The `/signup` screen creates the first organization and installation administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users should normally be invited from inside the app.
+
+When Cloudflare Email Service is not configured, local non-production runs print magic login links and invitation links to the server console. Production runs do not print those links; configure outbound email before using a public instance.
+
+Optional demo data for development:
+
+```bash
+npm run db:seed
+```
+
+Run the seed only when you want sample campaigns, users and adverts. It creates a demo workspace, so `/signup` is no longer the first workspace flow on that database.
 
 ## Docker
 
@@ -114,6 +123,7 @@ Important environment variables:
 - `APP_URL` and `NEXT_PUBLIC_APP_URL`: public URL of the instance. `APP_URL` is used at runtime by server-side links, feeds and metadata.
 - `EMAIL_FROM`: sender identity for transactional email.
 - `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: optional Cloudflare Email Service credentials.
+- `ADCLARE_LOG_EMAIL_LINKS`: local development fallback for magic links; set to `0` to disable console output.
 - `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: optional Cloudflare Turnstile protection.
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.
 - `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.

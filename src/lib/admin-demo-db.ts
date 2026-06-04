@@ -54,7 +54,7 @@ import type {
   ReviewDecisionInput,
   Status,
 } from "@/lib/admin-demo-types";
-import { defaultEmailFrom, publicAppUrl } from "@/lib/instance-config";
+import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
 
@@ -470,6 +470,10 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
       error: isCloudflareEmailConfigured() ? "" : cloudflareEmailMissingConfigError,
     },
   });
+
+  if (!isCloudflareEmailConfigured()) {
+    logPendingEmailLink("Invitation", invitation.email, inviteUrl);
+  }
 
   return deliverEmailMessage(email, { bodyText, bodyHtml });
 }

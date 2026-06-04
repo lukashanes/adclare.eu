@@ -123,7 +123,7 @@ CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
 CLOUDFLARE_EMAIL_API_TOKEN='...'
 ```
 
-Until those values are present, invitations are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
+Until those values are present, messages are stored in the `email_messages` outbox with status `PENDING_PROVIDER`. Local non-production runs also print one-time login and invitation links to the server console unless `ADCLARE_LOG_EMAIL_LINKS=0` is set.
 
 ## Run The Setup Script
 

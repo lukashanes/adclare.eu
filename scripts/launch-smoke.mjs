@@ -40,10 +40,12 @@ const publicRepoPage = read("src/app/repo/[tenant]/page.tsx");
 const adminAuth = read("src/lib/admin-auth.ts");
 const adminPage = read("src/app/[locale]/admin/page.tsx");
 const appAuth = read("src/lib/app-auth.ts");
+const instanceConfig = read("src/lib/instance-config.ts");
 const turnstile = read("src/lib/turnstile.ts");
 const license = read("LICENSE");
 const changelog = read("CHANGELOG.md");
 const seed = read("prisma/seed.ts");
+const readme = read("README.md");
 const packageJson = JSON.parse(read("package.json"));
 
 check(!dockerfile.includes("db:seed"), "Production migrator must not run demo seed automatically.");
@@ -68,6 +70,10 @@ check(ciWorkflow.includes("npm run ci") && packageJson.scripts.ci.includes("npm 
 check(ciWorkflow.includes("npm run docker:check"), "GitHub Actions should verify Docker builds.");
 check(packageJson.scripts["security:scan"] === "node scripts/security-scan.mjs", "Package scripts should include a masked tracked-file security scan.");
 check(existsSync(resolve(root, "scripts/security-scan.mjs")), "Security scan script is missing.");
+check(instanceConfig.includes("logPendingEmailLink") && instanceConfig.includes('process.env.NODE_ENV === "production"'), "Local email link fallback should never log links in production.");
+check(appAuth.includes('logPendingEmailLink("Login"') && adminDb.includes('logPendingEmailLink("Invitation"'), "Missing Cloudflare email config should expose login and invitation links only through the local development console fallback.");
+check(readme.includes("npm run db:migrate") && !readme.includes("npm run db:migrate -- --name init"), "README Quick Start should apply existing migrations without creating a new init migration.");
+check(readme.indexOf("npm run db:seed") > readme.indexOf("Optional demo data for development"), "README should keep demo seed separate from the first-workspace Quick Start.");
 check(ciWorkflow.includes("actions/checkout@v6"), "GitHub Actions should use checkout with Node 24 runtime support.");
 check(ciWorkflow.includes("actions/setup-node@v6"), "GitHub Actions should use setup-node with Node 24 runtime support.");
 check(ciWorkflow.includes("docker/setup-buildx-action@v4"), "GitHub Actions should use Buildx with Node 24 runtime support.");

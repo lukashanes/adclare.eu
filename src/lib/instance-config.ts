@@ -20,3 +20,11 @@ export function defaultEmailFrom() {
     return "Adclare <noreply@localhost>";
   }
 }
+
+export function logPendingEmailLink(kind: "Login" | "Invitation", toEmail: string, url: string) {
+  if (process.env.NODE_ENV === "production" || process.env.ADCLARE_LOG_EMAIL_LINKS === "0") {
+    return;
+  }
+
+  console.info(`[adclare] ${kind} link for ${toEmail}: ${url}`);
+}

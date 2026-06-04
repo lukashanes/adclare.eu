@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { EmailStatus, MembershipStatus } from "@/generated/prisma/client";
 import { readCookieFromHeader } from "@/lib/admin-auth";
-import { defaultEmailFrom, publicAppUrl } from "@/lib/instance-config";
+import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { prisma } from "@/lib/prisma";
 
 export const APP_SESSION_COOKIE = "adclare_user_session";
@@ -125,6 +125,7 @@ async function deliverLoginEmail(tenantId: string, toEmail: string, loginUrl: st
   });
 
   if (!isCloudflareEmailConfigured()) {
+    logPendingEmailLink("Login", toEmail, loginUrl);
     return email;
   }
 

@@ -70,7 +70,7 @@ For public production instances, keep `first-run` or `disabled` unless you expli
 
 ## Email
 
-Adclare can run without outbound email configured, but login links and invitations will be stored in the `email_messages` outbox with `PENDING_PROVIDER`.
+Production instances should have outbound email configured before real users are invited or asked to log in.
 
 For transactional sending, configure:
 
@@ -79,6 +79,8 @@ EMAIL_FROM='Adclare <noreply@adclare.example.org>'
 CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
 CLOUDFLARE_EMAIL_API_TOKEN='...'
 ```
+
+If those values are missing, Adclare still records the email in `email_messages` with status `PENDING_PROVIDER`. In local non-production runs, the server console also prints the one-time login or invitation link so a developer can finish the first setup. Set `ADCLARE_LOG_EMAIL_LINKS=0` to disable this local fallback.
 
 Cloudflare Email Routing is inbound forwarding only. It does not send application emails.
 
