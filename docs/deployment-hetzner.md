@@ -64,11 +64,10 @@ docker compose ps
 docker compose logs -f web
 ```
 
-Run migrations and seed data when needed:
+The root Compose file runs migrations before the web container starts. To rerun migrations manually:
 
 ```bash
-docker compose --profile tools run --rm migrate
-docker compose --profile tools run --rm seed
+docker compose run --rm migrate
 ```
 
 ## Shared Nginx Server
@@ -140,6 +139,7 @@ TURNSTILE_ALLOWED_HOSTNAMES='adclare.example.org,www.adclare.example.org'
 NEXT_PUBLIC_SHOW_DEMO_REPO='0'
 ENABLE_DEMO_ADMIN='0'
 SIGNUP_MODE='first-run'
+ADCLARE_STORAGE_DRIVER='s3'
 OBJECT_STORAGE_ENDPOINT='https://fsn1.your-objectstorage.com'
 OBJECT_STORAGE_REGION='fsn1'
 OBJECT_STORAGE_BUCKET='adclare-assets'
@@ -155,7 +155,8 @@ Behavior without optional external secrets:
 - Invitation emails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
 - Outbound transactional email uses Cloudflare Email Service REST API when configured.
 - Turnstile protects public forms only when site key and secret are set.
-- Uploaded ad files use S3-compatible object storage when configured.
+- Uploaded ad files use local file storage by default. Docker Compose persists them in the `asset_data` volume.
+- Set `ADCLARE_STORAGE_DRIVER='s3'` to use Hetzner Object Storage or another S3-compatible bucket.
 
 Object storage check:
 

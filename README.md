@@ -45,7 +45,7 @@ Adclare gives teams one place to:
 - Review, approval, return-to-changes, publish and archive states.
 - Public QR/transparency URLs with stable unguessable tokens.
 - Public repository for published/archived adverts with JSON endpoint.
-- Ad asset upload to S3-compatible object storage.
+- Ad asset upload to local disk or S3-compatible object storage.
 - QR package and audit package downloads.
 - Export manifests with SHA-256 hashes for QR packages, ad audit packages and workspace archives.
 - Append-only audit log.
@@ -125,13 +125,28 @@ Important environment variables:
 - `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: optional Cloudflare Email Service credentials.
 - `ADCLARE_LOG_EMAIL_LINKS`: local development fallback for magic links; set to `0` to disable console output.
 - `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: optional Cloudflare Turnstile protection.
+- `ADCLARE_STORAGE_DRIVER`: `local` by default; set to `s3` for Hetzner Object Storage or another S3-compatible bucket.
+- `ADCLARE_LOCAL_STORAGE_DIR`: local uploaded asset directory; defaults to `.data/uploads` in local development and `/data/uploads` in Docker.
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.
 - `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.
 - `SIGNUP_MODE`: `first-run` by default; use `open` only when public workspace creation is intentional, or `disabled` for invite-only operation.
 
-## Object Storage Check
+## File Storage
 
-After setting object storage credentials:
+Local file storage works without external secrets. In Docker Compose, uploaded assets are persisted in the `asset_data` volume mounted at `/data/uploads`.
+
+For Hetzner Object Storage or another S3-compatible bucket, set:
+
+```bash
+ADCLARE_STORAGE_DRIVER=s3
+OBJECT_STORAGE_ENDPOINT=https://fsn1.your-objectstorage.com
+OBJECT_STORAGE_REGION=fsn1
+OBJECT_STORAGE_BUCKET=adclare-assets
+OBJECT_STORAGE_ACCESS_KEY_ID=...
+OBJECT_STORAGE_SECRET_ACCESS_KEY=...
+```
+
+Then verify the bucket:
 
 ```bash
 npm run storage:check

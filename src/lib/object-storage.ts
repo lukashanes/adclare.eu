@@ -1,8 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve, sep } from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client, type GetObjectCommandOutput } from "@aws-sdk/client-s3";
 
 const placeholderValues = new Set(["", "replace_with_object_storage_access_key", "replace_with_object_storage_secret"]);
 const defaultMaxUploadBytes = 50 * 1024 * 1024;
+const localStorageProvider = "local";
+const s3StorageProvider = "s3";
 const allowedContentTypes = new Set([
   "application/pdf",
   "image/gif",
@@ -21,6 +25,7 @@ type UploadTarget = {
 };
 
 type StoredObject = {
+  provider: string;
   bucket: string;
   key: string;
   publicUrl: string;
@@ -61,6 +66,14 @@ function storagePublicBaseUrl() {
   return (process.env.OBJECT_STORAGE_PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
 }
 
+function configuredStorageDriver() {
+  return (process.env.ADCLARE_STORAGE_DRIVER || process.env.OBJECT_STORAGE_DRIVER || "").trim().toLowerCase();
+}
+
+function localStorageRoot() {
+  return (process.env.ADCLARE_LOCAL_STORAGE_DIR || process.env.LOCAL_UPLOAD_DIR || (process.env.NODE_ENV === "production" ? "/data/uploads" : ".data/uploads")).trim();
+}
+
 function forcePathStyle() {
   return process.env.OBJECT_STORAGE_FORCE_PATH_STYLE === "1" || process.env.S3_FORCE_PATH_STYLE === "1";
 }
@@ -76,14 +89,35 @@ export function maxUploadBytes() {
 }
 
 export function objectStorageStatus() {
-  const configured = isObjectStorageConfigured();
+  const driver = assetStorageDriver();
+  const configured = isAssetStorageAvailable();
 
   return {
     configured,
-    provider: configured ? "Hetzner Object Storage / S3" : "not_configured",
-    bucket: configured ? storageBucket() : "",
+    provider: driver === s3StorageProvider ? "Hetzner Object Storage / S3" : "local file storage",
+    bucket: driver === s3StorageProvider && configured ? storageBucket() : "",
     maxUploadSizeMb: Math.round(maxUploadBytes() / 1024 / 1024),
   };
+}
+
+export function assetStorageDriver() {
+  const configured = configuredStorageDriver();
+
+  if (configured === s3StorageProvider || configured === "object-storage" || configured === "object_storage") {
+    return s3StorageProvider;
+  }
+
+  if (configured === localStorageProvider || configured === "filesystem" || configured === "fs") {
+    return localStorageProvider;
+  }
+
+  return isObjectStorageConfigured() ? s3StorageProvider : localStorageProvider;
+}
+
+export function isAssetStorageAvailable() {
+  const driver = assetStorageDriver();
+
+  return driver === localStorageProvider || isObjectStorageConfigured();
 }
 
 export function isObjectStorageConfigured() {
@@ -109,6 +143,17 @@ function storageClient() {
       secretAccessKey: storageSecretAccessKey(),
     },
   });
+}
+
+function localObjectPath(key: string) {
+  const root = resolve(localStorageRoot());
+  const target = resolve(root, key);
+
+  if (target !== root && !target.startsWith(`${root}${sep}`)) {
+    throw new Error("Invalid local storage key.");
+  }
+
+  return target;
 }
 
 function safeSegment(value: string, fallback: string) {
@@ -182,7 +227,8 @@ async function bodyToBuffer(body: GetObjectCommandOutput["Body"]) {
 export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTarget): Promise<StoredObject> {
   assertUploadAllowed(file);
 
-  const bucket = storageBucket();
+  const driver = assetStorageDriver();
+  const bucket = driver === s3StorageProvider ? storageBucket() : "";
   const fileName = safeFileName(file.name || "asset");
   const bytes = Buffer.from(await file.arrayBuffer());
   const checksumSha256 = createHash("sha256").update(bytes).digest("hex");
@@ -193,6 +239,25 @@ export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTa
     safeSegment(adCode, "ad"),
     `${new Date().toISOString().slice(0, 10)}-${randomBytes(8).toString("hex")}-${fileName}`,
   ].join("/");
+
+  if (driver === localStorageProvider) {
+    const target = localObjectPath(key);
+
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, bytes, { flag: "wx" });
+
+    return {
+      provider: localStorageProvider,
+      bucket,
+      key,
+      publicUrl: "",
+      fileName,
+      originalName: file.name || fileName,
+      contentType: file.type || "application/octet-stream",
+      byteSize: file.size,
+      checksumSha256,
+    };
+  }
 
   await storageClient().send(
     new PutObjectCommand({
@@ -210,6 +275,7 @@ export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTa
   );
 
   return {
+    provider: s3StorageProvider,
     bucket,
     key,
     publicUrl: publicObjectUrl(key),
@@ -221,7 +287,17 @@ export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTa
   };
 }
 
-export async function downloadAdAssetObject(bucket: string, key: string): Promise<StoredObjectDownload> {
+export async function downloadAdAssetObject(provider: string, bucket: string, key: string): Promise<StoredObjectDownload> {
+  if (provider === localStorageProvider) {
+    const bytes = await readFile(localObjectPath(key));
+
+    return {
+      bytes,
+      contentType: "application/octet-stream",
+      byteSize: bytes.length,
+    };
+  }
+
   const response = await storageClient().send(
     new GetObjectCommand({
       Bucket: bucket,

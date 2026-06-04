@@ -9,7 +9,7 @@ This guide is vendor-neutral. It assumes Docker, PostgreSQL and a reverse proxy 
 - A Linux server or local machine with Docker and Docker Compose.
 - A DNS name for production, for example `adclare.example.org`.
 - PostgreSQL, provided by the included Compose database or by your own managed database.
-- Optional S3-compatible object storage for advert files.
+- Local file storage for advert files, or optional S3-compatible object storage.
 - Optional Cloudflare Turnstile for public forms.
 - Optional Cloudflare Email Service for magic links and invitations.
 
@@ -98,11 +98,21 @@ TURNSTILE_ALLOWED_HOSTNAMES=adclare.example.org
 
 For local development only, `TURNSTILE_REQUIRED=0` can be used.
 
-## Object Storage
+## File Storage
 
-Uploaded advert files use S3-compatible object storage:
+Uploaded advert files work with local file storage by default:
 
 ```bash
+ADCLARE_STORAGE_DRIVER=local
+ADCLARE_LOCAL_STORAGE_DIR=/data/uploads
+```
+
+Docker Compose persists local uploads in the `asset_data` volume. Back up that volume together with PostgreSQL if you keep files locally.
+
+For Hetzner Object Storage or another S3-compatible bucket, switch the driver and set credentials:
+
+```bash
+ADCLARE_STORAGE_DRIVER=s3
 OBJECT_STORAGE_ENDPOINT=https://fsn1.your-objectstorage.com
 OBJECT_STORAGE_REGION=fsn1
 OBJECT_STORAGE_BUCKET=adclare-assets
@@ -112,7 +122,7 @@ OBJECT_STORAGE_FORCE_PATH_STYLE=0
 MAX_AD_ASSET_UPLOAD_MB=50
 ```
 
-Verify storage:
+Verify the S3 bucket:
 
 ```bash
 docker compose -f docker-compose.prod.yml --profile tools build storage-check

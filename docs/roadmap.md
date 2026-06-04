@@ -30,7 +30,8 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 - Approval, publish, archive and version lock workflow.
 - Public repository for published and archived adverts.
 - Append-only audit log.
-- Cloudflare Turnstile, Cloudflare Email Service and S3-compatible object storage integrations when configured.
+- Local file storage by default, with S3-compatible object storage integration when configured.
+- Cloudflare Turnstile and Cloudflare Email Service integrations when configured.
 - Docker Compose deployment and PostgreSQL backup/restore scripts.
 
 ## Primary Users

@@ -20,7 +20,7 @@ Adclare is self-hosted software for managing political advert records and workfl
 - Optional Cloudflare Turnstile and Cloudflare Email Service integration.
 - Generic Cloudflare and Nginx self-hosting examples without instance-specific operational data.
 - Public roadmap in `docs/roadmap.md`.
-- S3-compatible object storage support, including Hetzner Object Storage.
+- Local file storage for uploaded advert assets, with optional S3-compatible storage including Hetzner Object Storage.
 - PostgreSQL backup and restore scripts.
 
 ## Documentation

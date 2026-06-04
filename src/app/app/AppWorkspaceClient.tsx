@@ -3909,6 +3909,7 @@ function DetailPanel({
   const steps = adProcessSteps(ad);
   const nextStep = steps.find((step) => !step.done);
   const copiedPublicUrl = copiedUrlFor === ad.id;
+  const fileUploadEnabled = uploadable && storage.configured && !uploading;
   const outputItems = [
     {
       label: "Oznámení",
@@ -4107,12 +4108,12 @@ function DetailPanel({
                 <div>
                   <h3 className="text-sm font-semibold text-black">Soubory materiálu</h3>
                   <div className="mt-1 text-xs leading-5 text-[#68707a]">
-                    {storage.configured ? `Ukládá se do ${storage.provider}. Limit ${storage.maxUploadSizeMb} MB.` : "Úložiště čeká na nastavení Hetzner Object Storage."}
+                    {storage.configured ? `Přidejte podklad reklamy, tiskové PDF, banner nebo video. Limit ${storage.maxUploadSizeMb} MB.` : "Nahrávání souborů není v této instalaci zapnuté."}
                   </div>
                 </div>
                 <label
                   className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
-                    uploadable && storage.configured && !uploading ? "cursor-pointer bg-[#11161c] text-white" : "cursor-not-allowed bg-[#c9cdd3] text-white"
+                    fileUploadEnabled ? "cursor-pointer bg-[#11161c] text-white" : "cursor-not-allowed bg-[#c9cdd3] text-white"
                   }`}
                 >
                   <Upload size={15} />
@@ -4120,7 +4121,7 @@ function DetailPanel({
                   <input
                     type="file"
                     className="sr-only"
-                    disabled={!uploadable || !storage.configured || Boolean(uploading)}
+                    disabled={!fileUploadEnabled}
                     accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,video/mp4,video/quicktime"
                     onChange={(event) => {
                       onUpload(ad, event.target.files?.[0] ?? null);

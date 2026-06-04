@@ -1,7 +1,7 @@
 import { isSameOriginRequest } from "@/lib/admin-auth";
 import { getAppSession } from "@/lib/app-auth";
 import { attachAppAdAsset, getAppAdUploadTarget, normalizeLocale } from "@/lib/admin-demo-db";
-import { isObjectStorageConfigured, uploadAdAssetObject } from "@/lib/object-storage";
+import { isAssetStorageAvailable, uploadAdAssetObject } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,8 +17,8 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  if (!isObjectStorageConfigured()) {
-    return Response.json({ error: "Úložiště souborů ještě není nakonfigurované." }, { status: 503 });
+  if (!isAssetStorageAvailable()) {
+    return Response.json({ error: "Nahrávání souborů není pro tuto instalaci dostupné." }, { status: 503 });
   }
 
   const [{ code }, locale] = await Promise.all([

@@ -74,6 +74,8 @@ check(instanceConfig.includes("logPendingEmailLink") && instanceConfig.includes(
 check(appAuth.includes('logPendingEmailLink("Login"') && adminDb.includes('logPendingEmailLink("Invitation"'), "Missing Cloudflare email config should expose login and invitation links only through the local development console fallback.");
 check(readme.includes("npm run db:migrate") && !readme.includes("npm run db:migrate -- --name init"), "README Quick Start should apply existing migrations without creating a new init migration.");
 check(readme.indexOf("npm run db:seed") > readme.indexOf("Optional demo data for development"), "README should keep demo seed separate from the first-workspace Quick Start.");
+check(objectStorage.includes("ADCLARE_LOCAL_STORAGE_DIR") && objectStorage.includes("writeFile") && objectStorage.includes("readFile"), "Asset uploads should support local file storage for self-hosted installs without S3.");
+check(read("docker-compose.yml").includes("asset_data:/data/uploads") && composeProd.includes("asset_data:/data/uploads"), "Docker Compose should persist local uploaded assets.");
 check(ciWorkflow.includes("actions/checkout@v6"), "GitHub Actions should use checkout with Node 24 runtime support.");
 check(ciWorkflow.includes("actions/setup-node@v6"), "GitHub Actions should use setup-node with Node 24 runtime support.");
 check(ciWorkflow.includes("docker/setup-buildx-action@v4"), "GitHub Actions should use Buildx with Node 24 runtime support.");

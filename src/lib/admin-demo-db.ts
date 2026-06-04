@@ -4977,6 +4977,7 @@ export async function getAppArchivePackage(userId: string, locale: Locale) {
 }
 
 type StoredAdAssetInput = {
+  provider: string;
   bucket: string;
   key: string;
   publicUrl: string;
@@ -5033,6 +5034,7 @@ export async function attachAppAdAsset(userId: string, code: string, input: Stor
         originalName: input.originalName,
         contentType: input.contentType,
         byteSize: input.byteSize,
+        storageProvider: input.provider,
         storageBucket: input.bucket,
         storageKey: input.key,
         publicUrl: input.publicUrl,
@@ -5116,6 +5118,7 @@ export async function getAppAdAssetDownload(userId: string, code: string, assetI
     byteSize: asset.byteSize,
     storageBucket: asset.storageBucket,
     storageKey: asset.storageKey,
+    storageProvider: asset.storageProvider,
   };
 }
 
