@@ -3,6 +3,7 @@ import {
   AdStatus,
   AdWorkflowStatus,
   ApprovalStatus,
+  type Prisma,
   type AdAsset,
   EmailStatus,
   type AuditLog,
@@ -71,6 +72,24 @@ type AdWithUnit = Ad & {
   approvals?: Approval[];
 };
 type AdWithRepositoryRelations = AdWithUnit;
+
+const adMappingInclude = {
+  orgUnit: true,
+  campaign: true,
+  candidate: true,
+  tenant: true,
+  assets: {
+    orderBy: {
+      createdAt: "desc",
+    },
+  },
+  approvals: {
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 5,
+  },
+} satisfies Prisma.AdInclude;
 type MembershipWithUserAndUnit = TenantMembership & {
   user: User;
   orgUnit: OrganizationUnit | null;
@@ -313,6 +332,15 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     assets,
     reviewEvents,
   };
+}
+
+async function getAdForMapping(id: string) {
+  return prisma.ad.findUniqueOrThrow({
+    where: {
+      id,
+    },
+    include: adMappingInclude,
+  });
 }
 
 function createPublicToken() {
@@ -1683,7 +1711,7 @@ export async function createDemoAd(input: EditableAdInput, locale: Locale) {
   const missingEn = requiredMissing(input, "en");
   const status = statusForInput(input);
 
-  const ad = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     const created = await tx.ad.create({
       data: {
         tenantId: tenant.id,
@@ -1764,9 +1792,10 @@ export async function createDemoAd(input: EditableAdInput, locale: Locale) {
       });
     }
 
-    return created;
+    return created.id;
   });
 
+  const ad = await getAdForMapping(adId);
   return mapAd(ad, locale);
 }
 
@@ -1832,7 +1861,7 @@ export async function updateDemoAd(code: string, input: EditableAdInput, locale:
   const versionBumpNeeded = Boolean(existing.lockedAt || existing.workflowStatus === AdWorkflowStatus.PUBLISHED);
   const nextVersion = versionBumpNeeded ? existing.version + 1 : existing.version;
 
-  const ad = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     if (versionBumpNeeded) {
       await tx.adVersion.upsert({
         where: {
@@ -1945,9 +1974,10 @@ export async function updateDemoAd(code: string, input: EditableAdInput, locale:
       });
     }
 
-    return updated;
+    return updated.id;
   });
 
+  const ad = await getAdForMapping(adId);
   return mapAd(ad, locale);
 }
 
@@ -2003,7 +2033,7 @@ export async function approveDemoAd(code: string, locale: Locale) {
     throw new Error("Ad is not waiting for review.");
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     const approved = await tx.ad.update({
       where: {
         tenantId_code: {
@@ -2021,11 +2051,8 @@ export async function approveDemoAd(code: string, locale: Locale) {
         statusNoteCs: `Verze ${ad.version} je schválená a připravená k publikaci.`,
         statusNoteEn: `Version ${ad.version} is approved and ready to publish.`,
       },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
+      select: {
+        id: true,
       },
     });
 
@@ -2051,30 +2078,10 @@ export async function approveDemoAd(code: string, locale: Locale) {
       },
     });
 
-    return tx.ad.findUniqueOrThrow({
-      where: {
-        id: approved.id,
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        approvals: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 5,
-        },
-      },
-    });
+    return approved.id;
   });
 
+  const updated = await getAdForMapping(adId);
   return mapAd(updated, locale);
 }
 
@@ -2100,7 +2107,7 @@ export async function publishDemoAd(code: string, locale: Locale) {
   }
 
   const now = new Date();
-  const updated = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     const published = await tx.ad.update({
       where: {
         tenantId_code: {
@@ -2150,9 +2157,10 @@ export async function publishDemoAd(code: string, locale: Locale) {
       },
     });
 
-    return published;
+    return published.id;
   });
 
+  const updated = await getAdForMapping(adId);
   return mapAd(updated, locale);
 }
 
@@ -4115,7 +4123,7 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
   const missingEn = requiredMissing(input, "en");
   const status = statusForInput(input);
 
-  const ad = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     const created = await tx.ad.create({
       data: {
         tenantId: context.membership.tenantId,
@@ -4165,16 +4173,9 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
             ? "The record was created with complete data and is waiting for review."
             : "The record is waiting for required data.",
       },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
+      select: {
+        id: true,
+        code: true,
       },
     });
 
@@ -4203,9 +4204,10 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
       });
     }
 
-    return created;
+    return created.id;
   });
 
+  const ad = await getAdForMapping(adId);
   return mapAd(ad, locale);
 }
 
@@ -4310,22 +4312,9 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
                 ? "The record was imported with complete data and is waiting for review."
                 : "The record was imported and is waiting for required data.",
           },
-          include: {
-            orgUnit: true,
-            campaign: true,
-            candidate: true,
-            tenant: true,
-            assets: {
-              orderBy: {
-                createdAt: "desc",
-              },
-            },
-            approvals: {
-              orderBy: {
-                createdAt: "desc",
-              },
-              take: 5,
-            },
+          select: {
+            id: true,
+            code: true,
           },
         });
 
@@ -4359,7 +4348,7 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
         }
 
         return {
-          ad: created,
+          adId: created.id,
         } as const;
       });
 
@@ -4367,7 +4356,8 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
         result.skipped.push(ad.skipped);
         result.skippedCount += 1;
       } else {
-        result.created.push(mapAd(ad.ad, locale));
+        const createdAd = await getAdForMapping(ad.adId);
+        result.created.push(mapAd(createdAd, locale));
         result.createdCount += 1;
       }
     } catch (error) {
@@ -4434,7 +4424,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
   const versionBumpNeeded = Boolean(existing.lockedAt || existing.workflowStatus === AdWorkflowStatus.PUBLISHED);
   const nextVersion = versionBumpNeeded ? existing.version + 1 : existing.version;
 
-  const ad = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     if (versionBumpNeeded) {
       await tx.adVersion.upsert({
         where: {
@@ -4517,16 +4507,10 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
               : "Changes are saved and the record is waiting for review."
             : "The record is waiting for required data.",
       },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
+      select: {
+        id: true,
+        code: true,
+        version: true,
       },
     });
 
@@ -4555,9 +4539,10 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
       });
     }
 
-    return updated;
+    return updated.id;
   });
 
+  const ad = await getAdForMapping(adId);
   return mapAd(ad, locale);
 }
 
@@ -5025,7 +5010,7 @@ export async function attachAppAdAsset(userId: string, code: string, input: Stor
     return null;
   }
 
-  const ad = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     await tx.adAsset.create({
       data: {
         tenantId: target.tenantId,
@@ -5064,24 +5049,10 @@ export async function attachAppAdAsset(userId: string, code: string, input: Stor
       },
     });
 
-    return tx.ad.findUniqueOrThrow({
-      where: {
-        id: target.adId,
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-    });
+    return target.adId;
   });
 
+  const ad = await getAdForMapping(adId);
   return mapAd(ad, locale);
 }
 
@@ -5161,7 +5132,7 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
   }
 
   const now = new Date();
-  const updated = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     const approved = await tx.ad.update({
       where: {
         tenantId_code: {
@@ -5179,16 +5150,8 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
         statusNoteCs: "Záznam byl schválen a čeká na publikaci.",
         statusNoteEn: "Record was approved and is waiting for publication.",
       },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
+      select: {
+        id: true,
       },
     });
 
@@ -5215,30 +5178,10 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
       },
     });
 
-    return tx.ad.findUniqueOrThrow({
-      where: {
-        id: approved.id,
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        approvals: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 5,
-        },
-      },
-    });
+    return approved.id;
   });
 
+  const updated = await getAdForMapping(adId);
   return mapAd(updated, locale);
 }
 
@@ -5271,7 +5214,7 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
   }
 
   const note = input.note.trim();
-  const updated = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     const returned = await tx.ad.update({
       where: {
         tenantId_code: {
@@ -5289,16 +5232,8 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
         statusNoteCs: `Vráceno k doplnění: ${note}`,
         statusNoteEn: `Returned for changes: ${note}`,
       },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
+      select: {
+        id: true,
       },
     });
 
@@ -5325,30 +5260,10 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
       },
     });
 
-    return tx.ad.findUniqueOrThrow({
-      where: {
-        id: returned.id,
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        approvals: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 5,
-        },
-      },
-    });
+    return returned.id;
   });
 
+  const updated = await getAdForMapping(adId);
   return mapAd(updated, locale);
 }
 
@@ -5391,7 +5306,7 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
   }
 
   const now = new Date();
-  const updated = await prisma.$transaction(async (tx) => {
+  const adId = await prisma.$transaction(async (tx) => {
     const published = await tx.ad.update({
       where: {
         tenantId_code: {
@@ -5411,16 +5326,8 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
         statusNoteCs: `Verze ${ad.version} je publikovaná a uzamčená.`,
         statusNoteEn: `Version ${ad.version} is published and locked.`,
       },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
+      select: {
+        id: true,
       },
     });
 
@@ -5447,29 +5354,9 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
       },
     });
 
-    return tx.ad.findUniqueOrThrow({
-      where: {
-        id: published.id,
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        approvals: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 5,
-        },
-      },
-    });
+    return published.id;
   });
 
+  const updated = await getAdForMapping(adId);
   return mapAd(updated, locale);
 }

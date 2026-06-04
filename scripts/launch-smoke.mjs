@@ -185,6 +185,12 @@ check(adminDb.includes("importAppAds") && adminDb.includes("import_ads_batch"), 
 check(appWorkspace.includes("Import agendy") && appWorkspace.includes("Importovat Excel"), "Workspace should expose Excel agenda import.");
 check(appWorkspace.includes("Založené reklamy") && appWorkspace.includes("Řádky k opravě") && appWorkspace.includes("hlavička na řádku"), "Excel import should show readable created ads and row issues.");
 check(read("src/app/api/app/ads/import/route.ts").includes("sheetName") && read("src/app/api/app/ads/import/route.ts").includes("headerRow"), "Excel import API should return source sheet metadata.");
+const appAdMutationFlow = adminDb.slice(adminDb.indexOf("export async function createAppAd"), adminDb.indexOf("export async function getAppAdRecord"));
+const appAssetMutationFlow = adminDb.slice(adminDb.indexOf("export async function attachAppAdAsset"), adminDb.indexOf("export async function getAppAdAssetDownload"));
+const appReviewMutationFlow = adminDb.slice(adminDb.indexOf("export async function approveAppAd"), adminDb.indexOf("export async function createAppAuditPackage"));
+check(adminDb.includes("async function getAdForMapping"), "App ad mutations should share a post-transaction mapping fetch helper.");
+check(appAdMutationFlow.includes("getAdForMapping(adId)") && appAssetMutationFlow.includes("getAdForMapping(adId)") && appReviewMutationFlow.includes("getAdForMapping(adId)"), "App ad mutations should fetch UI relations after the transaction commits.");
+check(!appAdMutationFlow.includes("return tx.ad.findUniqueOrThrow") && !appAssetMutationFlow.includes("return tx.ad.findUniqueOrThrow") && !appReviewMutationFlow.includes("return tx.ad.findUniqueOrThrow"), "App ad mutations should not return relation-heavy reads from inside transactions.");
 check(!existsSync(resolve(root, "src/app/app/activate/page.tsx")), "Open source app should not include hosted activation pages.");
 check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes("Publikovat"), "Workspace should expose approve/publish actions.");
 check(adminDb.includes("requestAppAdChanges"), "Review change request handler is missing.");
