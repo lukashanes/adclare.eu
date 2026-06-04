@@ -50,10 +50,10 @@ const content = {
       subprocessors: "Subdodavatelé",
       security: "Bezpečnost",
     },
-    heroMarker: "Evidence reklam podle TTPA",
+    heroMarker: "Veřejná beta podle TTPA",
     heroTitle: "Politická reklama pod kontrolou",
     heroText:
-      "Adclare sjednotí evidenci, schvalování a QR kódy pro politickou reklamu. Hlídá povinné údaje podle TTPA, ukáže co chybí před zveřejněním a ušetří týmům stovky hodin ročně.",
+      "Adclare je otevřený nástroj pro evidenci, schvalování a QR kódy politické reklamy. Hlídá povinné údaje podle TTPA, ukáže co chybí před zveřejněním a ušetří týmům stovky hodin ročně.",
     heroBullets: [
       "Každý materiál má jasný stav, odpovědnou osobu a termín.",
       "Z jednou vyplněných dat vznikne oznámení, QR kód i auditní balíček.",
@@ -126,7 +126,7 @@ const content = {
       ["Veřejný archiv", "Veřejně se ukazují jen publikované nebo archivované záznamy."],
       ["Zálohy", "Systém počítá se zálohováním databáze a obnovou při provozním problému."],
     ],
-    supportTitle: "Chcete to spustit rychle?",
+    supportTitle: "Chcete veřejnou betu spustit rychle?",
     supportText:
       "Pokud chcete konzultaci, instalaci, migraci dat, školení nebo úpravu procesu pro vlastní organizaci, napište na support@adclare.eu.",
     footerText:
@@ -148,10 +148,10 @@ const content = {
       subprocessors: "Subprocessors",
       security: "Security",
     },
-    heroMarker: "Ad records for TTPA",
+    heroMarker: "Public beta for TTPA",
     heroTitle: "Political ads under control",
     heroText:
-      "Adclare brings ad records, approvals and QR codes into one place. It tracks required TTPA data, shows what is missing before publication and can save teams hundreds of admin hours a year.",
+      "Adclare is an open tool for political ad records, approvals and QR codes. It tracks required TTPA data, shows what is missing before publication and can save teams hundreds of admin hours a year.",
     heroBullets: [
       "Every material has a clear status, owner and deadline.",
       "One completed record creates a notice, QR code and audit package.",
@@ -224,7 +224,7 @@ const content = {
       ["Public archive", "Only published or archived records are shown publicly."],
       ["Backups", "The system is designed for database backups and recovery when operations go wrong."],
     ],
-    supportTitle: "Want to start quickly?",
+    supportTitle: "Want to run the public beta quickly?",
     supportText:
       "If you need consulting, installation, data migration, training or process changes for your organization, contact support@adclare.eu.",
     footerText:

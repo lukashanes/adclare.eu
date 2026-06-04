@@ -64,15 +64,15 @@ Before publishing a tag:
 - `docs/deployment-hetzner.md` has current Hetzner notes.
 - `docs/roadmap.md` separates shipped features from planned improvements.
 - `CHANGELOG.md` has the release entry.
-- `docs/release-notes-v0.1.0.md` or the matching release notes file is current.
+- the matching release notes file in `docs/` is current.
 
 ## Release
 
 Official releases should be created from the repository owner controlled branch:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 Then create the GitHub Release from the pushed tag and copy the release notes.
