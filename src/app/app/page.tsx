@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ArrowUpRight, LogOut, ShieldCheck } from "lucide-react";
 import { getAppSession } from "@/lib/app-auth";
-import { getAppWorkspacePayload } from "@/lib/admin-demo-db";
+import { getAppWorkspacePayload } from "@/lib/workspace-db";
 import { AppWorkspaceClient } from "./AppWorkspaceClient";
 
 export const dynamic = "force-dynamic";

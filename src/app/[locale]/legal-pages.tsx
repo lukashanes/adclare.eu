@@ -37,8 +37,8 @@ type LegalLocaleContent = {
 };
 
 const updated = {
-  cs: "27. května 2026",
-  en: "27 May 2026",
+  cs: "4. června 2026",
+  en: "4 June 2026",
 } as const;
 
 const legal = {
@@ -72,8 +72,9 @@ const legal = {
           {
             title: "Postavení Aenze s.r.o.",
             body: [
-              "Aenze s.r.o. vystupuje jako správce osobních údajů při provozu webu, obchodní komunikaci, uzavírání a plnění smluv, správě účtů, bezpečnosti služby, vlastním marketingu vůči zákazníkům a ochraně svých právních nároků.",
-              "U osobních údajů vložených zákazníkem do kampaní, reklam, transparentních oznámení, souborů, schvalování, auditních záznamů a exportů vystupuje Aenze s.r.o. jako zpracovatel, pokud zákazník určuje účely a prostředky zpracování. Toto zpracování se řídí smlouvou se zákazníkem a zpracovatelskou přílohou podle čl. 28 GDPR.",
+              "Aenze s.r.o. vystupuje jako správce osobních údajů při provozu webu adclare.eu, obchodní komunikaci, uzavírání a plnění smluv, poskytování podpory, bezpečnosti vlastních služeb, vlastním marketingu vůči zákazníkům a ochraně svých právních nároků.",
+              "Pokud Aenze s.r.o. provozuje Adclare pro zákazníka nebo mu poskytuje podporu s přístupem k zákaznickému obsahu, může u údajů vložených do kampaní, reklam, transparentních oznámení, souborů, schvalování, auditních záznamů a exportů vystupovat jako zpracovatel podle čl. 28 GDPR. Toto zpracování se řídí smlouvou se zákazníkem a případnou zpracovatelskou přílohou.",
+              "U self-hosted instalací, které Aenze s.r.o. neprovozuje ani nespravuje, určuje správce, zpracovatele, příjemce, infrastrukturu a retenční pravidla provozovatel dané instalace.",
               "Zákazník zůstává odpovědný za zákonnost, správnost, úplnost a zveřejnění údajů, které do Adclare vloží nebo prostřednictvím služby publikuje.",
             ],
           },
@@ -154,7 +155,6 @@ const legal = {
             title: "Technologie používané službou",
             body: [
               "adclare_user_session - nezbytná session cookie aplikace Adclare, provozovatel Aenze s.r.o., účel přihlášení a správa relace uživatele, expirace 30 dní.",
-              "adclare_admin_session - nezbytná session cookie administrace, provozovatel Aenze s.r.o., účel ověření administrátorského přístupu, expirace 12 hodin.",
               "Přihlašovací a pozvánkové tokeny nejsou ukládány jako čitelné cookies v prohlížeči. Tokeny jsou posílány e-mailem, jejich otisky jsou uloženy na serveru a mají omezenou platnost.",
               "Cloudflare může být použit pro DNS, ochranu před útoky, proxy, WAF, e-mailové služby a případně Turnstile. Tyto technologie slouží k bezpečnosti, doručení služby a ochraně formulářů.",
               "",
@@ -231,8 +231,9 @@ const legal = {
           {
             title: "Data, obsah a duševní vlastnictví",
             body: [
-              "Software, rozhraní, design, databázová struktura, texty, ochranné prvky, název Adclare a další prvky služby jsou chráněny právy Aenze s.r.o. nebo jejích dodavatelů.",
-              "Zákazníkovi zůstávají práva k obsahu, který do služby vloží. Zákazník uděluje Aenze s.r.o. oprávnění tento obsah zpracovat, ukládat, zobrazit, kopírovat, převést, publikovat, zálohovat a exportovat v rozsahu nezbytném pro poskytování služby, zabezpečení, podporu, auditní stopu, veřejné výstupy a plnění smluvních nebo zákonných povinností.",
+              "Open source software Adclare je poskytován pod licencí EUPL-1.2. Licence upravuje práva k užití, šíření a úpravám zdrojového kódu.",
+              "Název Adclare, web adclare.eu, texty webu, grafické prvky, ochranné známky a obchodní prezentace mohou být chráněny samostatnými právy Aenze s.r.o. nebo jejích dodavatelů.",
+              "Zákazníkovi zůstávají práva k obsahu, který do služby vloží. Pokud Aenze s.r.o. provozuje službu nebo poskytuje podporu, zákazník jí uděluje oprávnění tento obsah zpracovat, ukládat, zobrazit, kopírovat, převést, publikovat, zálohovat a exportovat v rozsahu nezbytném pro poskytování služby, zabezpečení, podporu, auditní stopu, veřejné výstupy a plnění smluvních nebo zákonných povinností.",
               "Zákazník nesmí do služby vkládat obsah, k němuž nemá potřebná práva nebo právní důvod zpracování.",
             ],
           },
@@ -264,7 +265,7 @@ const legal = {
       dpa: {
         title: "Zpracovatelská příloha",
         intro:
-          "Tato zpracovatelská příloha upravuje zpracování osobních údajů zákaznického obsahu, pokud Aenze s.r.o. zpracovává osobní údaje pro zákazníka jako zpracovatel podle čl. 28 GDPR.",
+          "Tato zpracovatelská příloha upravuje zpracování osobních údajů zákaznického obsahu, pokud Aenze s.r.o. zpracovává osobní údaje pro zákazníka jako zpracovatel podle čl. 28 GDPR. U self-hosted instalací, které Aenze s.r.o. neprovozuje ani k nim nemá přístup, musí provozovatel použít vlastní zpracovatelské podmínky a seznam dodavatelů.",
         sections: [
           {
             title: "Použití přílohy",
@@ -461,8 +462,9 @@ const legal = {
           {
             title: "Role of Aenze s.r.o.",
             body: [
-              "Aenze s.r.o. acts as controller for website operation, business communication, contract conclusion and performance, account administration, service security, its own customer marketing and protection of its legal claims.",
-              "For personal data entered by the customer into campaigns, ads, transparency notices, files, approval workflows, audit records and exports, Aenze s.r.o. acts as processor where the customer determines the purposes and means of processing. This processing is governed by the customer agreement and the data processing addendum under Article 28 GDPR.",
+              "Aenze s.r.o. acts as controller for adclare.eu website operation, business communication, contract conclusion and performance, support, security of its own services, its own customer marketing and protection of its legal claims.",
+              "Where Aenze s.r.o. operates Adclare for a customer or provides support with access to customer content, it may act as processor for personal data entered into campaigns, ads, transparency notices, files, approval workflows, audit records and exports under Article 28 GDPR. This processing is governed by the customer agreement and any applicable data processing addendum.",
+              "For self-hosted installations not operated or administered by Aenze s.r.o., the controller, processors, recipients, infrastructure and retention rules are determined by the operator of that installation.",
               "The customer remains responsible for the lawfulness, accuracy, completeness and publication of data entered into or published through Adclare.",
             ],
           },
@@ -543,7 +545,6 @@ const legal = {
             title: "Technologies used by the service",
             body: [
               "adclare_user_session - necessary application session cookie, provider Aenze s.r.o., purpose login and user session management, expiry 30 days.",
-              "adclare_admin_session - necessary admin session cookie, provider Aenze s.r.o., purpose administrator access verification, expiry 12 hours.",
               "Login and invitation tokens are not stored as readable browser cookies. Tokens are sent by email, their hashes are stored server-side and their validity is limited.",
               "Cloudflare may be used for DNS, attack protection, proxy, WAF, email services and, where enabled, Turnstile. These technologies support security, service delivery and form protection.",
               "",
@@ -620,8 +621,9 @@ const legal = {
           {
             title: "Data, content and intellectual property",
             body: [
-              "The software, interface, design, database structure, texts, protection elements, Adclare name and other parts of the service are protected by rights of Aenze s.r.o. or its suppliers.",
-              "The customer retains rights to content entered into the service. The customer grants Aenze s.r.o. the right to process, store, display, copy, convert, publish, back up and export that content to the extent necessary to provide the service, security, support, audit trail, public outputs and compliance with contractual or legal obligations.",
+              "The open source Adclare software is provided under the EUPL-1.2 license. The license governs use, distribution and modification of the source code.",
+              "The Adclare name, adclare.eu website, website text, graphic elements, trademarks and commercial presentation may be protected by separate rights of Aenze s.r.o. or its suppliers.",
+              "The customer retains rights to content entered into the service. Where Aenze s.r.o. operates the service or provides support, the customer grants Aenze s.r.o. the right to process, store, display, copy, convert, publish, back up and export that content to the extent necessary to provide the service, security, support, audit trail, public outputs and compliance with contractual or legal obligations.",
               "The customer must not enter content into the service without the necessary rights or legal basis for processing.",
             ],
           },
@@ -653,7 +655,7 @@ const legal = {
       dpa: {
         title: "Data Processing Addendum",
         intro:
-          "This Data Processing Addendum governs the processing of customer content personal data where Aenze s.r.o. processes personal data for the customer as processor under Article 28 GDPR.",
+          "This Data Processing Addendum governs the processing of customer content personal data where Aenze s.r.o. processes personal data for the customer as processor under Article 28 GDPR. For self-hosted installations not operated or accessed by Aenze s.r.o., the installation operator must use its own data processing terms and supplier list.",
         sections: [
           {
             title: "Scope",

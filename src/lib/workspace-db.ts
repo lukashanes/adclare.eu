@@ -27,7 +27,6 @@ import type {
   AdChannel,
   AdImportInputRow,
   AdImportResult,
-  AdminAdsPayload,
   AppAuditRecord,
   AppBranchUpdateInput,
   AppCampaignInput,
@@ -42,7 +41,6 @@ import type {
   AdminInvitationRecord,
   AdminMemberRecord,
   AdminRoleKey,
-  AdminUsersPayload,
   EditableAdInput,
   InvitationNotice,
   InviteInput,
@@ -54,13 +52,11 @@ import type {
   PublicRepositoryPayload,
   ReviewDecisionInput,
   Status,
-} from "@/lib/admin-demo-types";
+} from "@/lib/workspace-types";
 import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
 
-const tenantSlug = "demo-party";
-const campaignSlug = "municipal-2026";
 const publicWorkflowStatuses: AdWorkflowStatus[] = [AdWorkflowStatus.PUBLISHED, AdWorkflowStatus.ARCHIVED];
 
 type AdWithUnit = Ad & {
@@ -282,7 +278,7 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     id: ad.code,
     publicUrl: `${publicAppUrl()}/ad/${ad.publicToken}`,
     title: isCs ? ad.titleCs : ad.titleEn,
-    tenantSlug: ad.tenant?.slug ?? tenantSlug,
+    tenantSlug: ad.tenant?.slug ?? "",
     campaignId: ad.campaign.id,
     campaign: isCs ? ad.campaign.nameCs : ad.campaign.nameEn,
     campaignSlug: ad.campaign.slug,
@@ -727,27 +723,6 @@ function mapInvitation(invitation: InvitationWithUnit, locale: Locale): AdminInv
   };
 }
 
-function mapPayload(tenant: Tenant, campaign: Campaign, campaigns: Campaign[], branches: OrganizationUnit[], ads: AdWithUnit[], locale: Locale): AdminAdsPayload {
-  const isCs = locale === "cs";
-
-  return {
-    tenant: {
-      name: isCs ? tenant.nameCs : tenant.nameEn,
-      slug: tenant.slug,
-    },
-    campaign: {
-      name: isCs ? campaign.nameCs : campaign.nameEn,
-      slug: campaign.slug,
-    },
-    campaigns: campaigns.map((item) => ({
-      value: item.slug,
-      label: isCs ? item.nameCs : item.nameEn,
-    })),
-    branches: branches.map((branch) => mapBranch(branch, locale)),
-    ads: ads.map((ad) => mapAd(ad, locale)),
-  };
-}
-
 function mapRepositoryAd(ad: AdWithRepositoryRelations, locale: Locale): PublicRepositoryAdRecord {
   return {
     ...mapAd(ad, locale),
@@ -1102,248 +1077,6 @@ function parsePublicationDate(value: string) {
   return date;
 }
 
-async function findOrCreateUnit(tenantId: string, branch: string) {
-  const slug = slugify(branch);
-
-  return prisma.organizationUnit.upsert({
-    where: {
-      tenantId_slug: {
-        tenantId,
-        slug,
-      },
-    },
-    update: {
-      nameCs: branch,
-      nameEn: branch,
-    },
-    create: {
-      tenantId,
-      slug,
-      kind: "oblast",
-      nameCs: branch,
-      nameEn: branch,
-    },
-  });
-}
-
-async function getDemoTenantAndCampaign() {
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: tenantSlug },
-  });
-
-  if (!tenant) {
-    throw new Error("Demo tenant is not seeded.");
-  }
-
-  const campaign = await prisma.campaign.findUnique({
-    where: {
-      tenantId_slug: {
-        tenantId: tenant.id,
-        slug: campaignSlug,
-      },
-    },
-  });
-
-  if (!campaign) {
-    throw new Error("Demo campaign is not seeded.");
-  }
-
-  return { tenant, campaign };
-}
-
-export async function getDemoAdsPayload(locale: Locale) {
-  const { tenant, campaign } = await getDemoTenantAndCampaign();
-  const [ads, campaigns, branches] = await Promise.all([
-    prisma.ad.findMany({
-      where: {
-        tenantId: tenant.id,
-        campaignId: campaign.id,
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        approvals: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 5,
-        },
-      },
-      orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
-    }),
-    prisma.campaign.findMany({
-      where: {
-        tenantId: tenant.id,
-      },
-      orderBy: {
-        startsAt: "desc",
-      },
-    }),
-    prisma.organizationUnit.findMany({
-      where: {
-        tenantId: tenant.id,
-      },
-      orderBy: {
-        slug: "asc",
-      },
-    }),
-  ]);
-
-  return mapPayload(tenant, campaign, campaigns, branches, ads, locale);
-}
-
-export async function getPublicRepositoryPayload(
-  requestedTenantSlug: string,
-  locale: Locale,
-  inputFilters: Partial<PublicRepositoryFilters> = {},
-): Promise<PublicRepositoryPayload | null> {
-  const tenant = await prisma.tenant.findUnique({
-    where: {
-      slug: requestedTenantSlug,
-    },
-  });
-
-  if (!tenant) {
-    return null;
-  }
-
-  if (!tenant.publicRepositoryEnabled) {
-    return null;
-  }
-
-  const ads = await prisma.ad.findMany({
-    where: {
-      tenantId: tenant.id,
-      workflowStatus: {
-        in: publicWorkflowStatuses,
-      },
-    },
-    include: {
-      orgUnit: true,
-      campaign: true,
-      candidate: true,
-      tenant: true,
-    },
-    orderBy: [{ publicationDate: "desc" }, { code: "asc" }],
-  });
-
-  const mappedAds = ads.map((ad) => mapRepositoryAd(ad, locale));
-  const filters = normalizeRepositoryFilters(inputFilters);
-  const filteredAds = mappedAds.filter(
-    (ad) =>
-      matchesSearch(ad, filters.q) &&
-      matchesValue(filters.channel, ad.channel) &&
-      matchesValue(filters.status, ad.status) &&
-      matchesValue(filters.type, ad.type) &&
-      matchesValue(filters.branch, ad.branch) &&
-      matchesValue(filters.campaign, ad.campaignSlug),
-  );
-
-  return {
-    tenant: {
-      name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
-      slug: tenant.slug,
-    },
-    ads: filteredAds,
-    totalCount: mappedAds.length,
-    filteredCount: filteredAds.length,
-    filters,
-    options: {
-      channels: publicChannelOptions(locale),
-      statuses: publicStatusOptions(locale),
-      types: uniqueOptions(mappedAds.map((ad) => ad.type), locale === "cs" ? "Všechny typy" : "All types"),
-      branches: uniqueOptions(mappedAds.map((ad) => ad.branch), locale === "cs" ? "Všechny pobočky" : "All branches"),
-      campaigns: [
-        { value: "all", label: locale === "cs" ? "Všechny kampaně" : "All campaigns" },
-        ...uniqueOptions(
-          mappedAds.map((ad) => `${ad.campaignSlug}::${ad.campaign}`),
-          "",
-        )
-          .slice(1)
-          .map((option) => {
-            const [value, label] = option.value.split("::");
-            return { value, label };
-          }),
-      ],
-    },
-  };
-}
-
-export async function getDemoUsersPayload(locale: Locale): Promise<AdminUsersPayload> {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const [memberships, invitations, branches, candidates] = await Promise.all([
-    prisma.tenantMembership.findMany({
-      where: {
-        tenantId: tenant.id,
-      },
-      include: {
-        user: true,
-        orgUnit: true,
-        candidate: true,
-      },
-      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
-    }),
-    prisma.invitation.findMany({
-      where: {
-        tenantId: tenant.id,
-      },
-      include: {
-        orgUnit: true,
-        candidate: true,
-        emailMessages: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1,
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 20,
-    }),
-    prisma.organizationUnit.findMany({
-      where: {
-        tenantId: tenant.id,
-      },
-      orderBy: {
-        slug: "asc",
-      },
-    }),
-    prisma.candidate.findMany({
-      where: {
-        tenantId: tenant.id,
-        archivedAt: null,
-      },
-      include: {
-        orgUnit: true,
-        _count: {
-          select: {
-            ads: true,
-          },
-        },
-      },
-      orderBy: {
-        nameCs: "asc",
-      },
-    }),
-  ]);
-
-  return {
-    members: memberships.map((member) => mapMember(member, locale)),
-    invitations: invitations.map((invitation) => mapInvitation(invitation, locale)),
-    branches: branches.map((branch) => mapBranch(branch, locale)),
-    candidates: sortMappedCandidates(candidates.map((candidate) => mapCandidate(candidate, locale))),
-    assignableRoles: assignableRolesForScope(true, locale),
-  };
-}
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
@@ -1370,106 +1103,6 @@ function normalizeMemberStatus(status: string): MembershipStatus {
   const allowedStatuses = new Set<MembershipStatus>([MembershipStatus.ACTIVE, MembershipStatus.DISABLED]);
 
   return allowedStatuses.has(status as MembershipStatus) ? (status as MembershipStatus) : MembershipStatus.ACTIVE;
-}
-
-export async function createDemoInvitation(input: InviteInput, locale: Locale) {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const email = normalizeEmail(input.email);
-
-  if (!isValidEmail(email)) {
-    throw new Error("Invalid invitation email.");
-  }
-
-  const role = normalizeInviteRole(input.role);
-  const orgUnit =
-    input.branchId && role !== UserRole.PARTY_ADMIN && role !== UserRole.CENTRAL_REVIEWER
-      ? await prisma.organizationUnit.findFirst({
-          where: {
-            id: input.branchId,
-            tenantId: tenant.id,
-          },
-        })
-      : null;
-
-  await prisma.invitation.updateMany({
-    where: {
-      tenantId: tenant.id,
-      email,
-      status: InvitationStatus.PENDING,
-    },
-    data: {
-      status: InvitationStatus.REVOKED,
-    },
-  });
-
-  const invitation = await prisma.invitation.create({
-    data: {
-      tenantId: tenant.id,
-      orgUnitId: orgUnit?.id,
-      email,
-      role,
-      token: createInviteToken(),
-      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-    },
-    include: {
-      tenant: true,
-      orgUnit: true,
-      candidate: true,
-    },
-  });
-
-  const emailMessage = await sendInvitationEmail(invitation);
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId: tenant.id,
-      actor: "demo-admin",
-      action: "create_invitation",
-      messageCs: `Vytvořena pozvánka pro ${email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
-      messageEn: `Created invitation for ${email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
-    },
-  });
-
-  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
-}
-
-export async function retryDemoInvitationEmail(invitationId: string, locale: Locale) {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const invitation = await prisma.invitation.findFirst({
-    where: {
-      id: invitationId,
-      tenantId: tenant.id,
-    },
-    include: {
-      tenant: true,
-      orgUnit: true,
-      emailMessages: {
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 1,
-      },
-    },
-  });
-
-  if (!invitation) {
-    throw new Error("Invitation not found.");
-  }
-
-  const latestEmail = invitation.emailMessages[0];
-  const emailMessage = latestEmail?.status === EmailStatus.SENT ? latestEmail : await sendInvitationEmail(invitation);
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId: tenant.id,
-      actor: "demo-admin",
-      action: "retry_invitation_email",
-      messageCs: `Znovu zpracováno odeslání pozvánky pro ${invitation.email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
-      messageEn: `Retried invitation email for ${invitation.email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
-    },
-  });
-
-  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
 }
 
 export async function getInvitationNotice(token: string, locale: Locale): Promise<InvitationNotice | null> {
@@ -1577,7 +1210,7 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
   return getInvitationNotice(token, locale);
 }
 
-export async function getDemoTransparencyNotice(publicToken: string, locale: Locale) {
+export async function getTransparencyNotice(publicToken: string, locale: Locale) {
   const ad = await prisma.ad.findUnique({
     where: {
       publicToken,
@@ -1617,186 +1250,81 @@ export async function getDemoTransparencyNotice(publicToken: string, locale: Loc
   };
 }
 
-export async function completeDemoAd(code: string, locale: Locale) {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const ad = await prisma.ad.findUnique({
+export async function getPublicRepositoryPayload(
+  requestedTenantSlug: string,
+  locale: Locale,
+  inputFilters: Partial<PublicRepositoryFilters> = {},
+): Promise<PublicRepositoryPayload | null> {
+  const tenant = await prisma.tenant.findUnique({
     where: {
-      tenantId_code: {
-        tenantId: tenant.id,
-        code,
-      },
+      slug: requestedTenantSlug,
     },
   });
 
-  if (!ad) {
+  if (!tenant) {
     return null;
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const completed = await tx.ad.update({
-      where: {
-        tenantId_code: {
-          tenantId: tenant.id,
-          code,
-        },
-      },
-      data: {
-        amount: ad.amount || "24 500 Kč",
-        fundingSourceCs: ad.fundingSourceCs || "volební účet",
-        fundingSourceEn: ad.fundingSourceEn || "campaign account",
-        supplierCs: ad.supplierCs || "interní tým / dodavatel kampaně",
-        supplierEn: ad.supplierEn || "internal team / campaign supplier",
-        distributionAreaCs: ad.distributionAreaCs || (ad.orgUnitId ? "lokální oblast" : "území kampaně"),
-        distributionAreaEn: ad.distributionAreaEn || (ad.orgUnitId ? "local area" : "campaign area"),
-        language: ad.language || "cs",
-        targetAudienceCs: ad.isTargeted ? ad.targetAudienceCs || "voliči v určené oblasti" : ad.targetAudienceCs,
-        targetAudienceEn: ad.isTargeted ? ad.targetAudienceEn || "voters in the selected area" : ad.targetAudienceEn,
-        missingCs: [],
-        missingEn: [],
-        status: AdStatus.REVIEW,
-        statusLabelCs: "Kontrola",
-        statusLabelEn: "Review",
-        workflowStatus: AdWorkflowStatus.READY_FOR_REVIEW,
-        reviewRequestedAt: new Date(),
-        lockedAt: null,
-        statusNoteCs: "Povinné údaje jsou doplněné a záznam čeká na kontrolu.",
-        statusNoteEn: "Required data is complete and the record is waiting for review.",
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-        assets: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-    });
+  if (!tenant.publicRepositoryEnabled) {
+    return null;
+  }
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: tenant.id,
-        adId: completed.id,
-        actor: "demo-admin",
-        action: "complete_required_data",
-        messageCs: `Doplněna povinná data u reklamy ${completed.code}.`,
-        messageEn: `Required data completed for ad ${completed.code}.`,
+  const ads = await prisma.ad.findMany({
+    where: {
+      tenantId: tenant.id,
+      workflowStatus: {
+        in: publicWorkflowStatuses,
       },
-    });
-
-    await tx.approval.create({
-      data: {
-        tenantId: tenant.id,
-        adId: completed.id,
-        actor: "demo-admin",
-        status: ApprovalStatus.REQUESTED,
-        noteCs: "Reklama byla předána ke kontrole.",
-        noteEn: "Ad was submitted for review.",
-      },
-    });
-
-    return completed;
+    },
+    include: {
+      orgUnit: true,
+      campaign: true,
+      candidate: true,
+      tenant: true,
+    },
+    orderBy: [{ publicationDate: "desc" }, { code: "asc" }],
   });
 
-  return mapAd(updated, locale);
-}
+  const mappedAds = ads.map((ad) => mapRepositoryAd(ad, locale));
+  const filters = normalizeRepositoryFilters(inputFilters);
+  const filteredAds = mappedAds.filter(
+    (ad) =>
+      matchesSearch(ad, filters.q) &&
+      matchesValue(filters.channel, ad.channel) &&
+      matchesValue(filters.status, ad.status) &&
+      matchesValue(filters.type, ad.type) &&
+      matchesValue(filters.branch, ad.branch) &&
+      matchesValue(filters.campaign, ad.campaignSlug),
+  );
 
-export async function createDemoAd(input: EditableAdInput, locale: Locale) {
-  const { tenant, campaign } = await getDemoTenantAndCampaign();
-  const unit = await findOrCreateUnit(tenant.id, input.branch);
-  const code = normalizeCode(input.code || "") || nextCode(input.branch);
-  const missingCs = requiredMissing(input, "cs");
-  const missingEn = requiredMissing(input, "en");
-  const status = statusForInput(input);
-
-  const adId = await prisma.$transaction(async (tx) => {
-    const created = await tx.ad.create({
-      data: {
-        tenantId: tenant.id,
-        campaignId: campaign.id,
-        orgUnitId: unit.id,
-        code,
-        publicToken: createPublicToken(),
-        titleCs: input.title.trim(),
-        titleEn: input.title.trim(),
-        ownerCs: input.owner.trim(),
-        ownerEn: input.owner.trim(),
-        mediaTypeCs: input.type.trim(),
-        mediaTypeEn: input.type.trim(),
-        channel: normalizeChannel(input.channel),
-        publicationDate: parsePublicationDate(input.publicationDate),
-        periodCs: input.period.trim(),
-        periodEn: input.period.trim(),
-        distributionAreaCs: input.distributionArea.trim(),
-        distributionAreaEn: input.distributionArea.trim(),
-        payerCs: input.payer.trim(),
-        payerEn: input.payer.trim(),
-        supplierCs: input.supplier.trim(),
-        supplierEn: input.supplier.trim(),
-        amount: input.amount.trim(),
-        fundingSourceCs: input.fundingSource.trim(),
-        fundingSourceEn: input.fundingSource.trim(),
-        language: input.language.trim(),
-        isTargeted: input.isTargeted,
-        targetingCs: defaultTargeting(input, "cs"),
-        targetingEn: defaultTargeting(input, "en"),
-        targetAudienceCs: input.targetAudience.trim(),
-        targetAudienceEn: input.targetAudience.trim(),
-        missingCs,
-        missingEn,
-        status,
-        statusLabelCs: statusLabelForInput(input, "cs"),
-        statusLabelEn: statusLabelForInput(input, "en"),
-        workflowStatus: workflowForInput(input),
-        reviewRequestedAt: missingCs.length === 0 ? new Date() : null,
-        statusNoteCs:
-          missingCs.length === 0
-            ? "Záznam byl vytvořen s kompletními údaji a čeká na kontrolu."
-            : "Záznam čeká na doplnění povinných údajů.",
-        statusNoteEn:
-          missingEn.length === 0
-            ? "The record was created with complete data and is waiting for review."
-            : "The record is waiting for required data.",
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        tenantId: tenant.id,
-        adId: created.id,
-        actor: "demo-admin",
-        action: "create_ad",
-        messageCs: `Vytvořena reklama ${created.code}.`,
-        messageEn: `Created ad ${created.code}.`,
-      },
-    });
-
-    if (missingCs.length === 0) {
-      await tx.approval.create({
-        data: {
-          tenantId: tenant.id,
-          adId: created.id,
-          actor: "demo-admin",
-          status: ApprovalStatus.REQUESTED,
-          noteCs: "Reklama byla vytvořena a předána ke kontrole.",
-          noteEn: "Ad was created and submitted for review.",
-        },
-      });
-    }
-
-    return created.id;
-  });
-
-  const ad = await getAdForMapping(adId);
-  return mapAd(ad, locale);
+  return {
+    tenant: {
+      name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
+      slug: tenant.slug,
+    },
+    ads: filteredAds,
+    totalCount: mappedAds.length,
+    filteredCount: filteredAds.length,
+    filters,
+    options: {
+      channels: publicChannelOptions(locale),
+      statuses: publicStatusOptions(locale),
+      types: uniqueOptions(mappedAds.map((ad) => ad.type), locale === "cs" ? "Všechny typy" : "All types"),
+      branches: uniqueOptions(mappedAds.map((ad) => ad.branch), locale === "cs" ? "Všechny pobočky" : "All branches"),
+      campaigns: [
+        { value: "all", label: locale === "cs" ? "Všechny kampaně" : "All campaigns" },
+        ...uniqueOptions(
+          mappedAds.map((ad) => `${ad.campaignSlug}::${ad.campaign}`),
+          "",
+        )
+          .slice(1)
+          .map((option) => {
+            const [value, label] = option.value.split("::");
+            return { value, label };
+          }),
+      ],
+    },
+  };
 }
 
 function adSnapshot(ad: Ad) {
@@ -1839,168 +1367,6 @@ function adSnapshot(ad: Ad) {
   };
 }
 
-export async function updateDemoAd(code: string, input: EditableAdInput, locale: Locale) {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const existing = await prisma.ad.findUnique({
-    where: {
-      tenantId_code: {
-        tenantId: tenant.id,
-        code,
-      },
-    },
-  });
-
-  if (!existing) {
-    return null;
-  }
-
-  const unit = await findOrCreateUnit(tenant.id, input.branch);
-  const missingCs = requiredMissing(input, "cs");
-  const missingEn = requiredMissing(input, "en");
-  const status = statusForInput(input);
-  const versionBumpNeeded = Boolean(existing.lockedAt || existing.workflowStatus === AdWorkflowStatus.PUBLISHED);
-  const nextVersion = versionBumpNeeded ? existing.version + 1 : existing.version;
-
-  const adId = await prisma.$transaction(async (tx) => {
-    if (versionBumpNeeded) {
-      await tx.adVersion.upsert({
-        where: {
-          adId_version: {
-            adId: existing.id,
-            version: existing.version,
-          },
-        },
-        update: {
-          snapshot: adSnapshot(existing),
-          reason: "edit_locked_ad",
-        },
-        create: {
-          tenantId: existing.tenantId,
-          adId: existing.id,
-          version: existing.version,
-          reason: "edit_locked_ad",
-          snapshot: adSnapshot(existing),
-        },
-      });
-    }
-
-    const updated = await tx.ad.update({
-      where: {
-        tenantId_code: {
-          tenantId: tenant.id,
-          code,
-        },
-      },
-      data: {
-        orgUnitId: unit.id,
-        titleCs: input.title.trim(),
-        titleEn: input.title.trim(),
-        ownerCs: input.owner.trim(),
-        ownerEn: input.owner.trim(),
-        mediaTypeCs: input.type.trim(),
-        mediaTypeEn: input.type.trim(),
-        channel: normalizeChannel(input.channel),
-        publicationDate: parsePublicationDate(input.publicationDate),
-        periodCs: input.period.trim(),
-        periodEn: input.period.trim(),
-        distributionAreaCs: input.distributionArea.trim(),
-        distributionAreaEn: input.distributionArea.trim(),
-        payerCs: input.payer.trim(),
-        payerEn: input.payer.trim(),
-        supplierCs: input.supplier.trim(),
-        supplierEn: input.supplier.trim(),
-        amount: input.amount.trim(),
-        fundingSourceCs: input.fundingSource.trim(),
-        fundingSourceEn: input.fundingSource.trim(),
-        language: input.language.trim(),
-        isTargeted: input.isTargeted,
-        targetingCs: defaultTargeting(input, "cs"),
-        targetingEn: defaultTargeting(input, "en"),
-        targetAudienceCs: input.targetAudience.trim(),
-        targetAudienceEn: input.targetAudience.trim(),
-        missingCs,
-        missingEn,
-        status,
-        statusLabelCs: statusLabelForInput(input, "cs"),
-        statusLabelEn: statusLabelForInput(input, "en"),
-        workflowStatus: workflowForInput(input),
-        version: nextVersion,
-        reviewRequestedAt: missingCs.length === 0 ? new Date() : null,
-        approvedAt: null,
-        publishedAt: versionBumpNeeded ? null : existing.publishedAt,
-        lockedAt: null,
-        statusNoteCs:
-          missingCs.length === 0
-            ? versionBumpNeeded
-              ? `Upravena publikovaná reklama. Vznikla verze ${nextVersion} a čeká na kontrolu.`
-              : "Změny jsou uložené a záznam čeká na kontrolu."
-            : "Záznam čeká na doplnění povinných údajů.",
-        statusNoteEn:
-          missingEn.length === 0
-            ? versionBumpNeeded
-              ? `Published ad edited. Version ${nextVersion} was created and is waiting for review.`
-              : "Changes are saved and the record is waiting for review."
-            : "The record is waiting for required data.",
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        tenantId: tenant.id,
-        adId: updated.id,
-        actor: "demo-admin",
-        action: "update_ad",
-        messageCs: versionBumpNeeded ? `Upravena publikovaná reklama ${updated.code}; vytvořena verze ${nextVersion}.` : `Upravena reklama ${updated.code}.`,
-        messageEn: versionBumpNeeded ? `Updated published ad ${updated.code}; version ${nextVersion} created.` : `Updated ad ${updated.code}.`,
-      },
-    });
-
-    if (missingCs.length === 0) {
-      await tx.approval.create({
-        data: {
-          tenantId: tenant.id,
-          adId: updated.id,
-          actor: "demo-admin",
-          status: ApprovalStatus.REQUESTED,
-          noteCs: `Verze ${updated.version} čeká na kontrolu.`,
-          noteEn: `Version ${updated.version} is waiting for review.`,
-        },
-      });
-    }
-
-    return updated.id;
-  });
-
-  const ad = await getAdForMapping(adId);
-  return mapAd(ad, locale);
-}
-
-async function findTenantAd(code: string) {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const ad = await prisma.ad.findUnique({
-    where: {
-      tenantId_code: {
-        tenantId: tenant.id,
-        code,
-      },
-    },
-    include: {
-      orgUnit: true,
-      campaign: true,
-      candidate: true,
-      tenant: true,
-    },
-  });
-
-  return { tenant, ad };
-}
-
 async function hasAdAsset(tenantId: string, adId: string) {
   const count = await prisma.adAsset.count({
     where: {
@@ -2010,289 +1376,6 @@ async function hasAdAsset(tenantId: string, adId: string) {
   });
 
   return count > 0;
-}
-
-export async function approveDemoAd(code: string, locale: Locale) {
-  const { tenant, ad } = await findTenantAd(code);
-
-  if (!ad) {
-    return null;
-  }
-
-  const missing = missingForAd(ad, "cs");
-
-  if (missing.length > 0) {
-    throw new Error("Required data is missing.");
-  }
-
-  if (!(await hasAdAsset(tenant.id, ad.id))) {
-    throw new Error("Nahrajte podklad reklamy před schválením.");
-  }
-
-  if (ad.workflowStatus !== AdWorkflowStatus.READY_FOR_REVIEW) {
-    throw new Error("Ad is not waiting for review.");
-  }
-
-  const adId = await prisma.$transaction(async (tx) => {
-    const approved = await tx.ad.update({
-      where: {
-        tenantId_code: {
-          tenantId: tenant.id,
-          code,
-        },
-      },
-      data: {
-        status: AdStatus.READY,
-        statusLabelCs: "Schváleno",
-        statusLabelEn: "Approved",
-        workflowStatus: AdWorkflowStatus.APPROVED,
-        approvedAt: new Date(),
-        reviewerName: "Centrální kontrola",
-        statusNoteCs: `Verze ${ad.version} je schválená a připravená k publikaci.`,
-        statusNoteEn: `Version ${ad.version} is approved and ready to publish.`,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    await tx.approval.create({
-      data: {
-        tenantId: tenant.id,
-        adId: ad.id,
-        actor: "demo-admin",
-        status: ApprovalStatus.APPROVED,
-        noteCs: `Verze ${ad.version} byla schválena.`,
-        noteEn: `Version ${ad.version} was approved.`,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        tenantId: tenant.id,
-        adId: ad.id,
-        actor: "demo-admin",
-        action: "approve_ad",
-        messageCs: `Schválena reklama ${ad.code}, verze ${ad.version}.`,
-        messageEn: `Approved ad ${ad.code}, version ${ad.version}.`,
-      },
-    });
-
-    return approved.id;
-  });
-
-  const updated = await getAdForMapping(adId);
-  return mapAd(updated, locale);
-}
-
-export async function publishDemoAd(code: string, locale: Locale) {
-  const { tenant, ad } = await findTenantAd(code);
-
-  if (!ad) {
-    return null;
-  }
-
-  const missing = missingForAd(ad, "cs");
-
-  if (missing.length > 0) {
-    throw new Error("Required data is missing.");
-  }
-
-  if (!(await hasAdAsset(tenant.id, ad.id))) {
-    throw new Error("Nahrajte podklad reklamy před publikací.");
-  }
-
-  if (ad.workflowStatus !== AdWorkflowStatus.APPROVED) {
-    throw new Error("Ad must be approved before publication.");
-  }
-
-  const now = new Date();
-  const adId = await prisma.$transaction(async (tx) => {
-    const published = await tx.ad.update({
-      where: {
-        tenantId_code: {
-          tenantId: tenant.id,
-          code,
-        },
-      },
-      data: {
-        status: AdStatus.READY,
-        statusLabelCs: "Publikováno",
-        statusLabelEn: "Published",
-        workflowStatus: AdWorkflowStatus.PUBLISHED,
-        approvedAt: ad.approvedAt ?? now,
-        publishedAt: now,
-        lockedAt: now,
-        reviewerName: ad.reviewerName || "Centrální kontrola",
-        statusNoteCs: `Verze ${ad.version} je publikovaná a uzamčená.`,
-        statusNoteEn: `Version ${ad.version} is published and locked.`,
-      },
-      include: {
-        orgUnit: true,
-        campaign: true,
-        candidate: true,
-        tenant: true,
-      },
-    });
-
-    await tx.approval.create({
-      data: {
-        tenantId: tenant.id,
-        adId: ad.id,
-        actor: "demo-admin",
-        status: ApprovalStatus.PUBLISHED,
-        noteCs: `Verze ${ad.version} byla publikována.`,
-        noteEn: `Version ${ad.version} was published.`,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        tenantId: tenant.id,
-        adId: ad.id,
-        actor: "demo-admin",
-        action: "publish_ad",
-        messageCs: `Publikována a uzamčena reklama ${ad.code}, verze ${ad.version}.`,
-        messageEn: `Published and locked ad ${ad.code}, version ${ad.version}.`,
-      },
-    });
-
-    return published.id;
-  });
-
-  const updated = await getAdForMapping(adId);
-  return mapAd(updated, locale);
-}
-
-export async function prepareDemoAuditExport(code: string) {
-  const { tenant } = await getDemoTenantAndCampaign();
-  const ad = await prisma.ad.findUnique({
-    where: {
-      tenantId_code: {
-        tenantId: tenant.id,
-        code,
-      },
-    },
-  });
-
-  if (!ad) {
-    return false;
-  }
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId: tenant.id,
-      adId: ad.id,
-      actor: "demo-admin",
-      action: "prepare_audit_export",
-      messageCs: `Připraven auditní export pro reklamu ${ad.code}.`,
-      messageEn: `Audit export prepared for ad ${ad.code}.`,
-    },
-  });
-
-  return true;
-}
-
-export async function getDemoAuditPackage(code: string, locale: Locale) {
-  const { tenant, campaign } = await getDemoTenantAndCampaign();
-  const ad = await prisma.ad.findUnique({
-    where: {
-      tenantId_code: {
-        tenantId: tenant.id,
-        code,
-      },
-    },
-    include: {
-      orgUnit: true,
-      campaign: true,
-      candidate: true,
-      tenant: true,
-      auditLogs: {
-        orderBy: {
-          createdAt: "asc",
-        },
-      },
-      versions: {
-        orderBy: {
-          version: "asc",
-        },
-      },
-      approvals: {
-        orderBy: {
-          createdAt: "asc",
-        },
-      },
-      assets: {
-        orderBy: {
-          createdAt: "desc",
-        },
-      },
-    },
-  });
-
-  if (!ad) {
-    return null;
-  }
-
-  const typedAd = ad as AuditPackageAd;
-
-  return {
-    exportedAt: new Date().toISOString(),
-    tenant: {
-      id: tenant.id,
-      slug: tenant.slug,
-      name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
-    },
-    campaign: {
-      id: campaign.id,
-      slug: campaign.slug,
-      name: locale === "cs" ? campaign.nameCs : campaign.nameEn,
-      election: campaign.election,
-      startsAt: campaign.startsAt.toISOString(),
-      endsAt: campaign.endsAt.toISOString(),
-    },
-    ad: mapAd(typedAd, locale),
-    notice: {
-      publicUrl: `${publicAppUrl()}/ad/${typedAd.publicToken}`,
-      lastUpdated: typedAd.updatedAt.toISOString(),
-      missing: locale === "cs" ? typedAd.missingCs : typedAd.missingEn,
-      workflowStatus: typedAd.workflowStatus,
-      version: typedAd.version,
-      lockedAt: typedAd.lockedAt?.toISOString() ?? null,
-    },
-    versions: typedAd.versions.map((version) => ({
-      version: version.version,
-      reason: version.reason,
-      createdAt: version.createdAt.toISOString(),
-      snapshot: version.snapshot,
-    })),
-    approvals: typedAd.approvals.map((approval) => ({
-      actor: approval.actor,
-      status: approval.status,
-      note: locale === "cs" ? approval.noteCs : approval.noteEn,
-      createdAt: approval.createdAt.toISOString(),
-    })),
-    assets: typedAd.assets.map((asset) => ({
-      id: asset.id,
-      fileName: asset.fileName,
-      originalName: asset.originalName,
-      contentType: asset.contentType,
-      byteSize: asset.byteSize,
-      checksumSha256: asset.checksumSha256,
-      storageProvider: asset.storageProvider,
-      storageBucket: asset.storageBucket,
-      storageKey: asset.storageKey,
-      uploadedBy: asset.uploadedBy,
-      createdAt: asset.createdAt.toISOString(),
-    })),
-    auditLogs: typedAd.auditLogs.map((log) => ({
-      id: log.id,
-      actor: log.actor,
-      action: log.action,
-      message: locale === "cs" ? log.messageCs : log.messageEn,
-      createdAt: log.createdAt.toISOString(),
-    })),
-  };
 }
 
 function isTenantWideRole(role: UserRole) {

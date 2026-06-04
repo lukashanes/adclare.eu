@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getInvitationNotice } from "@/lib/admin-demo-db";
+import { getInvitationNotice } from "@/lib/workspace-db";
 import { publicTurnstileSiteKey } from "@/lib/turnstile";
 import { InviteAcceptClient } from "./InviteAcceptClient";
 

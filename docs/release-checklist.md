@@ -18,6 +18,12 @@ Run Docker image checks:
 npm run docker:check
 ```
 
+Run the production preflight against the release environment before inviting real users:
+
+```bash
+npm run launch:preflight
+```
+
 ## Fresh Self-Hosted Install
 
 Verify a clean Docker installation before tagging a release:
@@ -29,7 +35,8 @@ Verify a clean Docker installation before tagging a release:
 5. Create the first workspace through `/signup`.
 6. Confirm the database contains one tenant, one user, one login token and one email message.
 7. Confirm `/data/uploads` is writable when local storage is used.
-8. Shut the test stack down with volumes removed.
+8. Run the production preflight with the same environment values.
+9. Shut the test stack down with volumes removed.
 
 ## Core Product Workflow
 

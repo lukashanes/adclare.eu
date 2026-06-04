@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { EmailStatus, MembershipStatus } from "@/generated/prisma/client";
-import { readCookieFromHeader } from "@/lib/admin-auth";
+import { readCookieFromHeader } from "@/lib/request-security";
 import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { prisma } from "@/lib/prisma";
 

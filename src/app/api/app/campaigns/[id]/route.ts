@@ -1,6 +1,6 @@
-import { isSameOriginRequest } from "@/lib/admin-auth";
+import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, updateAppCampaign } from "@/lib/admin-demo-db";
+import { normalizeLocale, updateAppCampaign } from "@/lib/workspace-db";
 import { parseAppCampaignInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";

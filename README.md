@@ -114,6 +114,19 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 ```
 
+Before inviting real users on a public instance, run:
+
+```bash
+npm run launch:preflight
+```
+
+Or through Docker:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile tools build preflight
+docker compose -f docker-compose.prod.yml --profile tools run --rm preflight
+```
+
 See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide, [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for Hetzner deployment notes, [docs/release-checklist.md](docs/release-checklist.md) for release verification and [docs/roadmap.md](docs/roadmap.md) for the current product roadmap.
 
 ## Configuration
@@ -131,6 +144,7 @@ Important environment variables:
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.
 - `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.
 - `SIGNUP_MODE`: `first-run` by default; use `open` only when public workspace creation is intentional, or `disabled` for invite-only operation.
+- `npm run launch:preflight`: validates the production launch configuration before real users are invited.
 
 ## File Storage
 

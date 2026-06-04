@@ -35,8 +35,6 @@ SIGNUP_MODE=first-run
 TURNSTILE_REQUIRED=0
 ```
 
-Set `ENABLE_DEMO_ADMIN=1`, `ADMIN_ACCESS_PASSWORD` and `ADMIN_SESSION_SECRET` only when you intentionally want to expose the demo administration route.
-
 Run the database and migrations:
 
 ```bash
@@ -67,6 +65,23 @@ Other modes:
 - `SIGNUP_MODE=disabled`: disable workspace creation completely; use invitations only.
 
 For public production instances, keep `first-run` or `disabled` unless you explicitly want open multi-tenant registration.
+
+## Production Preflight
+
+Before inviting real users, run the production preflight check with the same `.env` values used by the app:
+
+```bash
+npm run launch:preflight
+```
+
+For Docker production:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile tools build preflight
+docker compose -f docker-compose.prod.yml --profile tools run --rm preflight
+```
+
+The preflight checks production URLs, Cloudflare Email Service, Turnstile, upload storage, signup mode and backup scripts. It does not send test emails or write to object storage; use `storage:check` separately for the bucket test.
 
 ## Email
 
@@ -195,8 +210,6 @@ If outbound email is not configured, production still records pending login and 
 
 - Use HTTPS.
 - Keep `SIGNUP_MODE=first-run` or `disabled` unless public registration is intentional.
-- Keep `ENABLE_DEMO_ADMIN=0` in production unless you intentionally need demo administration.
-- Generate a long `ADMIN_SESSION_SECRET` if demo administration is enabled.
 - Keep object storage private.
 - Back up PostgreSQL daily and test restore.
 - Limit server SSH access.

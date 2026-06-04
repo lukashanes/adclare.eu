@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { getAppSession } from "@/lib/app-auth";
-import { getAppArchivePackage, normalizeLocale } from "@/lib/admin-demo-db";
+import { getAppArchivePackage, normalizeLocale } from "@/lib/workspace-db";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";

@@ -9,7 +9,7 @@ import type {
   EditableAdInput,
   InviteInput,
   ReviewDecisionInput,
-} from "@/lib/admin-demo-types";
+} from "@/lib/workspace-types";
 
 export class RequestValidationError extends Error {
   readonly status = 400;

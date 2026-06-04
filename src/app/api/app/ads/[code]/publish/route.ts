@@ -1,6 +1,6 @@
-import { isSameOriginRequest } from "@/lib/admin-auth";
+import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, publishAppAd } from "@/lib/admin-demo-db";
+import { normalizeLocale, publishAppAd } from "@/lib/workspace-db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

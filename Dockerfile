@@ -16,6 +16,11 @@ WORKDIR /app
 COPY scripts ./scripts
 CMD ["npm", "run", "storage:check"]
 
+FROM deps AS preflight
+WORKDIR /app
+COPY scripts ./scripts
+CMD ["npm", "run", "launch:preflight"]
+
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
