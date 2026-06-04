@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, FileJson, Search, ShieldCheck, SlidersHorizontal } from "lucide-react";
-import { getPublicRepositoryPayload, normalizeLocale } from "@/lib/admin-demo-db";
-import type { AdChannel, Locale, PublicRepositoryFilters, Status } from "@/lib/admin-demo-types";
+import { getPublicRepositoryPayload, normalizeLocale } from "@/lib/workspace-db";
+import type { AdChannel, Locale, PublicRepositoryFilters, Status } from "@/lib/workspace-types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

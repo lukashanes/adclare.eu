@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, ExternalLink, FileText, Landmark, QrCode, ShieldCheck } from "lucide-react";
-import { getDemoTransparencyNotice } from "@/lib/admin-demo-db";
+import { getTransparencyNotice } from "@/lib/workspace-db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,7 +50,7 @@ function KeyFact({ label, value }: { label: string; value: string }) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { code: publicToken } = await params;
-  const notice = await getDemoTransparencyNotice(publicToken, "cs");
+  const notice = await getTransparencyNotice(publicToken, "cs");
 
   if (!notice) {
     return {
@@ -78,7 +78,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function TransparencyNoticePage({ params }: PageProps) {
   const { code: publicToken } = await params;
-  const notice = await getDemoTransparencyNotice(publicToken, "cs");
+  const notice = await getTransparencyNotice(publicToken, "cs");
 
   if (!notice) {
     notFound();

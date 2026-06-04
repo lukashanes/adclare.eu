@@ -1,6 +1,6 @@
-import { isSameOriginRequest } from "@/lib/admin-auth";
+import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { attachAppAdAsset, getAppAdUploadTarget, normalizeLocale } from "@/lib/admin-demo-db";
+import { attachAppAdAsset, getAppAdUploadTarget, normalizeLocale } from "@/lib/workspace-db";
 import { isAssetStorageAvailable, uploadAdAssetObject } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";

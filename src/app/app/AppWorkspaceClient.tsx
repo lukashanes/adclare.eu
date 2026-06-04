@@ -2,7 +2,7 @@
 
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleDot, Copy, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, QrCode, RefreshCw, Save, Search, ShieldCheck, Tags, Upload, Users, X } from "lucide-react";
-import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppCandidateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/admin-demo-types";
+import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppCandidateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/workspace-types";
 
 type EditorMode = "create" | "edit";
 type WorkspaceSection = "ads" | "review" | "campaigns" | "branches" | "people" | "archive" | "settings";

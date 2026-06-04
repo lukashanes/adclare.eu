@@ -1,5 +1,5 @@
 import { getAppSession } from "@/lib/app-auth";
-import { getAppAdAssetDownload } from "@/lib/admin-demo-db";
+import { getAppAdAssetDownload } from "@/lib/workspace-db";
 import { downloadAdAssetObject } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";

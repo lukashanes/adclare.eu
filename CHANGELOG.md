@@ -2,6 +2,27 @@
 
 All notable changes for Adclare are summarized here.
 
+## v0.2.0-beta.1 - 2026-06-04
+
+Public beta release for teams running Adclare on their own infrastructure.
+
+### Included
+
+- Removed the old demo admin UI/API from the production codebase.
+- Renamed the shared application data layer from `admin-demo-*` to `workspace-*`.
+- Added `npm run launch:preflight` for production launch readiness checks.
+- Added a Docker Compose `preflight` tool for own deployments.
+- Extended Docker checks to build the migrator, storage-check, preflight and web images.
+- Updated installation and Hetzner documentation with preflight steps before inviting real users.
+- Updated legal copy for open source operation, including clearer responsibility boundaries for instances not operated by Aenze s.r.o.
+- Updated the public website copy to mark Adclare as a public beta open source tool for TTPA workflows.
+
+### Notes
+
+- This beta is ready for own infrastructure. It does not include a paywall or paid subscription flow.
+- Real production launch still requires secrets and operations for the selected instance: Cloudflare Email Service, Turnstile, storage credentials, backup cron and a tested restore.
+- For hosting, installation, migration, TTPA workflow design, integrations or production support, contact `support@adclare.eu`.
+
 ## v0.1.0 - 2026-06-01
 
 Initial current open-source release of Adclare.

@@ -1,7 +1,7 @@
 import JSZip from "jszip";
-import { isSameOriginRequest } from "@/lib/admin-auth";
+import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { getAppAuditPackage, normalizeLocale, prepareAppAuditExport } from "@/lib/admin-demo-db";
+import { getAppAuditPackage, normalizeLocale, prepareAppAuditExport } from "@/lib/workspace-db";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";

@@ -18,6 +18,12 @@ Run Docker image checks:
 npm run docker:check
 ```
 
+Run the production preflight against the release environment before inviting real users:
+
+```bash
+npm run launch:preflight
+```
+
 ## Fresh Self-Hosted Install
 
 Verify a clean Docker installation before tagging a release:
@@ -29,7 +35,8 @@ Verify a clean Docker installation before tagging a release:
 5. Create the first workspace through `/signup`.
 6. Confirm the database contains one tenant, one user, one login token and one email message.
 7. Confirm `/data/uploads` is writable when local storage is used.
-8. Shut the test stack down with volumes removed.
+8. Run the production preflight with the same environment values.
+9. Shut the test stack down with volumes removed.
 
 ## Core Product Workflow
 
@@ -57,15 +64,15 @@ Before publishing a tag:
 - `docs/deployment-hetzner.md` has current Hetzner notes.
 - `docs/roadmap.md` separates shipped features from planned improvements.
 - `CHANGELOG.md` has the release entry.
-- `docs/release-notes-v0.1.0.md` or the matching release notes file is current.
+- the matching release notes file in `docs/` is current.
 
 ## Release
 
 Official releases should be created from the repository owner controlled branch:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 Then create the GitHub Release from the pushed tag and copy the release notes.

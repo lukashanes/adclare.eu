@@ -97,7 +97,6 @@ DATABASE_URL=postgresql://adclare:replace_with_generated_password@db:5432/adclar
 APP_URL=https://adclare.example.org
 NEXT_PUBLIC_APP_URL=https://adclare.example.org
 SIGNUP_MODE=first-run
-ENABLE_DEMO_ADMIN=0
 NEXT_PUBLIC_SHOW_DEMO_REPO=0
 ```
 
@@ -137,7 +136,6 @@ TURNSTILE_SECRET_KEY='...'
 TURNSTILE_REQUIRED='1'
 TURNSTILE_ALLOWED_HOSTNAMES='adclare.example.org,www.adclare.example.org'
 NEXT_PUBLIC_SHOW_DEMO_REPO='0'
-ENABLE_DEMO_ADMIN='0'
 SIGNUP_MODE='first-run'
 ADCLARE_STORAGE_DRIVER='s3'
 OBJECT_STORAGE_ENDPOINT='https://fsn1.your-objectstorage.com'
@@ -167,6 +165,16 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm storage-check
 ```
 
 The check writes, reads and deletes one `_health/` object and does not print access keys.
+
+Production preflight:
+
+```bash
+cd /srv/apps/adclare
+docker compose -f docker-compose.prod.yml --profile tools build preflight
+docker compose -f docker-compose.prod.yml --profile tools run --rm preflight
+```
+
+Run it before inviting real users. It checks the production URL, Cloudflare Email Service, Turnstile, storage mode, signup mode and backup scripts.
 
 ## Backups
 
@@ -207,5 +215,5 @@ docker image prune -f
 
 - The root route redirects to `/cs`.
 - The first organization is created through `/signup` when `SIGNUP_MODE=first-run`.
-- Demo admin and demo public repository are disabled in production by default.
+- The demo public repository is disabled in production by default.
 - Keep real deployment inventory, IP addresses and access notes in a private operations runbook, not in the public repository.

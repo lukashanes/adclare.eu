@@ -1,5 +1,5 @@
-import { getPublicRepositoryPayload, normalizeLocale } from "@/lib/admin-demo-db";
-import type { PublicRepositoryFilters } from "@/lib/admin-demo-types";
+import { getPublicRepositoryPayload, normalizeLocale } from "@/lib/workspace-db";
+import type { PublicRepositoryFilters } from "@/lib/workspace-types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

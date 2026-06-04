@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import type { EditableAdInput } from "@/lib/admin-demo-types";
+import type { EditableAdInput } from "@/lib/workspace-types";
 
 type CellValue = string;
 

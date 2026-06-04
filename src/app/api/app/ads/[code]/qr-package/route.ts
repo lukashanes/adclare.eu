@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import QRCode from "qrcode";
 import { getAppSession } from "@/lib/app-auth";
-import { getAppAdRecord, normalizeLocale } from "@/lib/admin-demo-db";
+import { getAppAdRecord, normalizeLocale } from "@/lib/workspace-db";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";

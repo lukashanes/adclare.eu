@@ -1,5 +1,5 @@
-import { isSameOriginRequest } from "@/lib/admin-auth";
-import { acceptInvitation, normalizeLocale } from "@/lib/admin-demo-db";
+import { isSameOriginRequest } from "@/lib/request-security";
+import { acceptInvitation, normalizeLocale } from "@/lib/workspace-db";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
 import { parseInviteAcceptInput, validationErrorResponse } from "@/lib/request-validation";
 import { verifyTurnstileToken } from "@/lib/turnstile";

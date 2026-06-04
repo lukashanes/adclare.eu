@@ -1,6 +1,6 @@
-import { isSameOriginRequest } from "@/lib/admin-auth";
+import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { importAppAds, normalizeLocale } from "@/lib/admin-demo-db";
+import { importAppAds, normalizeLocale } from "@/lib/workspace-db";
 import { parseXlsxAdImport } from "@/lib/xlsx-ad-import";
 
 export const dynamic = "force-dynamic";

@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { CheckCircle2, CircleAlert, UserPlus } from "lucide-react";
 import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
-import type { InvitationNotice } from "@/lib/admin-demo-types";
+import type { InvitationNotice } from "@/lib/workspace-types";
 
 export function InviteAcceptClient({
   invitation,

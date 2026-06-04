@@ -1,4 +1,4 @@
-import { isSameOriginRequest } from "@/lib/admin-auth";
+import { isSameOriginRequest } from "@/lib/request-security";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
 import { parseSignupInput, validationErrorResponse } from "@/lib/request-validation";
 import { createSignupWorkspace } from "@/lib/signup";
