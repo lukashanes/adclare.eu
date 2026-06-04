@@ -45,8 +45,10 @@ Adclare gives teams one place to:
 - Review, approval, return-to-changes, publish and archive states.
 - Public QR/transparency URLs with stable unguessable tokens.
 - Public repository for published/archived adverts with JSON endpoint.
-- Ad asset upload to S3-compatible object storage.
+- Ad asset upload to local disk or S3-compatible object storage.
+- Excel import for existing advert registers.
 - QR package and audit package downloads.
+- Export manifests with SHA-256 hashes for QR packages, ad audit packages and workspace archives.
 - Append-only audit log.
 - Turnstile validation for public forms when configured.
 - Production health endpoint at `/api/health`.
@@ -60,17 +62,26 @@ Local development requires Node.js 20.19 or newer.
 git clone https://github.com/lukashanes/adclare.eu.git
 cd adclare.eu
 cp .env.example .env
-npm install
+npm ci
 docker compose up -d db
-npm run db:migrate -- --name init
+npm run db:migrate
 npm run db:generate
-npm run db:seed
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-The `/signup` screen creates the first organization and administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users should normally be invited from inside the app.
+The `/signup` screen creates the first organization and installation administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users should normally be invited from inside the app.
+
+When Cloudflare Email Service is not configured, local non-production runs print magic login links and invitation links to the server console. Production runs do not print those links; configure outbound email before using a public instance.
+
+Optional demo data for development:
+
+```bash
+npm run db:seed
+```
+
+Run the seed only when you want sample campaigns, users and adverts. It creates a demo workspace, so `/signup` is no longer the first workspace flow on that database.
 
 ## Docker
 
@@ -103,7 +114,7 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 ```
 
-See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide, [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for Hetzner deployment notes and [docs/roadmap.md](docs/roadmap.md) for the current product roadmap.
+See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide, [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for Hetzner deployment notes, [docs/release-checklist.md](docs/release-checklist.md) for release verification and [docs/roadmap.md](docs/roadmap.md) for the current product roadmap.
 
 ## Configuration
 
@@ -113,14 +124,30 @@ Important environment variables:
 - `APP_URL` and `NEXT_PUBLIC_APP_URL`: public URL of the instance. `APP_URL` is used at runtime by server-side links, feeds and metadata.
 - `EMAIL_FROM`: sender identity for transactional email.
 - `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: optional Cloudflare Email Service credentials.
+- `ADCLARE_LOG_EMAIL_LINKS`: local development fallback for magic links; set to `0` to disable console output.
 - `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: optional Cloudflare Turnstile protection.
+- `ADCLARE_STORAGE_DRIVER`: `local` by default; set to `s3` for Hetzner Object Storage or another S3-compatible bucket.
+- `ADCLARE_LOCAL_STORAGE_DIR`: local uploaded asset directory; defaults to `.data/uploads` in local development and `/data/uploads` in Docker.
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.
 - `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.
 - `SIGNUP_MODE`: `first-run` by default; use `open` only when public workspace creation is intentional, or `disabled` for invite-only operation.
 
-## Object Storage Check
+## File Storage
 
-After setting object storage credentials:
+Local file storage works without external secrets. In Docker Compose, uploaded assets are persisted in the `asset_data` volume mounted at `/data/uploads`.
+
+For Hetzner Object Storage or another S3-compatible bucket, set:
+
+```bash
+ADCLARE_STORAGE_DRIVER=s3
+OBJECT_STORAGE_ENDPOINT=https://fsn1.your-objectstorage.com
+OBJECT_STORAGE_REGION=fsn1
+OBJECT_STORAGE_BUCKET=adclare-assets
+OBJECT_STORAGE_ACCESS_KEY_ID=...
+OBJECT_STORAGE_SECRET_ACCESS_KEY=...
+```
+
+Then verify the bucket:
 
 ```bash
 npm run storage:check

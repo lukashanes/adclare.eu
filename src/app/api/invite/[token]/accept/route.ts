@@ -1,3 +1,4 @@
+import { isSameOriginRequest } from "@/lib/admin-auth";
 import { acceptInvitation, normalizeLocale } from "@/lib/admin-demo-db";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
 import { parseInviteAcceptInput, validationErrorResponse } from "@/lib/request-validation";
@@ -7,6 +8,10 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { params: Promise<{ token: string }> }) {
+  if (!isSameOriginRequest(request)) {
+    return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
   const { token } = await context.params;
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 

@@ -135,6 +135,8 @@ export async function createSignupWorkspace(input: SignupInput) {
     throw new Error("Workspace signup is closed on this instance. Ask an administrator for an invitation.");
   }
 
+  const tenantCountBeforeCreate = await prisma.tenant.count();
+  const initialRole = tenantCountBeforeCreate === 0 ? UserRole.SUPER_ADMIN : UserRole.PARTY_ADMIN;
   const slug = await uniqueTenantSlug(organizationName);
 
   const tenant = await prisma.$transaction(async (tx) => {
@@ -185,7 +187,7 @@ export async function createSignupWorkspace(input: SignupInput) {
       data: {
         tenantId: createdTenant.id,
         userId: user.id,
-        role: UserRole.PARTY_ADMIN,
+        role: initialRole,
         status: MembershipStatus.ACTIVE,
       },
     });

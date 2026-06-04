@@ -34,10 +34,18 @@ export default async function AppPage() {
     redirect("/login?error=session");
   }
 
+  const workspaceKey = [
+    workspace.user.email,
+    workspace.tenant.slug,
+    workspace.ads.map((ad) => `${ad.id}:${ad.updatedAt}:${ad.version}:${ad.campaignId}`).join("|"),
+    workspace.campaigns.map((campaign) => `${campaign.id}:${campaign.slug}:${campaign.election}:${campaign.tags.join(",")}:${campaign.archived}`).join("|"),
+    workspace.candidates.map((candidate) => `${candidate.id}:${candidate.slug}:${candidate.branchId}:${candidate.archived}:${candidate.adCount}`).join("|"),
+  ].join("::");
+
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-[#11161c]">
+    <main className="min-h-screen overflow-x-hidden bg-[#f4f6f8] text-[#11161c]">
       <header className="border-b border-black/10 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex items-center gap-3">
             <span className="grid size-10 place-items-center rounded-md bg-[#f45d1f] text-white">
               <ShieldCheck size={21} />
@@ -66,7 +74,7 @@ export default async function AppPage() {
         </div>
       </header>
 
-      <AppWorkspaceClient initialWorkspace={workspace} />
+      <AppWorkspaceClient key={workspaceKey} initialWorkspace={workspace} />
     </main>
   );
 }

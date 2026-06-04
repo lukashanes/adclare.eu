@@ -24,12 +24,15 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 - Scoped roles for administrators, reviewers, campaign teams, candidates, designers and auditors.
 - Advert records with TTPA-required data checks before publication.
 - Uploads for advert files and supporting assets.
+- Excel import for existing spreadsheet advert registers.
 - Public transparency notice URLs with unguessable tokens.
 - QR package download and audit package download.
+- Export manifests with SHA-256 file hashes for QR packages, ad audit packages and workspace control archives.
 - Approval, publish, archive and version lock workflow.
 - Public repository for published and archived adverts.
 - Append-only audit log.
-- Cloudflare Turnstile, Cloudflare Email Service and S3-compatible object storage integrations when configured.
+- Local file storage by default, with S3-compatible object storage integration when configured.
+- Cloudflare Turnstile and Cloudflare Email Service integrations when configured.
 - Docker Compose deployment and PostgreSQL backup/restore scripts.
 
 ## Primary Users
@@ -47,12 +50,12 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 
 - Richer public repository filters and export formats.
 - More configurable TTPA field presets for different election contexts.
-- Stronger audit package manifests with asset hashes and verification notes.
 - Better object storage lifecycle documentation.
 - Optional outbound email queue worker for high-volume installations.
 - More granular permission editor for large organizations.
-- Import tools for spreadsheet-based campaign registers.
+- Import mapping presets for organization-specific spreadsheet templates.
 - Upgrade guide for installations that move from the baseline migration to later versions.
+- Automated browser workflow tests for the core workflow.
 
 ## Current Data Model
 

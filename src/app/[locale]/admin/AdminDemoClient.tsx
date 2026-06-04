@@ -858,8 +858,8 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
   );
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-[#11161c]">
-      <div className="grid min-h-screen lg:grid-cols-[248px_1fr]">
+    <main className="min-h-screen overflow-x-hidden bg-[#f4f6f8] text-[#11161c]">
+      <div className="grid min-h-screen min-w-0 lg:grid-cols-[248px_minmax(0,1fr)]">
         <aside className="hidden border-r border-white/10 bg-[#11161c] text-white lg:flex lg:flex-col">
           {sidebar}
         </aside>
@@ -954,7 +954,7 @@ export function AdminDemoClient({ locale }: { locale: Locale }) {
             </div>
           </header>
 
-          <div className="grid gap-4 px-4 py-5 sm:px-5 lg:px-8">
+          <div className="grid min-w-0 gap-4 px-4 py-5 sm:px-5 lg:px-8">
             <section className="rounded-md border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-6 text-[#8a3a13]">
               {t.demo}
             </section>

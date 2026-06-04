@@ -123,7 +123,7 @@ CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
 CLOUDFLARE_EMAIL_API_TOKEN='...'
 ```
 
-Until those values are present, invitations are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
+Until those values are present, messages are stored in the `email_messages` outbox with status `PENDING_PROVIDER`. Local non-production runs also print one-time login and invitation links to the server console unless `ADCLARE_LOG_EMAIL_LINKS=0` is set.
 
 ## Run The Setup Script
 
@@ -170,9 +170,10 @@ CREATE_TURNSTILE=1 TURNSTILE_WIDGET_NAME="Adclare self-hosted" npm run cf:setup
 
 ## Object Storage
 
-Ad files are uploaded through the application server into a private S3-compatible bucket. Hetzner Object Storage works through the S3 API:
+Adclare can store uploaded advert files on the local server. If you prefer Hetzner Object Storage or another S3-compatible bucket, switch the storage driver:
 
 ```bash
+ADCLARE_STORAGE_DRIVER=s3
 OBJECT_STORAGE_ENDPOINT=https://fsn1.your-objectstorage.com
 OBJECT_STORAGE_REGION=fsn1
 OBJECT_STORAGE_BUCKET=adclare-assets

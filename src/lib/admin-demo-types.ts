@@ -12,6 +12,7 @@ export type AdminRoleKey =
   | "DESIGNER"
   | "READONLY_AUDITOR";
 export type EmailStatusKey = "PENDING_PROVIDER" | "SENT" | "FAILED";
+export type MemberStatusKey = "ACTIVE" | "INVITED" | "DISABLED";
 
 export type AdDeadlineState = "clear" | "upcoming" | "due-soon" | "overdue";
 
@@ -41,8 +42,12 @@ export type AdRecord = {
   publicUrl: string;
   title: string;
   tenantSlug: string;
+  campaignId: string;
   campaign: string;
   campaignSlug: string;
+  campaignTags: string[];
+  candidateId: string;
+  candidate: string;
   branch: string;
   owner: string;
   type: string;
@@ -115,6 +120,21 @@ export type PublicRepositoryOption = {
   label: string;
 };
 
+export type AppCampaignRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  election: string;
+  description: string;
+  tags: string[];
+  startsAt: string;
+  startsAtIso: string;
+  endsAt: string;
+  endsAtIso: string;
+  archived: boolean;
+  adCount: number;
+};
+
 export type PublicRepositoryAdRecord = AdRecord & {
   campaign: string;
   campaignSlug: string;
@@ -142,6 +162,8 @@ export type PublicRepositoryPayload = {
 
 export type EditableAdInput = {
   code?: string;
+  campaignId?: string;
+  candidateId?: string;
   title: string;
   branch: string;
   owner: string;
@@ -178,6 +200,11 @@ export type AdImportResult = {
   createdCount: number;
   skippedCount: number;
   failedCount: number;
+  source?: {
+    fileName: string;
+    sheetName: string;
+    headerRow: number;
+  };
   created: AdRecord[];
   skipped: AdImportIssue[];
   errors: AdImportIssue[];
@@ -186,11 +213,59 @@ export type AdImportResult = {
 export type AdminBranchOption = {
   id: string;
   name: string;
+  kind: string;
+  parentId: string;
+  contactEmail: string;
+  description: string;
+  archived: boolean;
 };
 
 export type AppBranchInput = {
   name: string;
   kind: string;
+};
+
+export type AppBranchUpdateInput = {
+  name: string;
+  kind: string;
+  parentId?: string;
+  contactEmail?: string;
+  description?: string;
+  archived?: boolean;
+};
+
+export type AppCampaignInput = {
+  name: string;
+  slug?: string;
+  election: string;
+  description?: string;
+  tags?: string[];
+  startsAt: string;
+  endsAt: string;
+  archived?: boolean;
+};
+
+export type AppCandidateRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  branchId: string;
+  branch: string;
+  contactEmail: string;
+  ballotNumber: string;
+  description: string;
+  archived: boolean;
+  adCount: number;
+};
+
+export type AppCandidateInput = {
+  name: string;
+  slug?: string;
+  branchId?: string;
+  contactEmail?: string;
+  ballotNumber?: string;
+  description?: string;
+  archived?: boolean;
 };
 
 export type ReviewDecisionInput = {
@@ -203,8 +278,12 @@ export type AdminMemberRecord = {
   email: string;
   role: string;
   roleKey: AdminRoleKey;
+  branchId: string;
+  candidateId: string;
+  candidate: string;
   scope: string;
   status: string;
+  statusKey: MemberStatusKey;
 };
 
 export type AdminInvitationRecord = {
@@ -212,6 +291,8 @@ export type AdminInvitationRecord = {
   email: string;
   role: string;
   roleKey: AdminRoleKey;
+  candidateId: string;
+  candidate: string;
   scope: string;
   status: string;
   statusKey: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
@@ -225,12 +306,89 @@ export type AdminUsersPayload = {
   members: AdminMemberRecord[];
   invitations: AdminInvitationRecord[];
   branches: AdminBranchOption[];
+  candidates: AppCandidateRecord[];
+  assignableRoles: PublicRepositoryOption[];
 };
 
 export type InviteInput = {
   email: string;
   role: AdminRoleKey;
   branchId?: string;
+  candidateId?: string;
+};
+
+export type AppProfileInput = {
+  name: string;
+};
+
+export type AppMemberUpdateInput = {
+  name: string;
+  role: AdminRoleKey;
+  branchId?: string;
+  candidateId?: string;
+  status: MemberStatusKey;
+};
+
+export type AppTenantSettingsInput = {
+  name: string;
+  slug: string;
+  contactEmail?: string;
+  defaultLocale: Locale;
+  publicRepositoryEnabled: boolean;
+  retentionYears: number;
+};
+
+export type AppAuditRecord = {
+  id: string;
+  actor: string;
+  action: string;
+  message: string;
+  createdAt: string;
+};
+
+export type AppSuperAdminTenantRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  contactEmail: string;
+  defaultLocale: Locale;
+  publicRepositoryEnabled: boolean;
+  retentionYears: number;
+  createdAt: string;
+  updatedAt: string;
+  admins: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    roleKey: AdminRoleKey;
+    status: string;
+  }>;
+  counts: {
+    ads: number;
+    campaigns: number;
+    branches: number;
+    users: number;
+    invitations: number;
+    assets: number;
+    needsData: number;
+    published: number;
+  };
+};
+
+export type AppSuperAdminPayload = {
+  tenants: AppSuperAdminTenantRecord[];
+  counts: {
+    tenants: number;
+    ads: number;
+    campaigns: number;
+    branches: number;
+    users: number;
+    invitations: number;
+    assets: number;
+    needsData: number;
+    published: number;
+  };
 };
 
 export type InvitationNotice = {
@@ -251,6 +409,10 @@ export type AppWorkspacePayload = {
   tenant: {
     name: string;
     slug: string;
+    contactEmail: string;
+    defaultLocale: Locale;
+    publicRepositoryEnabled: boolean;
+    retentionYears: number;
   };
   membership: {
     role: string;
@@ -259,6 +421,8 @@ export type AppWorkspacePayload = {
     status: string;
   };
   branches: AdminBranchOption[];
+  campaigns: AppCampaignRecord[];
+  candidates: AppCandidateRecord[];
   permissions: {
     canCreateAds: boolean;
     canEditAds: boolean;
@@ -266,7 +430,14 @@ export type AppWorkspacePayload = {
     canApproveAds: boolean;
     canPublishAds: boolean;
     canManageBranches: boolean;
+    canEditOwnBranch: boolean;
+    canManageCampaigns: boolean;
+    canManageCandidates: boolean;
     canManageUsers: boolean;
+    canManageTenantSettings: boolean;
+    canViewAudit: boolean;
+    canExportArchive: boolean;
+    canManageAllTenants: boolean;
   };
   storage: {
     configured: boolean;
@@ -275,6 +446,7 @@ export type AppWorkspacePayload = {
     maxUploadSizeMb: number;
   };
   users: AdminUsersPayload;
+  auditLogs: AppAuditRecord[];
   ads: AdRecord[];
   counts: {
     all: number;
@@ -284,4 +456,5 @@ export type AppWorkspacePayload = {
     published: number;
     blocked: number;
   };
+  superAdmin: AppSuperAdminPayload | null;
 };

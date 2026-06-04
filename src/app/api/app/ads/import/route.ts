@@ -37,17 +37,30 @@ export async function POST(request: Request) {
       return Response.json({ error: "Excel je příliš velký. Maximum je 8 MB." }, { status: 413 });
     }
 
+    const campaignId = typeof formData.get("campaignId") === "string" ? String(formData.get("campaignId")) : "";
     const parsed = await parseXlsxAdImport(Buffer.from(await file.arrayBuffer()));
-    const result = await importAppAds(session.userId, parsed.rows, locale);
+    const rows = parsed.rows.map((row) => ({
+      ...row,
+      input: {
+        ...row.input,
+        campaignId,
+      },
+    }));
+    const result = await importAppAds(session.userId, rows, locale);
 
     if (!result) {
       return Response.json({ error: "Nemáte oprávnění importovat reklamy." }, { status: 403 });
     }
 
     return Response.json({
-      sheetName: parsed.sheetName,
-      headerRow: parsed.headerRow,
-      result,
+      result: {
+        ...result,
+        source: {
+          fileName: file.name,
+          sheetName: parsed.sheetName,
+          headerRow: parsed.headerRow,
+        },
+      },
     });
   } catch (error) {
     console.error(error);

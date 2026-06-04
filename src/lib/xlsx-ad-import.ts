@@ -209,6 +209,7 @@ function sheetInfo(workbookXml: string, relsXml: string | null) {
 const fieldAliases = {
   code: ["kod", "id reklamy", "identifikator", "cislo materialu"],
   title: ["nazev reklamy", "nazev materialu", "material"],
+  candidateId: ["kandidat", "jmeno kandidata", "candidate"],
   branch: ["pobocka", "oblast", "region", "kraj", "mesto", "misto"],
   owner: ["zadavatel", "objednatel", "sponsor"],
   type: ["typ reklamy", "typ materialu", "format", "medium", "media"],
@@ -377,6 +378,7 @@ function buildInput(raw: Record<string, string>, fallbackYear: number): Editable
 
   return {
     code,
+    candidateId: raw.candidateId,
     title: title || `Importovaný záznam ${Date.now()}`,
     branch,
     owner,
@@ -401,6 +403,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
   const columns = {
     code: findColumn(headers, "code"),
     title: findColumn(headers, "title"),
+    candidateId: findColumn(headers, "candidateId"),
     branch: findColumn(headers, "branch"),
     owner: findColumn(headers, "owner"),
     type: findColumn(headers, "type"),
@@ -427,6 +430,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
     const raw = {
       code: rawValue(row, columns.code),
       title: rawValue(row, columns.title),
+      candidateId: rawValue(row, columns.candidateId),
       branch: rawValue(row, columns.branch),
       owner: rawValue(row, columns.owner),
       type: rawValue(row, columns.type),
@@ -450,7 +454,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
 
     const input = buildInput(raw, fallbackYear);
 
-    if ([input.code, input.title, input.owner, input.payer, input.period, input.amount, input.fundingSource].every((value) => !(value ?? "").trim())) {
+    if ([input.code, input.title, input.candidateId, input.owner, input.payer, input.period, input.amount, input.fundingSource].every((value) => !(value ?? "").trim())) {
       continue;
     }
 

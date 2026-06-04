@@ -9,7 +9,7 @@ This guide is vendor-neutral. It assumes Docker, PostgreSQL and a reverse proxy 
 - A Linux server or local machine with Docker and Docker Compose.
 - A DNS name for production, for example `adclare.example.org`.
 - PostgreSQL, provided by the included Compose database or by your own managed database.
-- Optional S3-compatible object storage for advert files.
+- Local file storage for advert files, or optional S3-compatible object storage.
 - Optional Cloudflare Turnstile for public forms.
 - Optional Cloudflare Email Service for magic links and invitations.
 
@@ -70,7 +70,7 @@ For public production instances, keep `first-run` or `disabled` unless you expli
 
 ## Email
 
-Adclare can run without outbound email configured, but login links and invitations will be stored in the `email_messages` outbox with `PENDING_PROVIDER`.
+Production instances should have outbound email configured before real users are invited or asked to log in.
 
 For transactional sending, configure:
 
@@ -79,6 +79,8 @@ EMAIL_FROM='Adclare <noreply@adclare.example.org>'
 CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
 CLOUDFLARE_EMAIL_API_TOKEN='...'
 ```
+
+If those values are missing, Adclare still records the email in `email_messages` with status `PENDING_PROVIDER`. In local non-production runs, the server console also prints the one-time login or invitation link so a developer can finish the first setup. Set `ADCLARE_LOG_EMAIL_LINKS=0` to disable this local fallback.
 
 Cloudflare Email Routing is inbound forwarding only. It does not send application emails.
 
@@ -96,11 +98,21 @@ TURNSTILE_ALLOWED_HOSTNAMES=adclare.example.org
 
 For local development only, `TURNSTILE_REQUIRED=0` can be used.
 
-## Object Storage
+## File Storage
 
-Uploaded advert files use S3-compatible object storage:
+Uploaded advert files work with local file storage by default:
 
 ```bash
+ADCLARE_STORAGE_DRIVER=local
+ADCLARE_LOCAL_STORAGE_DIR=/data/uploads
+```
+
+Docker Compose persists local uploads in the `asset_data` volume. Back up that volume together with PostgreSQL if you keep files locally.
+
+For Hetzner Object Storage or another S3-compatible bucket, switch the driver and set credentials:
+
+```bash
+ADCLARE_STORAGE_DRIVER=s3
 OBJECT_STORAGE_ENDPOINT=https://fsn1.your-objectstorage.com
 OBJECT_STORAGE_REGION=fsn1
 OBJECT_STORAGE_BUCKET=adclare-assets
@@ -110,7 +122,7 @@ OBJECT_STORAGE_FORCE_PATH_STYLE=0
 MAX_AD_ASSET_UPLOAD_MB=50
 ```
 
-Verify storage:
+Verify the S3 bucket:
 
 ```bash
 docker compose -f docker-compose.prod.yml --profile tools build storage-check
@@ -149,6 +161,35 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 docker image prune -f
 ```
+
+## First Account
+
+In a fresh installation with `SIGNUP_MODE=first-run`, the first signup creates the first workspace and receives the installation administrator role. This role can see all workspaces in that installation. Additional party, branch, reviewer, candidate and designer accounts should be invited from inside the app.
+
+## Verify A Fresh Install
+
+After migrations and the web container are running, check the instance before inviting real users:
+
+```bash
+curl -fsS https://adclare.example.org/api/health
+```
+
+The response should include:
+
+```json
+{"ok":true,"service":"adclare","db":"ok"}
+```
+
+Then open `/signup`, create the first workspace and check that:
+
+- `/app` opens for the first administrator,
+- a default headquarters unit and first campaign exist,
+- the administrator can create an advert record,
+- local uploads write to `/data/uploads`, or S3 uploads pass `storage:check`,
+- a complete advert can download a QR package and audit package,
+- a published advert opens through its public transparency URL.
+
+If outbound email is not configured, production still records pending login and invitation emails in the `email_messages` table. It does not print one-time links to logs in production.
 
 ## Security Checklist
 

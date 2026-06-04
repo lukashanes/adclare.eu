@@ -21,7 +21,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
   }
 
   try {
-    const object = await downloadAdAssetObject(asset.storageBucket, asset.storageKey);
+    const object = await downloadAdAssetObject(asset.storageProvider, asset.storageBucket, asset.storageKey);
     const body = object.bytes.buffer.slice(object.bytes.byteOffset, object.bytes.byteOffset + object.bytes.byteLength) as ArrayBuffer;
 
     return new Response(body, {

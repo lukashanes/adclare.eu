@@ -5,7 +5,7 @@ import { normalizeLocale, retryAppInvitationEmail } from "@/lib/admin-demo-db";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(request: Request, context: { params: Promise<{ invitationId: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getAppSession(request.headers.get("cookie"));
 
   if (!session) {
@@ -16,9 +16,9 @@ export async function POST(request: Request, context: { params: Promise<{ invita
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  const { invitationId } = await context.params;
+  const { id } = await context.params;
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
-  const invitation = await retryAppInvitationEmail(session.userId, decodeURIComponent(invitationId), locale);
+  const invitation = await retryAppInvitationEmail(session.userId, decodeURIComponent(id), locale);
 
   if (!invitation) {
     return Response.json({ error: "Pozvánka nenalezena nebo nemáte přístup." }, { status: 404 });
