@@ -84,6 +84,7 @@ check(dependabotConfig.includes("package-ecosystem: npm"), "Dependabot should wa
 check(dependabotConfig.includes("package-ecosystem: github-actions"), "Dependabot should watch GitHub Actions.");
 check(license.includes("EUROPEAN UNION PUBLIC LICENCE v. 1.2") && license.includes("15. Applicable Law"), "LICENSE should contain the full EUPL-1.2 text.");
 check(changelog.includes("## v0.1.0 - 2026-06-01") && !changelog.includes("## v0.0"), "Changelog should contain one current v0.1.0 release baseline.");
+check(existsSync(resolve(root, "docs/release-checklist.md")) && readme.includes("docs/release-checklist.md"), "Release checklist should exist and be linked from README.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
 check(composeProd.includes("storage-check:"), "Production compose should include an object storage check tool.");
 check(composeProd.includes("NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?set NEXT_PUBLIC_APP_URL}"), "Production compose should require a self-hosted NEXT_PUBLIC_APP_URL.");

@@ -46,6 +46,7 @@ Adclare gives teams one place to:
 - Public QR/transparency URLs with stable unguessable tokens.
 - Public repository for published/archived adverts with JSON endpoint.
 - Ad asset upload to local disk or S3-compatible object storage.
+- Excel import for existing advert registers.
 - QR package and audit package downloads.
 - Export manifests with SHA-256 hashes for QR packages, ad audit packages and workspace archives.
 - Append-only audit log.
@@ -113,7 +114,7 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 docker compose -f docker-compose.prod.yml up -d --build web
 ```
 
-See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide, [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for Hetzner deployment notes and [docs/roadmap.md](docs/roadmap.md) for the current product roadmap.
+See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide, [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for Hetzner deployment notes, [docs/release-checklist.md](docs/release-checklist.md) for release verification and [docs/roadmap.md](docs/roadmap.md) for the current product roadmap.
 
 ## Configuration
 

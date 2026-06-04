@@ -166,6 +166,31 @@ docker image prune -f
 
 In a fresh installation with `SIGNUP_MODE=first-run`, the first signup creates the first workspace and receives the installation administrator role. This role can see all workspaces in that installation. Additional party, branch, reviewer, candidate and designer accounts should be invited from inside the app.
 
+## Verify A Fresh Install
+
+After migrations and the web container are running, check the instance before inviting real users:
+
+```bash
+curl -fsS https://adclare.example.org/api/health
+```
+
+The response should include:
+
+```json
+{"ok":true,"service":"adclare","db":"ok"}
+```
+
+Then open `/signup`, create the first workspace and check that:
+
+- `/app` opens for the first administrator,
+- a default headquarters unit and first campaign exist,
+- the administrator can create an advert record,
+- local uploads write to `/data/uploads`, or S3 uploads pass `storage:check`,
+- a complete advert can download a QR package and audit package,
+- a published advert opens through its public transparency URL.
+
+If outbound email is not configured, production still records pending login and invitation emails in the `email_messages` table. It does not print one-time links to logs in production.
+
 ## Security Checklist
 
 - Use HTTPS.

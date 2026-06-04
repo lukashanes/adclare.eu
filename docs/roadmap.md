@@ -24,6 +24,7 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 - Scoped roles for administrators, reviewers, campaign teams, candidates, designers and auditors.
 - Advert records with TTPA-required data checks before publication.
 - Uploads for advert files and supporting assets.
+- Excel import for existing spreadsheet advert registers.
 - Public transparency notice URLs with unguessable tokens.
 - QR package download and audit package download.
 - Export manifests with SHA-256 file hashes for QR packages, ad audit packages and workspace control archives.
@@ -52,8 +53,9 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 - Better object storage lifecycle documentation.
 - Optional outbound email queue worker for high-volume installations.
 - More granular permission editor for large organizations.
-- Import tools for spreadsheet-based campaign registers.
+- Import mapping presets for organization-specific spreadsheet templates.
 - Upgrade guide for installations that move from the baseline migration to later versions.
+- Automated browser workflow tests for the core workflow.
 
 ## Current Data Model
 
