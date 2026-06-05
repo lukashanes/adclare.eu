@@ -3,15 +3,15 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: adclare_dev
-      POSTGRES_USER: adclare
-      POSTGRES_PASSWORD: adclare_dev_password
+      POSTGRES_DB: ${POSTGRES_DB:-adclare_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-adclare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adclare_dev_password}
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U adclare -d adclare_dev"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-adclare} -d ${POSTGRES_DB:-adclare_dev}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,7 +29,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      DATABASE_URL: postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public}
       APP_URL: ${APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost}}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
@@ -65,7 +65,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public}
     networks:
       - adclare
 

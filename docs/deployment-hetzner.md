@@ -41,7 +41,7 @@ The root `docker-compose.yml` includes Caddy and is the simplest path for one Ad
 ```bash
 git clone https://github.com/lukashanes/adclare.eu.git
 cd adclare.eu
-cp .env.example .env
+cp production.env.example .env
 ```
 
 Edit `.env`:
@@ -53,7 +53,16 @@ POSTGRES_DB=adclare_prod
 POSTGRES_USER=adclare
 POSTGRES_PASSWORD=replace_with_generated_password
 DATABASE_URL=postgresql://adclare:replace_with_generated_password@db:5432/adclare_prod?schema=public
+DOCKER_DATABASE_URL=postgresql://adclare:replace_with_generated_password@db:5432/adclare_prod?schema=public
 SITE_ADDRESS=adclare.example.org
+EMAIL_FROM='Adclare <noreply@adclare.example.org>'
+CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
+CLOUDFLARE_EMAIL_API_TOKEN='...'
+TURNSTILE_REQUIRED=1
+TURNSTILE_SITE_KEY='...'
+NEXT_PUBLIC_TURNSTILE_SITE_KEY='...'
+TURNSTILE_SECRET_KEY='...'
+TURNSTILE_ALLOWED_HOSTNAMES='adclare.example.org,www.adclare.example.org'
 ```
 
 Start the instance:
@@ -98,6 +107,14 @@ APP_URL=https://adclare.example.org
 NEXT_PUBLIC_APP_URL=https://adclare.example.org
 SIGNUP_MODE=first-run
 NEXT_PUBLIC_SHOW_DEMO_REPO=0
+EMAIL_FROM='Adclare <noreply@adclare.example.org>'
+CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
+CLOUDFLARE_EMAIL_API_TOKEN='...'
+TURNSTILE_REQUIRED=1
+TURNSTILE_SITE_KEY='...'
+NEXT_PUBLIC_TURNSTILE_SITE_KEY='...'
+TURNSTILE_SECRET_KEY='...'
+TURNSTILE_ALLOWED_HOSTNAMES='adclare.example.org,www.adclare.example.org'
 ```
 
 Start and migrate:
@@ -148,13 +165,15 @@ OBJECT_STORAGE_PUBLIC_BASE_URL=''
 MAX_AD_ASSET_UPLOAD_MB='50'
 ```
 
-Behavior without optional external secrets:
+Behavior before production secrets are configured:
 
 - Invitation emails are stored in the `email_messages` outbox with status `PENDING_PROVIDER`.
 - Outbound transactional email uses Cloudflare Email Service REST API when configured.
 - Turnstile protects public forms only when site key and secret are set.
 - Uploaded ad files use local file storage by default. Docker Compose persists them in the `asset_data` volume.
 - Set `ADCLARE_STORAGE_DRIVER='s3'` to use Hetzner Object Storage or another S3-compatible bucket.
+
+For a public instance, do not invite real users until email, Turnstile and storage are configured and the production preflight is green.
 
 Object storage check:
 

@@ -2,7 +2,7 @@
 
 This guide describes optional Cloudflare configuration for a self-hosted Adclare instance.
 
-Cloudflare is not required to run Adclare, but it is a practical option for DNS, TLS proxying, basic edge security, Turnstile and inbound email aliases.
+Cloudflare is not required to run Adclare, but it is a practical option for DNS, TLS proxying, basic edge security, Turnstile and inbound email aliases. The Adclare production preflight expects public instances to have outbound email and Turnstile configured before real users are invited.
 
 ## Inputs
 

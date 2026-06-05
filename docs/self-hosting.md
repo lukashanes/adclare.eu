@@ -10,8 +10,8 @@ This guide is vendor-neutral. It assumes Docker, PostgreSQL and a reverse proxy 
 - A DNS name for production, for example `adclare.example.org`.
 - PostgreSQL, provided by the included Compose database or by your own managed database.
 - Local file storage for advert files, or optional S3-compatible object storage.
-- Optional Cloudflare Turnstile for public forms.
-- Optional Cloudflare Email Service for magic links and invitations.
+- Cloudflare Turnstile for public login, signup and invitation forms.
+- Cloudflare Email Service for magic links and invitations before real users are invited.
 
 ## Quick Docker Start
 
@@ -19,6 +19,12 @@ This guide is vendor-neutral. It assumes Docker, PostgreSQL and a reverse proxy 
 git clone https://github.com/lukashanes/adclare.eu.git
 cd adclare.eu
 cp .env.example .env
+```
+
+For local testing, `.env.example` is enough after you set a database URL. For a public instance, start from the production template instead:
+
+```bash
+cp production.env.example .env
 ```
 
 Edit `.env`:
@@ -31,8 +37,16 @@ POSTGRES_DB=adclare_prod
 POSTGRES_USER=adclare
 POSTGRES_PASSWORD=change_this_to_a_long_random_value
 DATABASE_URL=postgresql://adclare:change_this_to_a_long_random_value@db:5432/adclare_prod?schema=public
+DOCKER_DATABASE_URL=postgresql://adclare:change_this_to_a_long_random_value@db:5432/adclare_prod?schema=public
 SIGNUP_MODE=first-run
-TURNSTILE_REQUIRED=0
+EMAIL_FROM='Adclare <noreply@adclare.example.org>'
+CLOUDFLARE_EMAIL_ACCOUNT_ID='...'
+CLOUDFLARE_EMAIL_API_TOKEN='...'
+TURNSTILE_REQUIRED=1
+TURNSTILE_SITE_KEY='...'
+NEXT_PUBLIC_TURNSTILE_SITE_KEY='...'
+TURNSTILE_SECRET_KEY='...'
+TURNSTILE_ALLOWED_HOSTNAMES=adclare.example.org
 ```
 
 Run the database and migrations:
@@ -85,7 +99,7 @@ The preflight checks production URLs, Cloudflare Email Service, Turnstile, uploa
 
 ## Email
 
-Production instances should have outbound email configured before real users are invited or asked to log in.
+Production instances should have outbound email configured before real users are invited or asked to log in. The production preflight requires it for public launch.
 
 For transactional sending, configure:
 
@@ -101,7 +115,7 @@ Cloudflare Email Routing is inbound forwarding only. It does not send applicatio
 
 ## Turnstile
 
-For production, keep Turnstile enabled:
+For production, keep Turnstile enabled. The production preflight requires it for public launch:
 
 ```bash
 TURNSTILE_REQUIRED=1
