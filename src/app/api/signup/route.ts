@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       email: body.email,
     });
 
-    return Response.json(signup, { status: signup.created ? 201 : 200 });
+    return Response.json(signup);
   } catch (error) {
     const validation = validationErrorResponse(error);
 

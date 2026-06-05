@@ -2,6 +2,27 @@
 
 All notable changes for Adclare are summarized here.
 
+## v0.2.0-beta.2 - 2026-06-05
+
+Security hardening release for the public beta.
+
+### Included
+
+- Signup responses no longer expose whether an e-mail already has access or which workspace it belongs to.
+- Invitation links are now stored as hashes instead of plaintext tokens.
+- Existing pending invitation links are invalidated by the migration and should be sent again.
+- Uploads now verify file type from the file content and no longer allow user-uploaded SVG assets.
+- Upload, asset download, QR package, audit export and workspace archive endpoints now have rate limits.
+- Rate limiting now uses an atomic PostgreSQL upsert to avoid concurrent request bypasses.
+- Logout now checks same-origin requests.
+- Production CSP no longer allows `unsafe-eval` or local development websocket endpoints.
+- Audit logs are protected at database level against update and delete operations.
+
+### Notes
+
+- The audit log trigger makes `audit_logs` append-only. Maintenance tasks that intentionally delete tenant data must plan for that trigger.
+- For hosting, installation, migration, TTPA workflow design, integrations or production support, contact `support@adclare.eu`.
+
 ## v0.2.0-beta.1 - 2026-06-04
 
 Public beta release for teams running Adclare on their own infrastructure.

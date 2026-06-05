@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+const isProduction = process.env.NODE_ENV === "production";
+const scriptSrc = ["script-src 'self'", "'unsafe-inline'", "https://challenges.cloudflare.com", ...(isProduction ? [] : ["'unsafe-eval'"])];
+const connectSrc = ["connect-src 'self'", "https://challenges.cloudflare.com", ...(isProduction ? [] : ["ws://127.0.0.1:*", "ws://localhost:*"])];
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -9,10 +12,11 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
-  "connect-src 'self' https://challenges.cloudflare.com ws://127.0.0.1:* ws://localhost:*",
+  scriptSrc.join(" "),
+  connectSrc.join(" "),
   "frame-src https://challenges.cloudflare.com",
   "worker-src 'self' blob:",
+  ...(isProduction ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const nextConfig: NextConfig = {

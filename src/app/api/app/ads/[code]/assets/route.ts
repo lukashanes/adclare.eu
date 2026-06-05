@@ -1,5 +1,6 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { attachAppAdAsset, getAppAdUploadTarget, normalizeLocale } from "@/lib/workspace-db";
 import { isAssetStorageAvailable, uploadAdAssetObject } from "@/lib/object-storage";
 
@@ -27,6 +28,17 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
   ]);
   try {
     const decodedCode = decodeURIComponent(code);
+    const limit = await checkRateLimit({
+      scope: "asset-upload",
+      identifier: `${session.userId}:${decodedCode}`,
+      limit: 30,
+      windowMs: 60 * 60 * 1000,
+    });
+
+    if (!limit.allowed) {
+      return Response.json({ error: "Too many uploads." }, { status: 429, headers: rateLimitHeaders(limit) });
+    }
+
     const target = await getAppAdUploadTarget(session.userId, decodedCode);
 
     if (!target) {

@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getAppAuditPackage, normalizeLocale, prepareAppAuditExport } from "@/lib/workspace-db";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
@@ -26,7 +27,19 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
   }
 
   const { code } = await context.params;
-  const exportReady = await prepareAppAuditExport(session.userId, decodeURIComponent(code));
+  const decodedCode = decodeURIComponent(code);
+  const limit = await checkRateLimit({
+    scope: "audit-export-prepare",
+    identifier: `${session.userId}:${decodedCode}`,
+    limit: 60,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!limit.allowed) {
+    return Response.json({ error: "Too many export requests." }, { status: 429, headers: rateLimitHeaders(limit) });
+  }
+
+  const exportReady = await prepareAppAuditExport(session.userId, decodedCode);
 
   if (!exportReady) {
     return Response.json({ error: "Ad not found." }, { status: 404 });
@@ -46,7 +59,19 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     context.params,
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
-  const auditPackage = await getAppAuditPackage(session.userId, decodeURIComponent(code), locale);
+  const decodedCode = decodeURIComponent(code);
+  const limit = await checkRateLimit({
+    scope: "audit-export-download",
+    identifier: `${session.userId}:${decodedCode}`,
+    limit: 30,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!limit.allowed) {
+    return Response.json({ error: "Too many audit package downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
+  }
+
+  const auditPackage = await getAppAuditPackage(session.userId, decodedCode, locale);
 
   if (!auditPackage) {
     return Response.json({ error: "Ad not found." }, { status: 404 });

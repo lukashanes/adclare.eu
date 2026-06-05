@@ -217,7 +217,7 @@ model Invitation {
   email           String
   role            UserRole
   status          InvitationStatus @default(PENDING)
-  token           String           @unique
+  tokenHash       String           @unique
   expiresAt       DateTime
   acceptedAt      DateTime?
   invitedByUserId String?

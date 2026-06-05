@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { getAppSession } from "@/lib/app-auth";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getAppArchivePackage, normalizeLocale } from "@/lib/workspace-db";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
@@ -20,6 +21,17 @@ export async function GET(request: Request) {
   }
 
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
+  const limit = await checkRateLimit({
+    scope: "workspace-archive",
+    identifier: session.userId,
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!limit.allowed) {
+    return Response.json({ error: "Too many archive downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
+  }
+
   const archive = await getAppArchivePackage(session.userId, locale);
 
   if (!archive) {

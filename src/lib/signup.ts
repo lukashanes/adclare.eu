@@ -105,6 +105,12 @@ export async function createSignupWorkspace(input: SignupInput) {
 
   assertEmail(email);
 
+  const availability = await getSignupAvailability();
+
+  if (!availability.canCreateWorkspace) {
+    throw new Error("Workspace signup is closed on this instance. Ask an administrator for an invitation.");
+  }
+
   const existingMembership = await prisma.tenantMembership.findFirst({
     where: {
       user: {
@@ -123,23 +129,16 @@ export async function createSignupWorkspace(input: SignupInput) {
   if (existingMembership) {
     await requestAppLoginLink(email);
     return {
-      created: false,
-      tenantSlug: existingMembership.tenant.slug,
+      ok: true,
       email,
     };
-  }
-
-  const availability = await getSignupAvailability();
-
-  if (!availability.canCreateWorkspace) {
-    throw new Error("Workspace signup is closed on this instance. Ask an administrator for an invitation.");
   }
 
   const tenantCountBeforeCreate = await prisma.tenant.count();
   const initialRole = tenantCountBeforeCreate === 0 ? UserRole.SUPER_ADMIN : UserRole.PARTY_ADMIN;
   const slug = await uniqueTenantSlug(organizationName);
 
-  const tenant = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const createdTenant = await tx.tenant.create({
       data: {
         slug,
@@ -208,8 +207,7 @@ export async function createSignupWorkspace(input: SignupInput) {
   await requestAppLoginLink(email);
 
   return {
-    created: true,
-    tenantSlug: tenant.slug,
+    ok: true,
     email,
   };
 }

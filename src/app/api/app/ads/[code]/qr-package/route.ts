@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import QRCode from "qrcode";
 import { getAppSession } from "@/lib/app-auth";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getAppAdRecord, normalizeLocale } from "@/lib/workspace-db";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
@@ -22,7 +23,19 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     context.params,
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
-  const ad = await getAppAdRecord(session.userId, decodeURIComponent(code), locale);
+  const decodedCode = decodeURIComponent(code);
+  const limit = await checkRateLimit({
+    scope: "qr-package",
+    identifier: `${session.userId}:${decodedCode}`,
+    limit: 60,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!limit.allowed) {
+    return Response.json({ error: "Too many QR package downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
+  }
+
+  const ad = await getAppAdRecord(session.userId, decodedCode, locale);
 
   if (!ad) {
     return Response.json({ error: "Ad not found." }, { status: 404 });
