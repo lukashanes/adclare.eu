@@ -2,6 +2,23 @@
 
 All notable changes for Adclare are summarized here.
 
+## v0.2.0-beta.3 - 2026-06-05
+
+Production configuration cleanup for the public beta.
+
+### Included
+
+- Added `production.env.example` for public self-hosted installs.
+- Kept `.env.example` focused on local development so first-run Docker and local npm workflows stay aligned.
+- Updated root Docker Compose to use `DOCKER_DATABASE_URL` inside containers while local `DATABASE_URL` can still point to localhost.
+- Updated README, self-hosting, Hetzner and Cloudflare documentation to match production preflight requirements.
+- Extended launch smoke checks to catch mismatched local and production database templates.
+
+### Notes
+
+- Public instances should use `production.env.example`, configure outbound email, enable Turnstile and run the launch preflight before inviting real users.
+- For hosting, installation, migration, TTPA workflow design, integrations or production support, contact `support@adclare.eu`.
+
 ## v0.2.0-beta.2 - 2026-06-05
 
 Security hardening release for the public beta.
