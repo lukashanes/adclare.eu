@@ -3529,9 +3529,11 @@ function PeoplePanel({
                     <span className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-[#25282d]">{invitation.status}</span>
                   </div>
                   <div className="mt-2 text-xs font-semibold text-[#68707a]">{invitationEmailText(invitation)} · do {invitation.expiresAt}</div>
-                  <a className="mt-2 block break-all text-xs font-semibold text-[#d94410]" href={invitation.inviteUrl}>
-                    {invitation.inviteUrl}
-                  </a>
+                  {invitation.inviteUrl ? (
+                    <a className="mt-2 block break-all text-xs font-semibold text-[#d94410]" href={invitation.inviteUrl}>
+                      {invitation.inviteUrl}
+                    </a>
+                  ) : null}
                   {invitation.emailStatusKey !== "SENT" ? (
                     <button
                       type="button"
@@ -4122,7 +4124,7 @@ function DetailPanel({
                     type="file"
                     className="sr-only"
                     disabled={!fileUploadEnabled}
-                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,video/mp4,video/quicktime"
+                    accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,video/mp4,video/quicktime"
                     onChange={(event) => {
                       onUpload(ad, event.target.files?.[0] ?? null);
                       event.currentTarget.value = "";

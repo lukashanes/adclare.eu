@@ -1,4 +1,5 @@
 import { getAppSession } from "@/lib/app-auth";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getAppAdAssetDownload } from "@/lib/workspace-db";
 import { downloadAdAssetObject } from "@/lib/object-storage";
 
@@ -13,8 +14,19 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
   }
 
   const { code, assetId } = await context.params;
+  const decodedCode = decodeURIComponent(code);
+  const limit = await checkRateLimit({
+    scope: "asset-download",
+    identifier: `${session.userId}:${decodedCode}`,
+    limit: 120,
+    windowMs: 60 * 60 * 1000,
+  });
 
-  const asset = await getAppAdAssetDownload(session.userId, decodeURIComponent(code), decodeURIComponent(assetId));
+  if (!limit.allowed) {
+    return Response.json({ error: "Too many downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
+  }
+
+  const asset = await getAppAdAssetDownload(session.userId, decodedCode, decodeURIComponent(assetId));
 
   if (!asset) {
     return Response.json({ error: "Asset not found." }, { status: 404 });

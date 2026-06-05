@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   AdStatus,
   AdWorkflowStatus,
@@ -95,6 +95,7 @@ type InvitationWithUnit = Invitation & {
   orgUnit: OrganizationUnit | null;
   candidate?: Candidate | null;
   emailMessages?: EmailMessage[];
+  rawToken?: string;
 };
 type AuditPackageAd = AdWithUnit & {
   auditLogs: AuditLog[];
@@ -347,6 +348,10 @@ function createInviteToken() {
   return randomBytes(24).toString("base64url");
 }
 
+function hashToken(value: string) {
+  return createHash("sha256").update(value).digest("base64url");
+}
+
 function cloudflareEmailAccountId() {
   return (process.env.CLOUDFLARE_EMAIL_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
 }
@@ -370,8 +375,8 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#039;");
 }
 
-function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }) {
-  const inviteUrl = `${publicAppUrl()}/invite/${invitation.token}`;
+function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }, token: string) {
+  const inviteUrl = `${publicAppUrl()}/invite/${token}`;
   const tenantName = invitation.tenant.nameCs;
   const scope = accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, "cs");
   const role = roleLabel(invitation.role, "cs");
@@ -477,8 +482,8 @@ async function deliverEmailMessage(email: EmailMessage, content?: { bodyText: st
   }
 }
 
-async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }) {
-  const { subject, bodyText, bodyHtml, inviteUrl } = invitationEmailCopy(invitation);
+async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }, token: string) {
+  const { subject, bodyText, bodyHtml, inviteUrl } = invitationEmailCopy(invitation, token);
   const storedBodyText = bodyText.replaceAll(inviteUrl, "[invitation link redacted]");
   const storedBodyHtml = bodyHtml.replaceAll(escapeHtml(inviteUrl), "#").replaceAll(inviteUrl, "#");
   const email = await prisma.emailMessage.create({
@@ -719,7 +724,7 @@ function mapInvitation(invitation: InvitationWithUnit, locale: Locale): AdminInv
     emailStatus: emailStatusLabel(emailStatus, locale),
     emailStatusKey: emailStatus,
     expiresAt: formatDate(invitation.expiresAt, locale),
-    inviteUrl: `${publicAppUrl()}/invite/${invitation.token}`,
+    inviteUrl: invitation.rawToken ? `${publicAppUrl()}/invite/${invitation.rawToken}` : "",
   };
 }
 
@@ -1106,9 +1111,10 @@ function normalizeMemberStatus(status: string): MembershipStatus {
 }
 
 export async function getInvitationNotice(token: string, locale: Locale): Promise<InvitationNotice | null> {
+  const rawToken = decodeURIComponent(token);
   const invitation = await prisma.invitation.findUnique({
     where: {
-      token,
+      tokenHash: hashToken(rawToken),
     },
     include: {
       tenant: true,
@@ -1122,7 +1128,7 @@ export async function getInvitationNotice(token: string, locale: Locale): Promis
   }
 
   return {
-    token: invitation.token,
+    token: rawToken,
     email: invitation.email,
     role: roleLabel(invitation.role, locale),
     scope: accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, locale),
@@ -1133,9 +1139,10 @@ export async function getInvitationNotice(token: string, locale: Locale): Promis
 }
 
 export async function acceptInvitation(token: string, name: string, locale: Locale) {
+  const rawToken = decodeURIComponent(token);
   const invitation = await prisma.invitation.findUnique({
     where: {
-      token,
+      tokenHash: hashToken(rawToken),
     },
     include: {
       tenant: true,
@@ -1207,7 +1214,7 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
     });
   });
 
-  return getInvitationNotice(token, locale);
+  return getInvitationNotice(rawToken, locale);
 }
 
 export async function getTransparencyNotice(publicToken: string, locale: Locale) {
@@ -2860,6 +2867,7 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
     },
   });
 
+  const token = createInviteToken();
   const invitation = await prisma.invitation.create({
     data: {
       tenantId: context.membership.tenantId,
@@ -2867,7 +2875,7 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
       candidateId: candidate?.id ?? null,
       email,
       role,
-      token: createInviteToken(),
+      tokenHash: hashToken(token),
       expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       invitedByUserId: context.membership.userId,
     },
@@ -2878,7 +2886,7 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
     },
   });
 
-  const emailMessage = await sendInvitationEmail(invitation);
+  const emailMessage = await sendInvitationEmail(invitation, token);
 
   await prisma.auditLog.create({
     data: {
@@ -2896,7 +2904,7 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
     },
   });
 
-  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
+  return mapInvitation({ ...invitation, rawToken: token, emailMessages: [emailMessage] }, locale);
 }
 
 export async function retryAppInvitationEmail(userId: string, invitationId: string, locale: Locale) {
@@ -2930,7 +2938,34 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
   }
 
   const latestEmail = invitation.emailMessages[0];
-  const emailMessage = latestEmail?.status === EmailStatus.SENT ? latestEmail : await sendInvitationEmail(invitation);
+  let rawToken = "";
+  let invitationForEmail = invitation;
+  let emailMessage = latestEmail;
+
+  if (!latestEmail || latestEmail.status !== EmailStatus.SENT) {
+    rawToken = createInviteToken();
+    invitationForEmail = await prisma.invitation.update({
+      where: {
+        id: invitation.id,
+      },
+      data: {
+        tokenHash: hashToken(rawToken),
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      },
+      include: {
+        tenant: true,
+        orgUnit: true,
+        candidate: true,
+        emailMessages: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+      },
+    });
+    emailMessage = await sendInvitationEmail(invitationForEmail, rawToken);
+  }
 
   await prisma.auditLog.create({
     data: {
@@ -2943,7 +2978,7 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
     },
   });
 
-  return mapInvitation({ ...invitation, emailMessages: [emailMessage] }, locale);
+  return mapInvitation({ ...invitationForEmail, rawToken, emailMessages: emailMessage ? [emailMessage] : [] }, locale);
 }
 
 export async function revokeAppInvitation(userId: string, invitationId: string, locale: Locale) {

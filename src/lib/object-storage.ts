@@ -12,7 +12,6 @@ const allowedContentTypes = new Set([
   "image/gif",
   "image/jpeg",
   "image/png",
-  "image/svg+xml",
   "image/webp",
   "video/mp4",
   "video/quicktime",
@@ -202,8 +201,60 @@ function assertUploadAllowed(file: File) {
   }
 
   if (file.type && !allowedContentTypes.has(file.type)) {
-    throw new Error("Tento typ souboru zatím není povolený. Nahrajte PDF, obrázek nebo MP4 video.");
+    throw new Error("Tento typ souboru zatím není povolený. Nahrajte PDF, obrázek, MP4 nebo MOV video.");
   }
+}
+
+function startsWith(bytes: Buffer, signature: number[]) {
+  return signature.every((value, index) => bytes[index] === value);
+}
+
+function ascii(bytes: Buffer, start: number, end: number) {
+  return bytes.subarray(start, end).toString("ascii");
+}
+
+function detectedContentType(bytes: Buffer, declaredType: string, fileName: string) {
+  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) {
+    return "application/pdf";
+  }
+
+  if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    return "image/png";
+  }
+
+  if (startsWith(bytes, [0xff, 0xd8, 0xff])) {
+    return "image/jpeg";
+  }
+
+  if (ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a") {
+    return "image/gif";
+  }
+
+  if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP") {
+    return "image/webp";
+  }
+
+  if (bytes.length > 12 && ascii(bytes, 4, 8) === "ftyp") {
+    const lowerName = fileName.toLowerCase();
+
+    if (declaredType === "video/quicktime" || lowerName.endsWith(".mov")) {
+      return "video/quicktime";
+    }
+
+    return "video/mp4";
+  }
+
+  return "";
+}
+
+function assertUploadBytesAllowed(file: File, bytes: Buffer) {
+  const contentType = detectedContentType(bytes, file.type || "", file.name || "");
+
+  if (!contentType || !allowedContentTypes.has(contentType)) {
+    throw new Error("Soubor neodpovídá povolenému formátu. Nahrajte PDF, obrázek, MP4 nebo MOV video.");
+  }
+
+  return contentType;
 }
 
 async function bodyToBuffer(body: GetObjectCommandOutput["Body"]) {
@@ -231,6 +282,7 @@ export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTa
   const bucket = driver === s3StorageProvider ? storageBucket() : "";
   const fileName = safeFileName(file.name || "asset");
   const bytes = Buffer.from(await file.arrayBuffer());
+  const contentType = assertUploadBytesAllowed(file, bytes);
   const checksumSha256 = createHash("sha256").update(bytes).digest("hex");
   const key = [
     "tenants",
@@ -253,7 +305,7 @@ export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTa
       publicUrl: "",
       fileName,
       originalName: file.name || fileName,
-      contentType: file.type || "application/octet-stream",
+      contentType,
       byteSize: file.size,
       checksumSha256,
     };
@@ -264,7 +316,7 @@ export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTa
       Bucket: bucket,
       Key: key,
       Body: bytes,
-      ContentType: file.type || "application/octet-stream",
+      ContentType: contentType,
       Metadata: {
         "ad-code": adCode,
         "tenant-slug": tenantSlug,
@@ -281,7 +333,7 @@ export async function uploadAdAssetObject({ tenantSlug, adCode, file }: UploadTa
     publicUrl: publicObjectUrl(key),
     fileName,
     originalName: file.name || fileName,
-    contentType: file.type || "application/octet-stream",
+    contentType,
     byteSize: file.size,
     checksumSha256,
   };

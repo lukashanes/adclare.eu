@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
 type RateLimitOptions = {
@@ -18,6 +18,10 @@ function bucketKey(scope: string, identifier: string) {
   return createHash("sha256").update(`${scope}:${identifier}`).digest("base64url");
 }
 
+function bucketId() {
+  return `rl_${randomBytes(12).toString("base64url")}`;
+}
+
 export function requestIp(request: Request) {
   return (
     request.headers.get("cf-connecting-ip") ??
@@ -31,62 +35,30 @@ export async function checkRateLimit({ scope, identifier, limit, windowMs }: Rat
   const now = new Date();
   const resetAt = new Date(now.getTime() + windowMs);
   const key = bucketKey(scope, identifier || "unknown");
-  const existing = await prisma.rateLimitBucket.findUnique({
-    where: {
-      key,
-    },
-  });
-
-  if (!existing || existing.resetAt.getTime() <= now.getTime()) {
-    const bucket = await prisma.rateLimitBucket.upsert({
-      where: {
-        key,
-      },
-      update: {
-        scope,
-        identifier,
-        count: 1,
-        resetAt,
-      },
-      create: {
-        key,
-        scope,
-        identifier,
-        count: 1,
-        resetAt,
-      },
-    });
-
-    return {
-      allowed: true,
-      remaining: Math.max(0, limit - bucket.count),
-      resetAt: bucket.resetAt,
-    };
-  }
-
-  if (existing.count >= limit) {
-    return {
-      allowed: false,
-      remaining: 0,
-      resetAt: existing.resetAt,
-    };
-  }
-
-  const bucket = await prisma.rateLimitBucket.update({
-    where: {
-      key,
-    },
-    data: {
-      count: {
-        increment: 1,
-      },
-    },
-  });
+  const [bucket] = await prisma.$queryRaw<Array<{ count: number; resetAt: Date }>>`
+    INSERT INTO "rate_limit_buckets" ("id", "key", "scope", "identifier", "count", "resetAt", "createdAt", "updatedAt")
+    VALUES (${bucketId()}, ${key}, ${scope}, ${identifier || "unknown"}, 1, ${resetAt}, ${now}, ${now})
+    ON CONFLICT ("key") DO UPDATE SET
+      "scope" = EXCLUDED."scope",
+      "identifier" = EXCLUDED."identifier",
+      "count" = CASE
+        WHEN "rate_limit_buckets"."resetAt" <= ${now} THEN 1
+        ELSE LEAST("rate_limit_buckets"."count" + 1, ${limit + 1})
+      END,
+      "resetAt" = CASE
+        WHEN "rate_limit_buckets"."resetAt" <= ${now} THEN ${resetAt}
+        ELSE "rate_limit_buckets"."resetAt"
+      END,
+      "updatedAt" = ${now}
+    RETURNING "count", "resetAt"
+  `;
+  const count = Number(bucket?.count ?? limit + 1);
+  const bucketResetAt = bucket?.resetAt ?? resetAt;
 
   return {
-    allowed: true,
-    remaining: Math.max(0, limit - bucket.count),
-    resetAt: bucket.resetAt,
+    allowed: count <= limit,
+    remaining: Math.max(0, limit - count),
+    resetAt: bucketResetAt,
   };
 }
 
