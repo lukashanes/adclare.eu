@@ -97,13 +97,13 @@ npm run dev
 Standalone Docker deployment:
 
 ```bash
-cp .env.example .env
-printf "SITE_ADDRESS=adclare.example.org\nAPP_URL=https://adclare.example.org\nNEXT_PUBLIC_APP_URL=https://adclare.example.org\n" >> .env
+cp production.env.example .env
+# Edit .env: domain, database password, email, Turnstile and storage.
 docker compose up -d --build
 ```
 
 The root Compose file starts PostgreSQL, runs database migrations, starts the app and serves it through Caddy. Set `SITE_ADDRESS`, `APP_URL` and `NEXT_PUBLIC_APP_URL` to your real domain before using it outside local testing.
-The example environment keeps Turnstile optional so the first local run works; enable `TURNSTILE_REQUIRED=1` with real Cloudflare keys before public production use.
+The local `.env.example` keeps Turnstile and email optional so development starts quickly. A public instance should start from `production.env.example`, use real email and Turnstile values, and pass the launch preflight before inviting users.
 
 Production deployment behind an existing reverse proxy can use:
 
@@ -136,9 +136,9 @@ Important environment variables:
 - `DATABASE_URL`: PostgreSQL connection string.
 - `APP_URL` and `NEXT_PUBLIC_APP_URL`: public URL of the instance. `APP_URL` is used at runtime by server-side links, feeds and metadata.
 - `EMAIL_FROM`: sender identity for transactional email.
-- `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: optional Cloudflare Email Service credentials.
+- `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: Cloudflare Email Service credentials. Optional for local development, required by the production preflight before real users are invited.
 - `ADCLARE_LOG_EMAIL_LINKS`: local development fallback for magic links; set to `0` to disable console output.
-- `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: optional Cloudflare Turnstile protection.
+- `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile protection. Optional for local development, required by the production preflight for public instances.
 - `ADCLARE_STORAGE_DRIVER`: `local` by default; set to `s3` for Hetzner Object Storage or another S3-compatible bucket.
 - `ADCLARE_LOCAL_STORAGE_DIR`: local uploaded asset directory; defaults to `.data/uploads` in local development and `/data/uploads` in Docker.
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.

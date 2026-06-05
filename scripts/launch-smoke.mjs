@@ -98,8 +98,13 @@ check(!composeProd.includes("ENABLE_DEMO_ADMIN") && !composeProd.includes("ADMIN
 const rootCompose = read("docker-compose.yml");
 check(rootCompose.includes("migrate:"), "Root Docker compose should run database migrations for one-command self-hosting.");
 check(rootCompose.includes("service_completed_successfully"), "Root Docker compose web service should wait for migrations.");
+check(rootCompose.includes("POSTGRES_DB: ${POSTGRES_DB:-adclare_dev}") && rootCompose.includes("POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adclare_dev_password}"), "Root Docker compose should accept production database values from .env while preserving local defaults.");
+check(rootCompose.includes("DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public}"), "Root Docker compose should use an in-network Docker database URL while preserving local npm DATABASE_URL.");
 check(rootCompose.includes("TURNSTILE_REQUIRED: ${TURNSTILE_REQUIRED:-0}"), "Root Docker compose should allow first local run before Turnstile is configured.");
 check(rootCompose.includes("OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-}"), "Root Docker compose should pass object storage configuration.");
+check(existsSync(resolve(root, "production.env.example")), "Production environment template is missing.");
+check(read(".env.example").includes("POSTGRES_DB=adclare_dev") && read(".env.example").includes("DOCKER_DATABASE_URL=postgresql://adclare:adclare_dev_password@db:5432/adclare_dev?schema=public"), "Local .env.example should keep root Docker database values aligned.");
+check(read("production.env.example").includes("POSTGRES_DB=adclare_prod") && read("production.env.example").includes("DOCKER_DATABASE_URL=postgresql://adclare:replace_with_generated_database_password@db:5432/adclare_prod?schema=public"), "Production env template should keep root Docker database values aligned.");
 check(read("deploy/caddy/Caddyfile").includes("{$SITE_ADDRESS:localhost}"), "Caddy should use SITE_ADDRESS instead of a hard-coded adclare.eu domain.");
 check(appAuth.includes("publicAppUrl()") && !appAuth.includes("https://adclare.eu"), "Login links should use instance URL configuration, not adclare.eu fallback.");
 check(workspaceDb.includes("publicAppUrl()") && !workspaceDb.includes("https://adclare.eu"), "Invite, QR and public URLs should use instance URL configuration, not adclare.eu fallback.");
