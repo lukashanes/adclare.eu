@@ -202,9 +202,9 @@ GitHub Actions runs the same app checks plus Docker build checks for pushes, tag
 
 ## Current Release
 
-The current public beta release is `v0.2.0-beta.2`.
+The current public beta release is `v0.2.0-beta.3`.
 
-See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-v0.2.0-beta.2.md](docs/release-notes-v0.2.0-beta.2.md).
+See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-v0.2.0-beta.3.md](docs/release-notes-v0.2.0-beta.3.md).
 
 ## Support
 
