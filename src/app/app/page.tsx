@@ -61,7 +61,7 @@ export default async function AppPage() {
               href={`/repo/${workspace.tenant.slug}?locale=cs`}
               className="inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 font-semibold text-[#25282d] hover:border-[#f45d1f]"
             >
-              Veřejný repozitář
+              Veřejný archiv
               <ArrowUpRight size={15} />
             </Link>
             <form action="/api/logout" method="post">

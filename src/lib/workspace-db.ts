@@ -3731,8 +3731,8 @@ export async function prepareAppAuditExport(userId: string, code: string) {
       actor: context.membership.user.email,
       actorUserId: context.membership.userId,
       action: "prepare_audit_export",
-      messageCs: `Připraven auditní export pro reklamu ${ad.code}.`,
-      messageEn: `Audit export prepared for ad ${ad.code}.`,
+      messageCs: `Připraven balíček pro kontrolu reklamy ${ad.code}.`,
+      messageEn: `Control package prepared for ad ${ad.code}.`,
     },
   });
 

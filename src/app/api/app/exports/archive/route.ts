@@ -44,15 +44,15 @@ export async function GET(request: Request) {
   const readme =
     locale === "cs"
       ? [
-          "Kontrolní archiv Adclare.",
+          "Balíček pro kontrolu Adclare.",
           "",
-          "Balík obsahuje evidenci reklam, kampaně, pobočky, kandidáty, podklady, schvalování a auditní stopu podle rozsahu přihlášeného uživatele.",
+          "Balík obsahuje evidenci reklam, kampaně, pobočky, kandidáty, soubory, schvalování a historii změn podle rozsahu přihlášeného uživatele.",
           "Soubor archive.json obsahuje kompletní strukturovaná data. CSV soubory slouží pro rychlé otevření v tabulkovém editoru.",
         ].join("\n")
       : [
-          "Adclare control archive.",
+          "Adclare control package.",
           "",
-          "The package contains ads, campaigns, branches, candidates, assets, approvals and audit trail according to the signed-in user's access scope.",
+          "The package contains ads, campaigns, branches, candidates, files, approvals and change history according to the signed-in user's access scope.",
           "archive.json contains the full structured data. CSV files are included for quick spreadsheet review.",
         ].join("\n");
 

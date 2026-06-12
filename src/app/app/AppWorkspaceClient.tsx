@@ -305,11 +305,11 @@ function adProcessSteps(ad: AdRecord): AdProcessStep[] {
     },
     {
       key: "ttpa",
-      title: "8. V souladu s TTPA",
+      title: "8. Hotovo pro TTPA",
       text: published
-        ? "Výsledek: reklama má označení, QR, transparentní oznámení a auditní balíček."
-        : "Cíl: mít hotové podklady pro Nařízení EU o transparentnosti a cílení politické reklamy (TTPA).",
-      nextAction: approved ? "Publikujte reklamu a držte auditní balíček k dispozici." : "Dokončete kontrolu, QR a transparentní oznámení.",
+        ? "Reklama má označení, QR kód, veřejné oznámení a balíček pro kontrolu."
+        : "Cíl: mít hotové údaje a výstupy, které TTPA u politické reklamy vyžaduje.",
+      nextAction: approved ? "Publikujte reklamu a stáhněte balíček pro kontrolu." : "Dokončete kontrolu, QR kód a veřejné oznámení.",
       done: published,
     },
   ];
@@ -427,9 +427,9 @@ function draftProcessSteps(form: EditableAdInput, ad: AdRecord | null): AdProces
     },
     {
       key: "ttpa",
-      title: "8. Výsledek TTPA",
-      text: published ? "Reklama má výstupy a auditní balíček." : "Výsledek vznikne po kontrole, QR a transparentním oznámení.",
-      nextAction: "Dokončete kontrolu, označení, QR a auditní balíček.",
+      title: "8. Hotovo pro TTPA",
+      text: published ? "Reklama má QR kód, veřejné oznámení a balíček pro kontrolu." : "Výsledek vznikne po kontrole, QR kódu a veřejném oznámení.",
+      nextAction: "Dokončete kontrolu, označení, QR kód a balíček pro kontrolu.",
       done: published,
     },
   ];
@@ -511,7 +511,7 @@ function setupProgress(workspace: AppWorkspacePayload) {
     {
       key: "review",
       title: "7. Schválit a označit",
-      text: hasReviewFlow ? "Reklamy už běží kontrolou, schválením nebo publikací." : "Po doplnění údajů přijde kontrola, QR kód a transparentní oznámení.",
+      text: hasReviewFlow ? "Reklamy už běží kontrolou, schválením nebo zveřejněním." : "Po doplnění údajů přijde kontrola, QR kód a veřejné oznámení.",
       done: hasReviewFlow,
       href: workspace.counts.review > 0 ? "#review" : "#ads",
       action: workspace.counts.review > 0 ? "Otevřít kontrolu" : "Pokračovat",
@@ -519,11 +519,11 @@ function setupProgress(workspace: AppWorkspacePayload) {
     },
     {
       key: "ttpa",
-      title: "8. V souladu s TTPA",
-      text: hasReadyOutput ? "Výsledek: označení, QR, oznámení a auditní balíček jsou připravené." : "Cíl: reklama má podklady pro soulad s Nařízením EU o transparentnosti a cílení politické reklamy.",
+      title: "8. Hotovo pro TTPA",
+      text: hasReadyOutput ? "QR kód, veřejné oznámení a balíček pro kontrolu jsou připravené." : "Cíl: reklama má údaje a výstupy, které TTPA vyžaduje.",
       done: hasPublishedAds || hasReadyOutput,
       href: workspace.counts.needsData > 0 ? "#missing-data" : "#ads",
-      action: hasReadyOutput ? "Stáhnout výstupy" : "Doplnit mezery",
+      action: hasReadyOutput ? "Stáhnout výstupy" : "Doplnit, co chybí",
       visible: true,
     },
   ].filter((item) => item.visible);
@@ -596,14 +596,14 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       {
         id: "ads" as const,
         label: "Reklamy",
-        description: "Evidence, údaje, QR a detail materiálu.",
+        description: "Založit reklamu, doplnit údaje a stáhnout QR.",
         count: workspace.counts.all,
         visible: true,
       },
       {
         id: "review" as const,
         label: "Ke kontrole",
-        description: "Schválení, publikace a položky k doplnění.",
+        description: "Co chybí, co schválit a co zveřejnit.",
         count: reviewCount + missingCount,
         visible: reviewable || reviewCount > 0 || missingCount > 0,
       },
@@ -630,8 +630,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       },
       {
         id: "archive" as const,
-        label: "Archiv",
-        description: "Kontrolní exporty a auditní stopa.",
+        label: "Kontrola",
+        description: "Balíčky pro kontrolu a historie změn.",
         count: workspace.permissions.canViewAudit ? workspace.auditLogs.length : undefined,
         visible: workspace.permissions.canExportArchive || workspace.permissions.canViewAudit,
       },
@@ -1347,7 +1347,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Pracovní prostor</p>
           <h1 className="mt-2 text-3xl font-semibold text-black">Adclare pro {workspace.tenant.name}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#59616b]">
-            Reklamy, pobočky, schvalování, QR kódy a archiv jsou rozdělené do jasných pracovních částí. {accessSentence(workspace)}
+            Tady připravíte reklamy pro TTPA: doplníte povinné údaje, nahrajete materiály, schválíte výstupy, stáhnete QR kódy a balíčky pro kontrolu. {accessSentence(workspace)}
           </p>
           {error ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
         </article>
@@ -1876,9 +1876,9 @@ function EditorGuidancePanel({ steps, missingItems, canSaveDraft }: { steps: AdP
         <div className="inline-flex rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/70">
           {doneCount}/8 hotovo
         </div>
-        <h3 className="mt-3 text-lg font-semibold">Doplnění pro TTPA</h3>
+        <h3 className="mt-3 text-lg font-semibold">Co chybí pro TTPA</h3>
         <p className="mt-2 text-sm leading-6 text-white/72">
-          Formulář vede reklamu k podkladům pro Nařízení EU o transparentnosti a cílení politické reklamy (TTPA). Schválení počká na kompletní údaje, podklad, QR a transparentní oznámení.
+          Formulář vás vede přes údaje, které mají být u politické reklamy hotové před zveřejněním. Dokud něco chybí, reklama nepůjde uzavřít.
         </p>
       </div>
 
@@ -1894,7 +1894,7 @@ function EditorGuidancePanel({ steps, missingItems, canSaveDraft }: { steps: AdP
       </div>
 
       <div className="rounded-md border border-white/12 bg-white/8 p-3">
-        <div className="text-sm font-semibold">{missingItems.length ? "Chybí pro další krok" : "Údaje ve formuláři"}</div>
+        <div className="text-sm font-semibold">{missingItems.length ? "Co ještě chybí" : "Údaje ve formuláři"}</div>
         {missingItems.length ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {missingItems.slice(0, 10).map((item) => (
@@ -2173,7 +2173,7 @@ function OnboardingPanel({
         <div>
           <h2 className="text-lg font-semibold text-black">Proces pro každou reklamu</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-            Osm jasných kroků od založení reklamy po výsledek: označení, QR kód, transparentní oznámení a auditní balíček pro soulad s TTPA.
+            Osm kroků od založení reklamy po výsledek: povinné údaje, materiál, kontrola, QR kód, veřejné oznámení a balíček pro kontrolu.
           </p>
         </div>
         <div className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#25282d]">
@@ -2398,7 +2398,7 @@ function ProfilePanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-black">Můj profil</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Jméno se zobrazuje v týmu, auditní stopě a schvalování.</p>
+          <p className="mt-1 text-sm text-[#59616b]">Jméno se zobrazuje v týmu, historii změn a schvalování.</p>
         </div>
         {message ? <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800">{message}</span> : null}
       </div>
@@ -3077,9 +3077,9 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
     ["README.txt", "stručný popis exportu"],
     ["manifest.json", "kontrolní seznam souborů a SHA-256 otisků"],
     ["archive.json", "kompletní strukturovaná data"],
-    ["ads.csv", "reklamy a transparentní odkazy"],
+    ["ads.csv", "reklamy a veřejné odkazy"],
     ["campaigns.csv, branches.csv, candidates.csv", "kampaně, pobočky a kandidáti"],
-    ["assets.csv, approvals.csv, audit-log.csv", "podklady, schválení a auditní stopa"],
+    ["assets.csv, approvals.csv, audit-log.csv", "podklady, schválení a historie změn"],
     ["access-members.csv, access-invitations.csv", "přístupy, pokud je máte ve svém oprávnění"],
   ];
   const lastAuditLog = [...workspace.auditLogs].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0] ?? null;
@@ -3091,11 +3091,11 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 rounded-md border border-[#f45d1f]/20 bg-[#fff4ef] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">
               <FileArchive size={14} />
-              Kontrolní archiv
+              Balíčky pro kontrolu
             </div>
             <h2 className="mt-3 text-lg font-semibold text-black">Jeden balík pro kontrolu i vlastní archiv</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-              ZIP obsahuje reklamy, kampaně, pobočky, kandidáty, podklady, schvalování a auditní stopu podle vašeho přístupu.
+              ZIP obsahuje reklamy, kampaně, pobočky, kandidáty, soubory, schválení a historii změn podle vašeho přístupu.
             </p>
           </div>
           <button
@@ -3152,11 +3152,11 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
       <aside className="grid h-fit gap-3 rounded-md border border-black/10 bg-[#11161c] p-4 text-white xl:sticky xl:top-4">
         <div>
           <div className="inline-flex rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/70">
-            audit
+            historie
           </div>
           <h3 className="mt-3 text-lg font-semibold">Poslední změna</h3>
           <p className="mt-2 text-sm leading-6 text-white/72">
-            {lastAuditLog ? `${lastAuditLog.actor}: ${lastAuditLog.message}` : "Zatím tu není žádný auditní záznam."}
+            {lastAuditLog ? `${lastAuditLog.actor}: ${lastAuditLog.message}` : "Zatím tu není žádná změna."}
           </p>
         </div>
         <div className="rounded-md border border-white/12 bg-white/8 p-3">
@@ -3166,7 +3166,7 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
           </p>
         </div>
         <div className="rounded-md border border-white/12 bg-white/8 p-3">
-          <div className="text-sm font-semibold">Auditních záznamů</div>
+          <div className="text-sm font-semibold">Záznamů změn</div>
           <p className="mt-1 text-2xl font-semibold">{workspace.auditLogs.length}</p>
         </div>
       </aside>
@@ -3184,7 +3184,7 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
       create_campaign: "Nová kampaň",
       create_candidate: "Nový kandidát",
       create_invitation: "Pozvánka",
-      export_workspace_archive: "Stažení kontrolního archivu",
+      export_workspace_archive: "Stažení balíčku pro kontrolu",
       import_ad: "Import reklamy",
       import_ads_batch: "Import agendy",
       login_magic_link: "Přihlášení e-mailem",
@@ -3220,8 +3220,8 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
     <section id="audit" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-black">Audit</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Poslední změny v pracovním prostoru. Slouží pro rychlou kontrolu, kdo co upravil.</p>
+          <h2 className="text-lg font-semibold text-black">Historie změn</h2>
+          <p className="mt-1 text-sm text-[#59616b]">Rychlý přehled, kdo co upravil, schválil, zveřejnil nebo stáhl.</p>
         </div>
         <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">{logs.length} záznamů</span>
       </div>
@@ -3229,7 +3229,7 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
       <div className="mt-4 grid gap-3 lg:grid-cols-4">
         {[
           ["Záznamy", logs.length],
-          ["Lidé v auditní stopě", actorCount],
+          ["Lidé v historii", actorCount],
           ["Typy změn", actionCounts.length],
           ["Poslední změna", latestLog ? new Date(latestLog.createdAt).toLocaleDateString("cs-CZ") : "zatím žádná"],
         ].map(([label, value]) => (
@@ -3270,7 +3270,7 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
             </div>
           </article>
         ))}
-        {logs.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím tu nejsou žádné auditní záznamy.</div> : null}
+        {logs.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím tu nejsou žádné změny.</div> : null}
       </div>
     </section>
   );
@@ -3818,7 +3818,7 @@ function AdComplianceProcess({ ad }: { ad: AdRecord }) {
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-black">Kontrolní proces reklamy</h3>
           <p className="mt-1 text-sm leading-6 text-[#59616b]">
-            Osm bodů od založení po výsledek podle Nařízení EU o transparentnosti a cílení politické reklamy (TTPA).
+            Osm bodů od založení reklamy po výstupy, které potřebujete pro TTPA.
           </p>
         </div>
         <div className="shrink-0 rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#25282d]">
@@ -3919,13 +3919,13 @@ function DetailPanel({
       ready: ad.missing.length === 0,
     },
     {
-      label: "QR balíček",
+      label: "QR kód",
       value: ad.canDownloadQr ? "SVG, PNG, tiskový štítek, manifest a data oznámení." : "Po doplnění povinných údajů půjde stáhnout.",
       ready: ad.canDownloadQr,
     },
     {
-      label: "Auditní balíček",
-      value: "JSON, CSV historie, oznámení a schvalování.",
+      label: "Balíček pro kontrolu",
+      value: "JSON, CSV historie, veřejné oznámení a schvalování.",
       ready: true,
     },
   ];
@@ -3976,7 +3976,7 @@ function DetailPanel({
               Upravit údaje
             </button>
             <a className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-3 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
-              Oznámení
+              Veřejné oznámení
               <ArrowUpRight size={15} />
             </a>
           </div>
@@ -4008,9 +4008,9 @@ function DetailPanel({
                 <QrCode size={14} />
                 Výstupy
               </div>
-              <h3 className="mt-3 text-lg font-semibold text-black">QR, oznámení a audit</h3>
+              <h3 className="mt-3 text-lg font-semibold text-black">QR, veřejné oznámení a kontrola</h3>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-                Zkontrolujte veřejný odkaz, stáhněte QR podklady pro grafiku nebo auditní balíček pro kontrolu.
+                Zkontrolujte veřejný odkaz, stáhněte QR podklady pro grafiku nebo balíček pro kontrolu.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -4022,14 +4022,14 @@ function DetailPanel({
                 }`}
               >
                 <Download size={15} />
-                Stáhnout QR balíček
+                Stáhnout QR kód
               </a>
               <a
                 href={auditPackageHref(ad.id)}
                 className="inline-flex items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d]"
               >
                 <FileArchive size={15} />
-                Stáhnout auditní balíček
+                Stáhnout balíček pro kontrolu
               </a>
             </div>
           </div>
@@ -4094,7 +4094,7 @@ function DetailPanel({
             <AdComplianceProcess ad={ad} />
 
             <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-              <h3 className="text-sm font-semibold text-black">Transparentní oznámení</h3>
+              <h3 className="text-sm font-semibold text-black">Veřejné oznámení</h3>
               <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
                 {rows.map(([label, value]) => (
                   <div key={label} className="grid min-w-0 gap-1 rounded-md border border-black/10 bg-white p-3">
@@ -4164,7 +4164,7 @@ function DetailPanel({
                     ? "Reklama čeká na kontrolu. Můžete ji schválit, nebo ji vrátit k doplnění."
                     : ad.canPublish
                       ? "Reklama je schválená a připravená k publikaci."
-                      : "Záznam je připravený pro transparentní oznámení a exporty."}
+                      : "Záznam je připravený pro veřejné oznámení a exporty."}
               </p>
               <div className="mt-3 grid gap-2">
                 {ad.canApprove ? (

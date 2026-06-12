@@ -22,7 +22,7 @@ export async function GET(request: Request, context: { params: Promise<{ tenant:
   const payload = await getPublicRepositoryPayload(decodeURIComponent(tenant), locale, filtersFromSearchParams(url.searchParams));
 
   if (!payload) {
-    return Response.json({ error: "Repository not found." }, { status: 404 });
+    return Response.json({ error: "Archive not found." }, { status: 404 });
   }
 
   return Response.json(payload, {

@@ -116,7 +116,7 @@ check(workspaceDb.includes("publicWorkflowStatuses"), "Public workflow status al
 check(workspaceDb.includes("in: publicWorkflowStatuses"), "Public repository should only query public workflow statuses.");
 check(workspaceDb.includes('status: "pending" as const'), "Transparency notice should return a pending state for unpublished QR links.");
 check(transparencyPage.includes('notice.status === "pending"'), "Transparency page should handle unpublished QR links without exposing ad details.");
-check(transparencyPage.includes("Transparentní oznámení podle TTPA") && transparencyPage.includes("Veřejný záznam"), "Transparency page should present public TTPA notice structure.");
+check(transparencyPage.includes("Veřejné oznámení podle TTPA") && transparencyPage.includes("Veřejný záznam"), "Transparency page should present public TTPA notice structure.");
 check(transparencyPage.includes("Identifikace reklamy") && transparencyPage.includes("Financování") && transparencyPage.includes("Cílení"), "Transparency page should group public notice data for readers.");
 check(loginRoute.includes("verifyTurnstileToken"), "Login link route should verify Turnstile when configured.");
 check(inviteRoute.includes("verifyTurnstileToken") && inviteRoute.includes("isSameOriginRequest"), "Invite acceptance route should verify Turnstile and same-origin requests when configured.");
@@ -172,12 +172,12 @@ check(appWorkspace.includes("manifest.json") && appWorkspace.includes("SHA-256")
 check(workspaceDb.includes("getAppSuperAdminPayload") && workspaceDb.includes("canManageAllTenants"), "Super admin payload and permission are missing.");
 check(appWorkspace.includes("Správa celé instalace") && appWorkspace.includes("workspace.permissions.canManageAllTenants"), "Workspace should expose the super admin installation overview.");
 check(appWorkspace.includes("Co je potřeba doplnit") && appWorkspace.includes("Doplnit údaje"), "Workspace should expose a missing data action queue.");
-check(appWorkspace.includes("Proces pro každou reklamu") && appWorkspace.includes("8. V souladu s TTPA") && appWorkspace.includes("setupProgress"), "Workspace should expose the eight-step ad process.");
-check(appWorkspace.includes("Kontrolní proces reklamy") && appWorkspace.includes("Nařízení EU o transparentnosti a cílení politické reklamy") && appWorkspace.includes("Teď řešit"), "Workspace should expose a per-ad TTPA checklist.");
+check(appWorkspace.includes("Proces pro každou reklamu") && appWorkspace.includes("8. Hotovo pro TTPA") && appWorkspace.includes("setupProgress"), "Workspace should expose the eight-step ad process.");
+check(appWorkspace.includes("Kontrolní proces reklamy") && appWorkspace.includes("výstupy, které potřebujete pro TTPA") && appWorkspace.includes("Teď řešit"), "Workspace should expose a per-ad TTPA checklist.");
 check(workspaceDb.includes("hasAdAsset") && workspaceDb.includes("Nahrajte podklad reklamy před schválením.") && workspaceDb.includes("Nahrajte podklad reklamy před publikací."), "Approval and publication should require an uploaded ad asset.");
-check(appWorkspace.includes("Doplnění pro TTPA") && appWorkspace.includes("draftProcessSteps") && appWorkspace.includes("Uložit rozpracované"), "Ad editor should expose draft TTPA guidance.");
+check(appWorkspace.includes("Co chybí pro TTPA") && appWorkspace.includes("draftProcessSteps") && appWorkspace.includes("Uložit rozpracované"), "Ad editor should expose draft TTPA guidance.");
 check(appWorkspace.includes("setSelectedId(ad.id)") && appWorkspace.includes("setForm(formFromAd(ad))"), "Editing an ad should select the same ad in the detail panel.");
-check(appWorkspace.includes("QR, oznámení a audit") && appWorkspace.includes("Kopírovat URL") && appWorkspace.includes("Stáhnout QR balíček"), "Ad detail should expose a clear outputs panel with copy and download actions.");
+check(appWorkspace.includes("QR, veřejné oznámení a kontrola") && appWorkspace.includes("Kopírovat URL") && appWorkspace.includes("Stáhnout QR kód"), "Ad detail should expose a clear outputs panel with copy and download actions.");
 check(appWorkspace.includes("Ke kontrole a publikaci") && appWorkspace.includes("ke schválení") && appWorkspace.includes("k publikaci") && appWorkspace.includes("chybí podklad"), "Review inbox should distinguish approval, publication and missing asset states.");
 check(appWorkspace.includes("Přehled kampaní") && appWorkspace.includes("Aktivní pobočky") && appWorkspace.includes("Reklamy kandidátů"), "Workspace should expose campaign, branch and candidate agenda overviews.");
 check(existsSync(resolve(root, "src/app/signup/page.tsx")), "Signup page is missing.");
@@ -204,8 +204,8 @@ check(workspaceClient.includes("runWorkflowAction") && workspaceClient.includes(
 check(workspaceDb.includes("requestAppAdChanges"), "Review change request handler is missing.");
 check(appWorkspace.includes("Ke kontrole") && appWorkspace.includes("Vrátit k doplnění"), "Workspace should expose review inbox and change requests.");
 check(appWorkspace.includes("Historie kontroly") && workspaceDb.includes("mapReviewEvent"), "Workspace should expose review decision history.");
-check(appWorkspace.includes("Stáhnout auditní balíček") && workspaceDb.includes("getAppAuditPackage"), "Workspace should expose app audit packages.");
-check(appWorkspace.includes("Kontrolní archiv") && appWorkspace.includes("Stáhnout archiv") && workspaceDb.includes("getAppArchivePackage"), "Workspace should expose whole-workspace archive exports.");
+check(appWorkspace.includes("Stáhnout balíček pro kontrolu") && workspaceDb.includes("getAppAuditPackage"), "Workspace should expose app audit packages.");
+check(appWorkspace.includes("Balíčky pro kontrolu") && appWorkspace.includes("Stáhnout archiv") && workspaceDb.includes("getAppArchivePackage"), "Workspace should expose whole-workspace archive exports.");
 check(!marketingPage.includes("2FA"), "Marketing page should not claim 2FA before it is implemented.");
 check(requestSecurity.includes("isSameOriginRequest") && appAuth.includes("readCookieFromHeader"), "Shared request security helpers should protect app mutations and sessions.");
 check(!existsSync(resolve(root, "src/app/[locale]/admin")) && !existsSync(resolve(root, "src/app/api/admin")) && !existsSync(resolve(root, "src/lib/admin-auth.ts")), "Removed demo admin routes and auth helpers should stay out of production.");

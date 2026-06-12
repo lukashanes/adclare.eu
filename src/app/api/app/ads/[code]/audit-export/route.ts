@@ -82,11 +82,11 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
   const generatedAt = new Date().toISOString();
   const readme =
     locale === "cs"
-      ? "Auditní balíček obsahuje data reklamy, transparentní oznámení, schvalování a historii auditních událostí.\n"
-      : "The audit package contains ad data, the transparency notice, approvals and audit event history.\n";
+      ? "Balíček pro kontrolu obsahuje data reklamy, veřejné oznámení, schvalování a historii změn.\n"
+      : "The control package contains ad data, the public notice, approvals and change history.\n";
 
   addExportFile(zip, files, "README.txt", readme, "text/plain; charset=utf-8");
-  addExportFile(zip, files, `${auditPackage.ad.id}-audit-package.json`, JSON.stringify(auditPackage, null, 2), "application/json");
+  addExportFile(zip, files, `${auditPackage.ad.id}-control-package.json`, JSON.stringify(auditPackage, null, 2), "application/json");
   addExportFile(zip, files, `${auditPackage.ad.id}-notice.json`, JSON.stringify(auditPackage.notice, null, 2), "application/json");
   addExportFile(zip, files, `${auditPackage.ad.id}-history.csv`, toCsv(auditPackage.auditLogs), "text/csv; charset=utf-8");
   addExportFile(zip, files, `${auditPackage.ad.id}-approvals.csv`, toCsv(auditPackage.approvals), "text/csv; charset=utf-8");

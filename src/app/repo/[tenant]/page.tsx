@@ -18,9 +18,9 @@ type PageProps = {
 const copy = {
   cs: {
     back: "Adclare",
-    title: "Veřejný repozitář politické reklamy",
+    title: "Veřejný archiv politické reklamy",
     description:
-      "Vyhledatelné záznamy reklam, transparentních oznámení a povinných údajů podle nařízení Evropského parlamentu a Rady (EU) 2024/900.",
+      "Vyhledatelné reklamy, veřejná oznámení a povinné údaje podle nařízení Evropského parlamentu a Rady (EU) 2024/900.",
     regulation: "Nařízení (EU) 2024/900",
     total: "Celkem v archivu",
     shown: "Zobrazeno",
@@ -42,13 +42,13 @@ const copy = {
       type: "Typ",
       date: "Zveřejnění",
       status: "Stav",
-      notice: "Oznámení",
+      notice: "Veřejné oznámení",
     },
     online: "online",
     offline: "offline",
     missing: "Chybí",
     notice: "Otevřít",
-    empty: "Pro vybrané filtry nejsou v repozitáři žádné reklamy.",
+    empty: "Pro vybrané filtry nejsou v archivu žádné reklamy.",
     complete: "Povinné údaje vyplněny",
     lastUpdated: "Aktualizace",
     language: "Jazyk",
@@ -56,9 +56,9 @@ const copy = {
   },
   en: {
     back: "Adclare",
-    title: "Public political ad repository",
+    title: "Public political ad archive",
     description:
-      "Searchable ad records, transparency notices and required data under Regulation (EU) 2024/900 of the European Parliament and of the Council.",
+      "Searchable ads, public notices and required data under Regulation (EU) 2024/900 of the European Parliament and of the Council.",
     regulation: "Regulation (EU) 2024/900",
     total: "Total in archive",
     shown: "Shown",
@@ -80,7 +80,7 @@ const copy = {
       type: "Type",
       date: "Publication",
       status: "Status",
-      notice: "Notice",
+      notice: "Public notice",
     },
     online: "online",
     offline: "offline",
@@ -146,13 +146,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!payload) {
     return {
-      title: "Repozitář nenalezen",
+      title: "Archiv nenalezen",
     };
   }
 
   return {
-    title: `Repozitář reklam - ${payload.tenant.name}`,
-    description: `Veřejný repozitář politické reklamy pro ${payload.tenant.name}.`,
+    title: `Archiv reklam - ${payload.tenant.name}`,
+    description: `Veřejný archiv politické reklamy pro ${payload.tenant.name}.`,
   };
 }
 
