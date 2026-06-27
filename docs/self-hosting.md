@@ -4,6 +4,8 @@ Adclare is an open source, self-hosted application for managing political advert
 
 This guide is vendor-neutral. It assumes Docker, PostgreSQL and a reverse proxy or TLS terminator.
 
+For a full list of environment variables, see [docs/configuration.md](configuration.md).
+
 ## Requirements
 
 - A Linux server or local machine with Docker and Docker Compose.
@@ -49,7 +51,21 @@ TURNSTILE_SECRET_KEY='...'
 TURNSTILE_ALLOWED_HOSTNAMES=adclare.example.org
 ```
 
-Run the database and migrations:
+### Option A: one server with included Caddy
+
+Use this when Adclare is the main app on the server and Docker can bind ports `80` and `443`:
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f web
+```
+
+The root Compose file starts PostgreSQL, runs migrations, starts the app and serves HTTPS through Caddy. `SITE_ADDRESS` must contain the real domain.
+
+### Option B: existing reverse proxy
+
+Use this when Nginx, Caddy, Traefik or another proxy already owns ports `80` and `443`:
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d db
@@ -59,8 +75,6 @@ docker compose -f docker-compose.prod.yml up -d --build web
 ```
 
 The production Compose file binds the app to `127.0.0.1:13310`. Put Nginx, Caddy, Traefik or another reverse proxy in front of it and serve HTTPS.
-
-For a single fresh server where Caddy can own ports `80` and `443`, the root `docker-compose.yml` can also be used. Set `SITE_ADDRESS=adclare.example.org`; Caddy reads the domain from that environment variable.
 
 ## First Workspace
 
@@ -96,6 +110,14 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm preflight
 ```
 
 The preflight checks production URLs, Cloudflare Email Service, Turnstile, upload storage, signup mode and backup scripts. It does not send test emails or write to object storage; use `storage:check` separately for the bucket test.
+
+After deployment, run a live smoke test:
+
+```bash
+SMOKE_URL=https://adclare.example.org npm run launch:smoke
+```
+
+It checks `/api/health`, the public Czech homepage, robots, sitemap and security headers.
 
 ## Email
 
@@ -219,6 +241,29 @@ Then open `/signup`, create the first workspace and check that:
 - a published advert opens through its public transparency URL.
 
 If outbound email is not configured, production still records pending login and invitation emails in the `email_messages` table. It does not print one-time links to logs in production.
+
+## What The App Creates
+
+A fresh first-run workspace creates:
+
+- the first organization,
+- the first administrator account,
+- a default headquarters or organization unit,
+- a first campaign,
+- access to `/app` where more users, branches, campaigns, candidates and adverts can be created.
+
+From there the normal flow is:
+
+1. Invite users from `/app`.
+2. Create branches or regions.
+3. Create campaigns and tags.
+4. Add candidate records when the campaign needs candidate-level ownership.
+5. Create adverts.
+6. Complete mandatory TTPA fields.
+7. Upload the advert asset.
+8. Download QR labels or publish the transparency notice.
+9. Approve and publish.
+10. Export the audit package or workspace archive when needed.
 
 ## Security Checklist
 

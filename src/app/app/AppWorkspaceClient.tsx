@@ -1,20 +1,17 @@
 "use client";
 
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleDot, Copy, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, QrCode, RefreshCw, Save, Search, ShieldCheck, Tags, Upload, Users, X } from "lucide-react";
+import { type RefObject, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowUpRight, Building2, CheckCircle2, CircleDot, Copy, Download, Edit3, FileArchive, FileSpreadsheet, FolderKanban, Paperclip, Plus, QrCode, Save, ShieldCheck, Upload, Users } from "lucide-react";
 import type { AdImportResult, AdRecord, AppBranchUpdateInput, AppCampaignInput, AppCandidateInput, AppMemberUpdateInput, AppTenantSettingsInput, AppWorkspacePayload, EditableAdInput, InviteInput } from "@/lib/workspace-types";
+import { AdListPanel } from "./workspace-ad-list";
+import { noticeHref, workflowClass } from "./workspace-ad-ui";
+import { BranchesPanel, CampaignsPanel, CandidatesPanel, SettingsPanel } from "./workspace-admin-panels";
+import { apiError, fetchApiJson, jsonRequest } from "./workspace-api";
+import { Editor } from "./workspace-editor";
+import { PeoplePanel } from "./workspace-people-panel";
 
 type EditorMode = "create" | "edit";
 type WorkspaceSection = "ads" | "review" | "campaigns" | "branches" | "people" | "archive" | "settings";
-
-const workflowClass: Record<AdRecord["workflowStatus"], string> = {
-  DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-  NEEDS_DATA: "border-orange-200 bg-orange-50 text-orange-800",
-  READY_FOR_REVIEW: "border-sky-200 bg-sky-50 text-sky-800",
-  APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  PUBLISHED: "border-[#b9e0d2] bg-[#ecf8f2] text-[#0f6b45]",
-  ARCHIVED: "border-neutral-200 bg-neutral-50 text-neutral-700",
-};
 
 const workspaceSectionIds = ["ads", "review", "campaigns", "branches", "people", "archive", "settings"] as const;
 
@@ -26,10 +23,10 @@ function sectionFromHash(hash: string): WorkspaceSection | null {
 
 function accessSentence(workspace: AppWorkspacePayload) {
   if (workspace.membership.scope === "celá strana") {
-    return "Vidíte data celé strany.";
+    return "Zobrazují se všechna data.";
   }
 
-  return `Vidíte data pro ${workspace.membership.scope}.`;
+  return `Zobrazují se data pro ${workspace.membership.scope}.`;
 }
 
 function canManageAds(workspace: AppWorkspacePayload) {
@@ -52,30 +49,44 @@ function initialSelectedAdId(workspace: AppWorkspacePayload) {
   return workspace.ads[0]?.id ?? "";
 }
 
-function countsForAds(ads: AdRecord[]): AppWorkspacePayload["counts"] {
+function countFlagsForAd(ad: AdRecord): AppWorkspacePayload["counts"] {
   return {
-    all: ads.length,
-    needsData: ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA").length,
-    review: ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW").length,
-    approved: ads.filter((ad) => ad.workflowStatus === "APPROVED").length,
-    published: ads.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
-    blocked: ads.filter((ad) => ad.status === "blocked").length,
+    all: 1,
+    needsData: ad.workflowStatus === "NEEDS_DATA" ? 1 : 0,
+    review: ad.workflowStatus === "READY_FOR_REVIEW" ? 1 : 0,
+    approved: ad.workflowStatus === "APPROVED" ? 1 : 0,
+    published: ad.workflowStatus === "PUBLISHED" ? 1 : 0,
+    blocked: ad.status === "blocked" ? 1 : 0,
+  };
+}
+
+function countsWithAdChange(current: AppWorkspacePayload["counts"], previousAd: AdRecord | null, nextAd: AdRecord) {
+  const previous = previousAd ? countFlagsForAd(previousAd) : { all: 0, needsData: 0, review: 0, approved: 0, published: 0, blocked: 0 };
+  const next = countFlagsForAd(nextAd);
+
+  return {
+    all: current.all - previous.all + next.all,
+    needsData: current.needsData - previous.needsData + next.needsData,
+    review: current.review - previous.review + next.review,
+    approved: current.approved - previous.approved + next.approved,
+    published: current.published - previous.published + next.published,
+    blocked: current.blocked - previous.blocked + next.blocked,
   };
 }
 
 function workspaceWithAd(workspace: AppWorkspacePayload, nextAd: AdRecord) {
-  const exists = workspace.ads.some((ad) => ad.id === nextAd.id);
-  const ads = exists ? workspace.ads.map((ad) => (ad.id === nextAd.id ? nextAd : ad)) : [nextAd, ...workspace.ads];
+  const previousAd = workspace.ads.find((ad) => ad.id === nextAd.id) ?? null;
+  const ads = previousAd ? workspace.ads.map((ad) => (ad.id === nextAd.id ? nextAd : ad)) : [nextAd, ...workspace.ads];
 
   return {
     ...workspace,
     ads,
-    counts: countsForAds(ads),
+    adPageInfo: {
+      ...workspace.adPageInfo,
+      total: workspace.adPageInfo.total + (previousAd ? 0 : 1),
+    },
+    counts: countsWithAdChange(workspace.counts, previousAd, nextAd),
   };
-}
-
-function roleNeedsBranch(role: InviteInput["role"]) {
-  return role !== "PARTY_ADMIN" && role !== "CENTRAL_REVIEWER" && role !== "READONLY_AUDITOR" && role !== "SUPER_ADMIN" && role !== "CANDIDATE";
 }
 
 function roleNeedsCandidate(role: InviteInput["role"]) {
@@ -114,10 +125,15 @@ function workspaceWithCandidate(workspace: AppWorkspacePayload, candidate: AppWo
   const candidates = workspace.candidates.some((item) => item.id === candidate.id)
     ? workspace.candidates.map((item) => (item.id === candidate.id ? candidate : item))
     : [candidate, ...workspace.candidates];
+  const activeCandidates = candidates.filter((item) => !item.archived);
 
   return {
     ...workspace,
     candidates,
+    users: {
+      ...workspace.users,
+      candidates: activeCandidates,
+    },
   };
 }
 
@@ -199,32 +215,12 @@ function formFromAd(ad: AdRecord): EditableAdInput {
   };
 }
 
-function noticeHref(publicUrl: string) {
-  try {
-    return new URL(publicUrl).pathname;
-  } catch {
-    return publicUrl;
-  }
-}
-
 function qrPackageHref(adId: string) {
   return `/api/app/ads/${encodeURIComponent(adId)}/qr-package?locale=cs`;
 }
 
 function auditPackageHref(adId: string) {
   return `/api/app/ads/${encodeURIComponent(adId)}/audit-export?locale=cs`;
-}
-
-function deadlineIcon(ad: AdRecord) {
-  if (ad.deadlineState === "overdue") {
-    return <AlertTriangle className="h-4 w-4 text-red-700" aria-hidden="true" />;
-  }
-
-  if (ad.missing.length === 0) {
-    return <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" />;
-  }
-
-  return <CircleDot className="h-4 w-4 text-orange-700" aria-hidden="true" />;
 }
 
 function hasValue(value: string) {
@@ -310,126 +306,6 @@ function adProcessSteps(ad: AdRecord): AdProcessStep[] {
         ? "Reklama má označení, QR kód, veřejné oznámení a balíček pro kontrolu."
         : "Cíl: mít hotové údaje a výstupy, které TTPA u politické reklamy vyžaduje.",
       nextAction: approved ? "Publikujte reklamu a stáhněte balíček pro kontrolu." : "Dokončete kontrolu, QR kód a veřejné oznámení.",
-      done: published,
-    },
-  ];
-}
-
-function draftRequiresTargetingDetails(input: Pick<EditableAdInput, "isTargeted" | "targeting" | "targetAudience">) {
-  const targeting = input.targeting
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-  const noTargetingValues = new Set(["", "nepouzito", "not used", "ne", "no", "false", "0", "bez cileni", "netargetovano", "zadne"]);
-
-  return input.isTargeted || !noTargetingValues.has(targeting);
-}
-
-function draftMissingItems(form: EditableAdInput) {
-  const missing: string[] = [];
-  const requiredFields: Array<[keyof EditableAdInput, string]> = [
-    ["campaignId", "kampaň"],
-    ["title", "název reklamy"],
-    ["branch", "pobočka / oblast"],
-    ["owner", "zadavatel"],
-    ["type", "typ materiálu"],
-    ["publicationDate", "datum zveřejnění"],
-    ["period", "období šíření"],
-    ["distributionArea", "oblast šíření"],
-    ["payer", "plátce"],
-    ["supplier", "dodavatel"],
-    ["amount", "náklady / rozpočet"],
-    ["fundingSource", "původ financí"],
-    ["language", "jazyk"],
-  ];
-
-  for (const [key, label] of requiredFields) {
-    if (!hasValue(String(form[key] ?? ""))) {
-      missing.push(label);
-    }
-  }
-
-  if (draftRequiresTargetingDetails(form)) {
-    if (!hasValue(form.targeting)) {
-      missing.push("popis cílení");
-    }
-
-    if (!hasValue(form.targetAudience)) {
-      missing.push("cílové publikum");
-    }
-  }
-
-  return missing;
-}
-
-function draftProcessSteps(form: EditableAdInput, ad: AdRecord | null): AdProcessStep[] {
-  const coreReady = hasValue(form.title) && hasValue(form.branch) && hasValue(form.campaignId ?? "");
-  const assetReady = (ad?.assetCount ?? 0) > 0;
-  const identityReady = hasValue(form.owner) && hasValue(form.payer);
-  const moneyReady = hasValue(form.amount) && hasValue(form.fundingSource);
-  const publicationReady = hasValue(form.type) && hasValue(form.publicationDate) && hasValue(form.period) && hasValue(form.distributionArea);
-  const targetingNeeded = draftRequiresTargetingDetails(form);
-  const targetingReady = targetingNeeded ? hasValue(form.targeting) && hasValue(form.targetAudience) : true;
-  const readyForReview = draftMissingItems(form).length === 0 && assetReady;
-  const approved = ad?.workflowStatus === "APPROVED" || ad?.workflowStatus === "PUBLISHED";
-  const published = ad?.workflowStatus === "PUBLISHED";
-
-  return [
-    {
-      key: "record",
-      title: "1. Záznam reklamy",
-      text: coreReady ? "Název, kampaň a pobočka jsou vyplněné." : "Založte reklamu v kampani a pobočce.",
-      nextAction: "Doplňte název, kampaň a pobočku.",
-      done: coreReady,
-    },
-    {
-      key: "asset",
-      title: "2. Podklad",
-      text: assetReady ? `${ad?.assetCount ?? 0} souborů je u reklamy.` : "Podklad nahrajete v detailu po uložení záznamu.",
-      nextAction: "Uložte záznam a nahrajte podklad v detailu reklamy.",
-      done: assetReady,
-    },
-    {
-      key: "identity",
-      title: "3. Zadavatel a plátce",
-      text: identityReady ? "Zadavatel a plátce jsou vyplnění." : "Musí být jasné, kdo reklamu zadal a kdo ji platí.",
-      nextAction: "Doplňte zadavatele a plátce.",
-      done: identityReady,
-    },
-    {
-      key: "money",
-      title: "4. Náklady a financování",
-      text: moneyReady ? "Náklady a původ financí jsou vyplněné." : "Doplňte náklady nebo rozpočet a původ financí.",
-      nextAction: "Doplňte náklady a původ financí.",
-      done: moneyReady,
-    },
-    {
-      key: "publication",
-      title: "5. Zveřejnění",
-      text: publicationReady ? "Typ, datum, období a oblast jsou vyplněné." : "Datum zveřejnění určuje, kdy už nesmí chybět povinné údaje.",
-      nextAction: "Doplňte typ, datum, období a oblast šíření.",
-      done: publicationReady,
-    },
-    {
-      key: "targeting",
-      title: "6. Cílení",
-      text: targetingReady ? (targetingNeeded ? "Cílení a publikum jsou popsané." : "Reklama není vedená jako cílená.") : "U cílené reklamy chybí popis cílení nebo publikum.",
-      nextAction: "Doplňte cílení a cílové publikum, nebo cílení vypněte.",
-      done: targetingReady,
-    },
-    {
-      key: "approval",
-      title: "7. Kontrola",
-      text: approved ? "Reklama prošla kontrolou." : readyForReview ? "Po uložení může reklama do kontroly." : "Kontrola čeká na kompletní údaje a podklad.",
-      nextAction: readyForReview ? "Uložte záznam a pokračujte ke kontrole." : "Doplňte chybějící údaje a podklad.",
-      done: approved,
-    },
-    {
-      key: "ttpa",
-      title: "8. Hotovo pro TTPA",
-      text: published ? "Reklama má QR kód, veřejné oznámení a balíček pro kontrolu." : "Výsledek vznikne po kontrole, QR kódu a veřejném oznámení.",
-      nextAction: "Dokončete kontrolu, označení, QR kód a balíček pro kontrolu.",
       done: published,
     },
   ];
@@ -544,6 +420,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [actioning, setActioning] = useState("");
   const [uploading, setUploading] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMoreAds, setLoadingMoreAds] = useState(false);
   const [branchName, setBranchName] = useState("");
   const [branchKind, setBranchKind] = useState("oblast");
   const [branchSaving, setBranchSaving] = useState(false);
@@ -588,9 +465,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const writable = canManageAds(workspace);
   const reviewable = canReviewAds(workspace);
   const progress = setupProgress(workspace);
+  const deferredQuery = useDeferredValue(query);
   const sections = useMemo(() => {
-    const missingCount = workspace.ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length;
-    const reviewCount = workspace.ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED").length;
+    const missingCount = workspace.counts.needsData;
+    const reviewCount = workspace.counts.review + workspace.counts.approved;
 
     return [
       {
@@ -638,14 +516,14 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       {
         id: "settings" as const,
         label: "Nastavení",
-        description: "Profil, pracovní prostor a instalace.",
+        description: "Profil, organizace a instalace.",
         visible: true,
       },
     ].filter((section) => section.visible);
   }, [reviewable, workspace]);
   const activeSection = sections.some((section) => section.id === activeSectionId) ? activeSectionId : "ads";
   const filteredAds = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = deferredQuery.trim().toLowerCase();
 
     if (!normalized) {
       return workspace.ads;
@@ -656,13 +534,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         value.toLowerCase().includes(normalized),
       ),
     );
-  }, [query, workspace.ads]);
+  }, [deferredQuery, workspace.ads]);
 
   useEffect(() => {
-    let lastHash = window.location.hash;
-
     function syncSectionFromHash() {
-      lastHash = window.location.hash;
       const section = sectionFromHash(window.location.hash);
 
       if (section) {
@@ -673,16 +548,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     syncSectionFromHash();
     window.addEventListener("hashchange", syncSectionFromHash);
     window.addEventListener("popstate", syncSectionFromHash);
-    const hashInterval = window.setInterval(() => {
-      if (window.location.hash !== lastHash) {
-        syncSectionFromHash();
-      }
-    }, 250);
 
     return () => {
       window.removeEventListener("hashchange", syncSectionFromHash);
       window.removeEventListener("popstate", syncSectionFromHash);
-      window.clearInterval(hashInterval);
     };
   }, []);
 
@@ -691,19 +560,55 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch("/api/app/ads?locale=cs", { cache: "no-store" });
+      const { response, payload } = await fetchApiJson<AppWorkspacePayload>("/api/app/ads?locale=cs", { cache: "no-store" });
 
       if (!response.ok) {
-        throw new Error(`Refresh failed with ${response.status}`);
+        throw apiError(payload, response, "Refresh failed");
       }
 
-      const payload = (await response.json()) as AppWorkspacePayload;
       setWorkspace(payload);
       setSelectedId((current) => (payload.ads.some((ad) => ad.id === current) ? current : initialSelectedAdId(payload)));
     } catch {
       setError("Data se nepodařilo načíst. Zkuste obnovit stránku.");
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function loadMoreAds() {
+    if (!workspace.adPageInfo.hasMore || !workspace.adPageInfo.nextCursor || loadingMoreAds) {
+      return;
+    }
+
+    setLoadingMoreAds(true);
+    setError("");
+
+    try {
+      const params = new URLSearchParams({
+        locale: "cs",
+        cursor: workspace.adPageInfo.nextCursor,
+        limit: String(workspace.adPageInfo.limit),
+      });
+      const { response, payload } = await fetchApiJson<AppWorkspacePayload>(`/api/app/ads?${params.toString()}`, { cache: "no-store" });
+
+      if (!response.ok) {
+        throw apiError(payload, response, "Load more failed");
+      }
+
+      setWorkspace((current) => {
+        const knownIds = new Set(current.ads.map((ad) => ad.id));
+        const nextAds = [...current.ads, ...payload.ads.filter((ad) => !knownIds.has(ad.id))];
+
+        return {
+          ...payload,
+          ads: nextAds,
+        };
+      });
+      setSelectedId((current) => current || payload.ads[0]?.id || "");
+    } catch {
+      setError("Další reklamy se nepodařilo načíst.");
+    } finally {
+      setLoadingMoreAds(false);
     }
   }
 
@@ -716,24 +621,20 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch("/api/app/branches?locale=cs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { response, payload } = await fetchApiJson<{ branch?: AppWorkspacePayload["branches"][number]; error?: string }>(
+        "/api/app/branches?locale=cs",
+        jsonRequest("POST", {
           name: branchName,
           kind: branchKind,
         }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      );
 
-      if (!response.ok) {
-        throw new Error(payload.error || `Branch create failed with ${response.status}`);
+      if (!response.ok || !payload.branch) {
+        throw apiError(payload, response, "Branch create failed");
       }
 
+      setWorkspace((current) => workspaceWithBranch(current, payload.branch as AppWorkspacePayload["branches"][number]));
       setBranchName("");
-      await refreshWorkspace();
     } catch (branchError) {
       setError(branchError instanceof Error ? branchError.message : "Pobočku se nepodařilo založit.");
     } finally {
@@ -751,17 +652,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch("/api/app/settings?locale=cs", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { tenant?: AppWorkspacePayload["tenant"]; error?: string };
+      const { response, payload } = await fetchApiJson<{ tenant?: AppWorkspacePayload["tenant"]; error?: string }>(
+        "/api/app/settings?locale=cs",
+        jsonRequest("PATCH", input),
+      );
 
       if (!response.ok || !payload.tenant) {
-        throw new Error(payload.error || `Settings update failed with ${response.status}`);
+        throw apiError(payload, response, "Settings update failed");
       }
 
       setWorkspace((current) => ({
@@ -769,7 +666,6 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         tenant: payload.tenant as AppWorkspacePayload["tenant"],
       }));
       setSettingsMessage("Nastavení je uložené.");
-      await refreshWorkspace();
     } catch (settingsError) {
       setError(settingsError instanceof Error ? settingsError.message : "Nastavení se nepodařilo uložit.");
     } finally {
@@ -786,17 +682,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch(`/api/app/branches/${encodeURIComponent(branchId)}?locale=cs`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { branch?: AppWorkspacePayload["branches"][number]; error?: string };
+      const { response, payload } = await fetchApiJson<{ branch?: AppWorkspacePayload["branches"][number]; error?: string }>(
+        `/api/app/branches/${encodeURIComponent(branchId)}?locale=cs`,
+        jsonRequest("PATCH", input),
+      );
 
       if (!response.ok || !payload.branch) {
-        throw new Error(payload.error || `Branch update failed with ${response.status}`);
+        throw apiError(payload, response, "Branch update failed");
       }
 
       setWorkspace((current) => workspaceWithBranch(current, payload.branch as AppWorkspacePayload["branches"][number]));
@@ -817,30 +709,25 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch("/api/app/campaigns?locale=cs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { response, payload } = await fetchApiJson<{ campaign?: AppWorkspacePayload["campaigns"][number]; error?: string }>(
+        "/api/app/campaigns?locale=cs",
+        jsonRequest("POST", {
           name: campaignName,
           election: campaignElection,
           startsAt: campaignStartsAt,
           endsAt: campaignEndsAt,
           tags: campaignTags.split(",").map((tag) => tag.trim()).filter(Boolean),
         } satisfies AppCampaignInput),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { campaign?: AppWorkspacePayload["campaigns"][number]; error?: string };
+      );
 
       if (!response.ok || !payload.campaign) {
-        throw new Error(payload.error || `Campaign create failed with ${response.status}`);
+        throw apiError(payload, response, "Campaign create failed");
       }
 
       setWorkspace((current) => workspaceWithCampaign(current, payload.campaign as AppWorkspacePayload["campaigns"][number]));
       setCampaignName("");
       setCampaignTags("");
       setImportCampaignId((current) => current || payload.campaign?.id || "");
-      await refreshWorkspace();
     } catch (campaignError) {
       setError(campaignError instanceof Error ? campaignError.message : "Kampaň se nepodařilo založit.");
     } finally {
@@ -857,17 +744,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch(`/api/app/campaigns/${encodeURIComponent(campaignId)}?locale=cs`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { campaign?: AppWorkspacePayload["campaigns"][number]; error?: string };
+      const { response, payload } = await fetchApiJson<{ campaign?: AppWorkspacePayload["campaigns"][number]; error?: string }>(
+        `/api/app/campaigns/${encodeURIComponent(campaignId)}?locale=cs`,
+        jsonRequest("PATCH", input),
+      );
 
       if (!response.ok || !payload.campaign) {
-        throw new Error(payload.error || `Campaign update failed with ${response.status}`);
+        throw apiError(payload, response, "Campaign update failed");
       }
 
       setWorkspace((current) => workspaceWithCampaign(current, payload.campaign as AppWorkspacePayload["campaigns"][number]));
@@ -888,27 +771,22 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch("/api/app/candidates?locale=cs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { response, payload } = await fetchApiJson<{ candidate?: AppWorkspacePayload["candidates"][number]; error?: string }>(
+        "/api/app/candidates?locale=cs",
+        jsonRequest("POST", {
           name: candidateName,
           branchId: candidateBranchId,
           ballotNumber: candidateBallotNumber,
         } satisfies AppCandidateInput),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { candidate?: AppWorkspacePayload["candidates"][number]; error?: string };
+      );
 
       if (!response.ok || !payload.candidate) {
-        throw new Error(payload.error || `Candidate create failed with ${response.status}`);
+        throw apiError(payload, response, "Candidate create failed");
       }
 
       setWorkspace((current) => workspaceWithCandidate(current, payload.candidate as AppWorkspacePayload["candidates"][number]));
       setCandidateName("");
       setCandidateBallotNumber("");
-      await refreshWorkspace();
     } catch (candidateError) {
       setError(candidateError instanceof Error ? candidateError.message : "Kandidáta se nepodařilo založit.");
     } finally {
@@ -925,17 +803,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch(`/api/app/candidates/${encodeURIComponent(candidateId)}?locale=cs`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { candidate?: AppWorkspacePayload["candidates"][number]; error?: string };
+      const { response, payload } = await fetchApiJson<{ candidate?: AppWorkspacePayload["candidates"][number]; error?: string }>(
+        `/api/app/candidates/${encodeURIComponent(candidateId)}?locale=cs`,
+        jsonRequest("PATCH", input),
+      );
 
       if (!response.ok || !payload.candidate) {
-        throw new Error(payload.error || `Candidate update failed with ${response.status}`);
+        throw apiError(payload, response, "Candidate update failed");
       }
 
       setWorkspace((current) => workspaceWithCandidate(current, payload.candidate as AppWorkspacePayload["candidates"][number]));
@@ -965,19 +839,15 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
 
     try {
-      const response = await fetch("/api/app/profile", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { response, payload } = await fetchApiJson<{ user?: AppWorkspacePayload["user"]; error?: string }>(
+        "/api/app/profile",
+        jsonRequest("PATCH", {
           name: cleanName,
         }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { user?: AppWorkspacePayload["user"]; error?: string };
+      );
 
       if (!response.ok || !payload.user) {
-        throw new Error(payload.error || `Profile update failed with ${response.status}`);
+        throw apiError(payload, response, "Profile update failed");
       }
 
       setWorkspace((current) => ({
@@ -1007,17 +877,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch(`/api/app/users/${encodeURIComponent(memberId)}?locale=cs`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { member?: AppWorkspacePayload["users"]["members"][number]; error?: string };
+      const { response, payload } = await fetchApiJson<{ member?: AppWorkspacePayload["users"]["members"][number]; error?: string }>(
+        `/api/app/users/${encodeURIComponent(memberId)}?locale=cs`,
+        jsonRequest("PATCH", input),
+      );
 
       if (!response.ok || !payload.member) {
-        throw new Error(payload.error || `Member update failed with ${response.status}`);
+        throw apiError(payload, response, "Member update failed");
       }
 
       setWorkspace((current) => ({
@@ -1046,17 +912,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setInviteMessage("");
 
     try {
-      const response = await fetch("/api/app/users?locale=cs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(inviteForm),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string };
+      const { response, payload } = await fetchApiJson<{ invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string }>(
+        "/api/app/users?locale=cs",
+        jsonRequest("POST", inviteForm),
+      );
 
       if (!response.ok || !payload.invitation) {
-        throw new Error(payload.error || `Invite failed with ${response.status}`);
+        throw apiError(payload, response, "Invite failed");
       }
 
       setWorkspace((current) => ({
@@ -1093,13 +955,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch(`/api/app/users/${encodeURIComponent(invitationId)}/retry-email?locale=cs`, {
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => ({}))) as { invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string };
+      const { response, payload } = await fetchApiJson<{ invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string }>(
+        `/api/app/users/${encodeURIComponent(invitationId)}/retry-email?locale=cs`,
+        { method: "POST" },
+      );
 
       if (!response.ok || !payload.invitation) {
-        throw new Error(payload.error || `Invite email retry failed with ${response.status}`);
+        throw apiError(payload, response, "Invite email retry failed");
       }
 
       setWorkspace((current) => ({
@@ -1125,13 +987,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch(`/api/app/users/${encodeURIComponent(invitationId)}/revoke-invitation?locale=cs`, {
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => ({}))) as { invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string };
+      const { response, payload } = await fetchApiJson<{ invitation?: AppWorkspacePayload["users"]["invitations"][number]; error?: string }>(
+        `/api/app/users/${encodeURIComponent(invitationId)}/revoke-invitation?locale=cs`,
+        { method: "POST" },
+      );
 
       if (!response.ok || !payload.invitation) {
-        throw new Error(payload.error || `Invite revoke failed with ${response.status}`);
+        throw apiError(payload, response, "Invite revoke failed");
       }
 
       setWorkspace((current) => ({
@@ -1190,17 +1052,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
     try {
       const isEdit = mode === "edit" && form.code;
-      const response = await fetch(isEdit ? `/api/app/ads/${encodeURIComponent(form.code ?? "")}?locale=cs` : "/api/app/ads?locale=cs", {
-        method: isEdit ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { ad?: AdRecord; error?: string };
+      const { response, payload } = await fetchApiJson<{ ad?: AdRecord; error?: string }>(
+        isEdit ? `/api/app/ads/${encodeURIComponent(form.code ?? "")}?locale=cs` : "/api/app/ads?locale=cs",
+        jsonRequest(isEdit ? "PATCH" : "POST", form),
+      );
 
       if (!response.ok || !payload.ad) {
-        throw new Error(payload.error || `Save failed with ${response.status}`);
+        throw apiError(payload, response, "Save failed");
       }
 
       const savedAd = payload.ad;
@@ -1232,23 +1090,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setError("");
 
     try {
-      const response = await fetch(`/api/app/ads/${encodeURIComponent(ad.id)}/${action}?locale=cs`, {
-        method: "POST",
-        ...(action === "request-changes"
-          ? {
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                note: reviewNote,
-              }),
-            }
-          : {}),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { ad?: AdRecord; error?: string };
+      const { response, payload } = await fetchApiJson<{ ad?: AdRecord; error?: string }>(
+        `/api/app/ads/${encodeURIComponent(ad.id)}/${action}?locale=cs`,
+        action === "request-changes" ? jsonRequest("POST", { note: reviewNote }) : { method: "POST" },
+      );
 
       if (!response.ok || !payload.ad) {
-        throw new Error(payload.error || `Workflow action failed with ${response.status}`);
+        throw apiError(payload, response, "Workflow action failed");
       }
 
       const nextAd = payload.ad;
@@ -1284,14 +1132,16 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       const formData = new FormData();
       formData.set("file", file);
 
-      const response = await fetch(`/api/app/ads/${encodeURIComponent(ad.id)}/assets?locale=cs`, {
-        method: "POST",
-        body: formData,
-      });
-      const payload = (await response.json().catch(() => ({}))) as { ad?: AdRecord; error?: string };
+      const { response, payload } = await fetchApiJson<{ ad?: AdRecord; error?: string }>(
+        `/api/app/ads/${encodeURIComponent(ad.id)}/assets?locale=cs`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
       if (!response.ok || !payload.ad) {
-        throw new Error(payload.error || `Upload failed with ${response.status}`);
+        throw apiError(payload, response, "Upload failed");
       }
 
       setWorkspace((current) => workspaceWithAd(current, payload.ad as AdRecord));
@@ -1317,14 +1167,13 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       formData.set("file", file);
       formData.set("campaignId", importCampaignId || defaultCampaign(workspace)?.id || "");
 
-      const response = await fetch("/api/app/ads/import?locale=cs", {
+      const { response, payload } = await fetchApiJson<{ result?: AdImportResult; error?: string }>("/api/app/ads/import?locale=cs", {
         method: "POST",
         body: formData,
       });
-      const payload = (await response.json().catch(() => ({}))) as { result?: AdImportResult; error?: string };
 
       if (!response.ok || !payload.result) {
-        throw new Error(payload.error || `Import failed with ${response.status}`);
+        throw apiError(payload, response, "Import failed");
       }
 
       setImportResult(payload.result);
@@ -1344,10 +1193,10 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     <section className="mx-auto grid w-full max-w-[1800px] min-w-0 gap-5 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <article className="rounded-md border border-black/10 bg-white p-5">
-          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Pracovní prostor</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Přehled</p>
           <h1 className="mt-2 text-3xl font-semibold text-black">Adclare pro {workspace.tenant.name}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#59616b]">
-            Tady připravíte reklamy pro TTPA: doplníte povinné údaje, nahrajete materiály, schválíte výstupy, stáhnete QR kódy a balíčky pro kontrolu. {accessSentence(workspace)}
+            Připravte reklamy pro TTPA: údaje, soubory, schválení, QR kódy a exporty. {accessSentence(workspace)}
           </p>
           {error ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
         </article>
@@ -1362,7 +1211,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
               <span className="font-semibold text-[#20242a]">{workspace.membership.role}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="text-[#68707a]">Vidí reklamy pro</span>
+              <span className="text-[#68707a]">Oblast</span>
               <span className="text-right font-semibold text-[#20242a]">{workspace.membership.scope}</span>
             </div>
             <div className="flex justify-between gap-3">
@@ -1611,10 +1460,15 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
             selectedId={selectedAd?.id ?? ""}
             query={query}
             refreshing={refreshing}
+            loadingMore={loadingMoreAds}
+            loadedCount={workspace.ads.length}
+            totalCount={workspace.adPageInfo.total}
+            hasMore={workspace.adPageInfo.hasMore}
             writable={writable}
             canCreate={workspace.permissions.canCreateAds}
             onQueryChange={setQuery}
             onRefresh={refreshWorkspace}
+            onLoadMore={loadMoreAds}
             onCreate={openCreate}
             onSelect={selectAd}
             onEdit={openEdit}
@@ -1642,397 +1496,6 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   );
 }
 
-function Editor({
-  ad,
-  form,
-  mode,
-  branches,
-  campaigns,
-  candidates,
-  saving,
-  writable,
-  onCancel,
-  onChange,
-  onSave,
-}: {
-  ad: AdRecord | null;
-  form: EditableAdInput;
-  mode: EditorMode;
-  branches: AppWorkspacePayload["branches"];
-  campaigns: AppWorkspacePayload["campaigns"];
-  candidates: AppWorkspacePayload["candidates"];
-  saving: boolean;
-  writable: boolean;
-  onCancel: () => void;
-  onChange: (form: EditableAdInput) => void;
-  onSave: () => void;
-}) {
-  const targetingRequired = draftRequiresTargetingDetails(form);
-  const missingItems = draftMissingItems(form);
-  const draftSteps = draftProcessSteps(form, ad);
-  const canSaveDraft = writable && hasValue(form.title) && hasValue(form.branch) && hasValue(form.campaignId ?? "");
-  const requiredFields = new Set<keyof EditableAdInput>([
-    "campaignId",
-    "title",
-    "branch",
-    "owner",
-    "type",
-    "publicationDate",
-    "period",
-    "distributionArea",
-    "payer",
-    "supplier",
-    "amount",
-    "fundingSource",
-    "language",
-  ]);
-  const fieldGroups = [
-    {
-      title: "Materiál",
-      fields: [
-        ["campaignId", "Kampaň", "campaign"],
-        ["candidateId", "Kandidát", "candidate"],
-        ["title", "Název reklamy", "text"],
-        ["branch", "Pobočka / oblast", "branch"],
-        ["type", "Typ materiálu", "text"],
-        ["publicationDate", "Datum zveřejnění", "date"],
-        ["period", "Období šíření", "text"],
-        ["language", "Jazyk", "text"],
-      ],
-    },
-    {
-      title: "Povinné údaje oznámení",
-      fields: [
-        ["owner", "Zadavatel", "text"],
-        ["payer", "Plátce", "text"],
-        ["supplier", "Dodavatel", "text"],
-        ["amount", "Náklady / rozpočet", "text"],
-        ["fundingSource", "Původ financí", "text"],
-        ["distributionArea", "Oblast šíření", "text"],
-      ],
-    },
-    {
-      title: "Cílení",
-      fields: [
-        ["targeting", "Popis cílení", "text"],
-        ["targetAudience", "Cílové publikum", "text"],
-      ],
-    },
-  ] as const;
-
-  return (
-    <section className="rounded-md border border-[#f45d1f]/35 bg-white">
-      <div className="flex flex-col gap-3 border-b border-black/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-black">{mode === "create" ? "Nová reklama" : `Úprava reklamy ${form.code}`}</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Vyplňte základ, uložte rozpracovaný záznam a potom nahrajte podklad v detailu.</p>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={onCancel} className="inline-flex items-center gap-2 rounded-md border border-black/10 px-3 py-2 text-sm font-semibold">
-            <X size={15} />
-            Zavřít
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving || !canSaveDraft}
-            className="inline-flex items-center gap-2 rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-          >
-            <Save size={15} />
-            {saving ? "Ukládám" : "Uložit rozpracované"}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid min-w-0 gap-4">
-          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a] sm:max-w-xs">
-            Online / offline
-            <select
-              value={form.channel}
-              onChange={(event) => onChange({ ...form, channel: event.target.value === "online" ? "online" : "offline" })}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
-            >
-              <option value="offline">Offline</option>
-              <option value="online">Online</option>
-            </select>
-          </label>
-
-          {fieldGroups.map((group) => (
-            <div key={group.title} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="text-sm font-semibold text-black">{group.title}</h3>
-                {group.title === "Cílení" ? (
-                  <label className="inline-flex w-fit items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]">
-                    <input
-                      type="checkbox"
-                      checked={form.isTargeted}
-                      onChange={(event) => {
-                        const checked = event.target.checked;
-                        onChange({
-                          ...form,
-                          isTargeted: checked,
-                          targeting: checked && form.targeting === "nepoužito" ? "" : checked ? form.targeting : "nepoužito",
-                          targetAudience: checked ? form.targetAudience : "",
-                        });
-                      }}
-                      className="size-4 accent-[#f45d1f]"
-                    />
-                    Používá cílení
-                  </label>
-                ) : null}
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {group.fields.map(([key, label, type]) => {
-                  const isTargetingField = key === "targeting" || key === "targetAudience";
-                  const disabled = isTargetingField && !form.isTargeted;
-                  const required = requiredFields.has(key) || (isTargetingField && targetingRequired);
-                  const empty = required && !String(form[key] ?? "").trim();
-                  const fieldClass = `rounded-md border px-3 py-2 font-normal outline-none focus:border-[#f45d1f] ${
-                    empty ? "border-red-300" : "border-black/10"
-                  } ${disabled ? "bg-[#f1f2f4] text-[#8b929b]" : "bg-white"}`;
-
-                  return (
-                    <label key={key} className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
-                      <span className="flex items-center gap-2">
-                        {label}
-                        {required ? <span className={empty ? "text-xs text-red-700" : "text-xs text-[#68707a]"}>povinné</span> : null}
-                      </span>
-                      {type === "campaign" ? (
-                        <select
-                          value={form.campaignId ?? ""}
-                          onChange={(event) => onChange({ ...form, campaignId: event.target.value })}
-                          className={fieldClass}
-                        >
-                          {campaigns.filter((campaign) => !campaign.archived).length === 0 ? <option value="">Nejdřív založte kampaň</option> : null}
-                          {campaigns
-                            .filter((campaign) => !campaign.archived || campaign.id === form.campaignId)
-                            .map((campaign) => (
-                              <option key={campaign.id} value={campaign.id}>
-                                {campaign.name}
-                              </option>
-                            ))}
-                        </select>
-                      ) : type === "candidate" ? (
-                        <select
-                          value={form.candidateId ?? ""}
-                          onChange={(event) => onChange({ ...form, candidateId: event.target.value })}
-                          className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
-                        >
-                          <option value="">Bez kandidáta</option>
-                          {candidates
-                            .filter((candidate) => !candidate.archived || candidate.id === form.candidateId)
-                            .map((candidate) => (
-                              <option key={candidate.id} value={candidate.id}>
-                                {candidate.name}
-                                {candidate.ballotNumber ? ` · č. ${candidate.ballotNumber}` : ""}
-                              </option>
-                            ))}
-                        </select>
-                      ) : type === "branch" ? (
-                        <select
-                          value={form.branch}
-                          onChange={(event) => onChange({ ...form, branch: event.target.value })}
-                          className={fieldClass}
-                        >
-                          {branches.filter((branch) => !branch.archived).length === 0 ? <option value="">Nejdřív založte pobočku</option> : null}
-                          {branches.filter((branch) => !branch.archived).map((branch) => (
-                            <option key={branch.id} value={branch.name}>
-                              {branch.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type={type}
-                          value={String(form[key] ?? "")}
-                          disabled={disabled}
-                          onChange={(event) => onChange({ ...form, [key]: event.target.value })}
-                          className={fieldClass}
-                        />
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <EditorGuidancePanel steps={draftSteps} missingItems={missingItems} canSaveDraft={canSaveDraft} />
-      </div>
-    </section>
-  );
-}
-
-function EditorGuidancePanel({ steps, missingItems, canSaveDraft }: { steps: AdProcessStep[]; missingItems: string[]; canSaveDraft: boolean }) {
-  const doneCount = steps.filter((step) => step.done).length;
-  const nextStep = steps.find((step) => !step.done);
-  const progress = Math.round((doneCount / steps.length) * 100);
-
-  return (
-    <aside className="grid h-fit gap-3 rounded-md border border-black/10 bg-[#11161c] p-4 text-white xl:sticky xl:top-4">
-      <div>
-        <div className="inline-flex rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/70">
-          {doneCount}/8 hotovo
-        </div>
-        <h3 className="mt-3 text-lg font-semibold">Co chybí pro TTPA</h3>
-        <p className="mt-2 text-sm leading-6 text-white/72">
-          Formulář vás vede přes údaje, které mají být u politické reklamy hotové před zveřejněním. Dokud něco chybí, reklama nepůjde uzavřít.
-        </p>
-      </div>
-
-      <div className="h-2 overflow-hidden rounded-full bg-white/12">
-        <div className="h-full rounded-full bg-[#f45d1f]" style={{ width: `${progress}%` }} />
-      </div>
-
-      <div className="rounded-md border border-white/12 bg-white/8 p-3">
-        <div className="text-sm font-semibold">{nextStep ? "Teď řešit" : "Připraveno k další kontrole"}</div>
-        <p className="mt-1 text-sm leading-6 text-white/72">
-          {nextStep?.nextAction ?? "Povinné údaje jsou vyplněné. Po uložení pokračujte podkladem, kontrolou a výstupy."}
-        </p>
-      </div>
-
-      <div className="rounded-md border border-white/12 bg-white/8 p-3">
-        <div className="text-sm font-semibold">{missingItems.length ? "Co ještě chybí" : "Údaje ve formuláři"}</div>
-        {missingItems.length ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {missingItems.slice(0, 10).map((item) => (
-              <span key={item} className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-[#b7350c]">
-                {item}
-              </span>
-            ))}
-            {missingItems.length > 10 ? <span className="rounded-md bg-white/10 px-2 py-1 text-xs font-semibold text-white/72">+{missingItems.length - 10}</span> : null}
-          </div>
-        ) : (
-          <p className="mt-1 text-sm leading-6 text-white/72">Povinné údaje jsou vyplněné. Po uložení pokračujte podkladem, kontrolou a výstupy.</p>
-        )}
-      </div>
-
-      {!canSaveDraft ? <p className="text-sm leading-6 text-white/64">Pro uložení rozpracovaného záznamu stačí kampaň, název a pobočka.</p> : null}
-
-      <div className="grid gap-2">
-        {steps.map((step) => (
-          <div key={step.key} className="grid gap-1 rounded-md border border-white/12 bg-white/8 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold">{step.title}</span>
-              <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${step.done ? "bg-emerald-100 text-emerald-800" : "bg-white/12 text-white/72"}`}>
-                {step.done ? "hotovo" : nextStep?.key === step.key ? "teď" : "čeká"}
-              </span>
-            </div>
-            <p className="text-sm leading-5 text-white/64">{step.text}</p>
-          </div>
-        ))}
-      </div>
-    </aside>
-  );
-}
-
-function AdListPanel({
-  ads,
-  selectedId,
-  query,
-  refreshing,
-  writable,
-  canCreate,
-  onQueryChange,
-  onRefresh,
-  onCreate,
-  onSelect,
-  onEdit,
-}: {
-  ads: AdRecord[];
-  selectedId: string;
-  query: string;
-  refreshing: boolean;
-  writable: boolean;
-  canCreate: boolean;
-  onQueryChange: (value: string) => void;
-  onRefresh: () => void;
-  onCreate: () => void;
-  onSelect: (id: string) => void;
-  onEdit: (ad: AdRecord) => void;
-}) {
-  return (
-    <aside className="min-w-0 rounded-md border border-black/10 bg-white">
-      <div className="border-b border-black/10 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-black">Reklamy</h2>
-            <p className="mt-1 text-sm leading-5 text-[#59616b]">Vyberte reklamu a pracujte s jejím detailem.</p>
-          </div>
-          <span className="rounded-md border border-black/10 bg-[#fbfbfc] px-2.5 py-1 text-sm font-semibold text-[#25282d]">{ads.length}</span>
-        </div>
-        <div className="mt-3 grid gap-2">
-          <label className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm text-[#59616b]">
-            <Search size={15} />
-            <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Hledat reklamu" className="min-w-0 flex-1 outline-none" />
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={refreshing}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-[#25282d]"
-            >
-              <RefreshCw size={15} />
-              Obnovit
-            </button>
-            <button
-              type="button"
-              onClick={onCreate}
-              disabled={!canCreate}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-            >
-              <Plus size={15} />
-              Přidat
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid max-h-[620px] gap-2 overflow-y-auto p-3 xl:max-h-[calc(100vh-220px)]">
-        {ads.map((ad) => (
-          <article key={ad.id} className={`rounded-md border p-3 ${selectedId === ad.id ? "border-[#f45d1f] bg-orange-50/55" : "border-black/10 bg-white"}`}>
-            <button type="button" onClick={() => onSelect(ad.id)} className="block w-full text-left">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
-                  <h3 className="mt-1 text-base font-semibold leading-6 text-black">{ad.title}</h3>
-                  <p className="mt-1 text-sm text-[#59616b]">
-                    {ad.branch} · {ad.campaign}
-                    {ad.candidate ? ` · ${ad.candidate}` : ""}
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${workflowClass[ad.workflowStatus]}`}>{ad.workflowLabel}</span>
-              </div>
-              <div className="mt-3 flex items-center gap-2 text-sm text-[#59616b]">
-                {deadlineIcon(ad)}
-                <span>{ad.publicationDate} · {ad.deadlineLabel}</span>
-              </div>
-              {ad.missing.length ? <p className="mt-2 text-sm font-semibold text-red-700">Chybí: {ad.missing.slice(0, 3).join(", ")}{ad.missing.length > 3 ? ` +${ad.missing.length - 3}` : ""}</p> : null}
-            </button>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => onEdit(ad)}
-                disabled={!writable}
-                className="inline-flex justify-center rounded-md bg-[#11161c] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-              >
-                Upravit
-              </button>
-              <a className="inline-flex justify-center rounded-md border border-black/10 px-3 py-2 text-sm font-semibold text-[#d94410]" href={noticeHref(ad.publicUrl)}>
-                Otevřít
-              </a>
-            </div>
-          </article>
-        ))}
-        {ads.length === 0 ? <div className="rounded-md border border-black/10 bg-white p-5 text-center text-sm text-[#59616b]">Zatím tu nejsou žádné reklamy.</div> : null}
-      </div>
-    </aside>
-  );
-}
-
 function formatSuperAdminDate(value: string) {
   return new Date(value).toLocaleDateString("cs-CZ", {
     day: "numeric",
@@ -2043,7 +1506,7 @@ function formatSuperAdminDate(value: string) {
 
 function SuperAdminPanel({ data, onOpenPeople }: { data: NonNullable<AppWorkspacePayload["superAdmin"]>; onOpenPeople: () => void }) {
   const stats = [
-    { label: "Pracovní prostory", value: data.counts.tenants, icon: Building2 },
+    { label: "Organizace", value: data.counts.tenants, icon: Building2 },
     { label: "Reklamy", value: data.counts.ads, icon: FileArchive },
     { label: "Kampaně", value: data.counts.campaigns, icon: FolderKanban },
     { label: "Přístupy", value: data.counts.users, icon: Users },
@@ -2059,9 +1522,9 @@ function SuperAdminPanel({ data, onOpenPeople }: { data: NonNullable<AppWorkspac
             <ShieldCheck size={14} />
             Instalace
           </div>
-          <h2 className="mt-3 text-2xl font-semibold">Správa celé instalace</h2>
+          <h2 className="mt-3 text-2xl font-semibold">Správa instalace</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-white/72">
-            Přehled všech pracovních prostorů, přístupů a stavů reklam. Provozovatel rychle vidí, kde se doplňují údaje, kde už běží veřejný archiv a kdo je za daný prostor odpovědný.
+            Přehled organizací, přístupů a stavů reklam.
           </p>
         </div>
         <button
@@ -2173,7 +1636,7 @@ function OnboardingPanel({
         <div>
           <h2 className="text-lg font-semibold text-black">Proces pro každou reklamu</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-            Osm kroků od založení reklamy po výsledek: povinné údaje, materiál, kontrola, QR kód, veřejné oznámení a balíček pro kontrolu.
+            Osm kroků od záznamu po TTPA export.
           </p>
         </div>
         <div className="rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#25282d]">
@@ -2253,7 +1716,7 @@ function ImportPanel({
           </div>
           <h2 className="mt-2 text-lg font-semibold text-black">Načíst existující reklamy z Excelu</h2>
           <p className="mt-1 text-sm leading-6 text-[#59616b]">
-            Nahrajte tabulku se stávající agendou. Adclare založí reklamy, dopočítá stav podle povinných údajů a vypíše řádky, které se nepodařilo uložit.
+            Nahrajte tabulku. Adclare založí reklamy a ukáže řádky k opravě.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5 text-xs font-semibold text-[#59616b]">
             {["Kód", "Zadavatel", "Plátce", "Období", "Částka", "Původ financí", "Cílení"].map((label) => (
@@ -2367,7 +1830,7 @@ function ImportPanel({
                 ) : null}
               </div>
             ) : (
-              <p className="mt-2 text-sm leading-6 text-[#59616b]">Všechny načtené řádky se podařilo založit. Zkontrolujte nové reklamy a doplňte podklady před schválením.</p>
+              <p className="mt-2 text-sm leading-6 text-[#59616b]">Všechny řádky jsou založené. Doplňte soubory před schválením.</p>
             )}
           </div>
         </div>
@@ -2398,7 +1861,7 @@ function ProfilePanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-black">Můj profil</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Jméno se zobrazuje v týmu, historii změn a schvalování.</p>
+          <p className="mt-1 text-sm text-[#59616b]">Jméno se ukazuje v historii a schvalování.</p>
         </div>
         {message ? <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800">{message}</span> : null}
       </div>
@@ -2436,634 +1899,6 @@ function ProfilePanel({
   );
 }
 
-function SettingsPanel({
-  tenant,
-  saving,
-  message,
-  onSave,
-}: {
-  tenant: AppWorkspacePayload["tenant"];
-  saving: boolean;
-  message: string;
-  onSave: (input: AppTenantSettingsInput) => void;
-}) {
-  return (
-    <section id="settings" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-black">Nastavení strany</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Název, veřejný repozitář a základní pravidla pro archivaci jsou společná pro celý pracovní prostor.</p>
-        </div>
-        {message ? <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800">{message}</span> : null}
-      </div>
-
-      <form
-        className="mt-4 grid gap-3 lg:grid-cols-[minmax(180px,1.2fr)_180px_minmax(180px,1fr)_150px_150px_150px]"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const formData = new FormData(event.currentTarget);
-          onSave({
-            name: String(formData.get("name") ?? ""),
-            slug: String(formData.get("slug") ?? ""),
-            contactEmail: String(formData.get("contactEmail") ?? ""),
-            defaultLocale: String(formData.get("defaultLocale") ?? "cs") === "en" ? "en" : "cs",
-            publicRepositoryEnabled: formData.get("publicRepositoryEnabled") === "on",
-            retentionYears: Number(formData.get("retentionYears") ?? tenant.retentionYears),
-          });
-        }}
-      >
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Název
-          <input name="name" defaultValue={tenant.name} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Slug
-          <input name="slug" defaultValue={tenant.slug} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Kontaktní e-mail
-          <input name="contactEmail" defaultValue={tenant.contactEmail} type="email" className="h-10 rounded-md border border-black/10 px-3 text-sm text-black outline-none focus:border-[#f45d1f]" />
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Jazyk
-          <select name="defaultLocale" defaultValue={tenant.defaultLocale} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]">
-            <option value="cs">Čeština</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Archiv roky
-          <input name="retentionYears" defaultValue={tenant.retentionYears} type="number" min={1} max={20} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
-        </label>
-        <div className="grid gap-2">
-          <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold text-[#20242a]">
-            <input name="publicRepositoryEnabled" type="checkbox" defaultChecked={tenant.publicRepositoryEnabled} className="size-4 accent-[#f45d1f]" />
-            Veřejný repo
-          </label>
-          <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
-            <Save size={15} />
-            {saving ? "Ukládám" : "Uložit"}
-          </button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
-function BranchesPanel({
-  branches,
-  ads,
-  candidates,
-  canCreate,
-  canArchive,
-  branchName,
-  branchKind,
-  branchSaving,
-  branchSavingId,
-  onBranchKindChange,
-  onBranchNameChange,
-  onCreate,
-  onUpdate,
-}: {
-  branches: AppWorkspacePayload["branches"];
-  ads: AdRecord[];
-  candidates: AppWorkspacePayload["candidates"];
-  canCreate: boolean;
-  canArchive: boolean;
-  branchName: string;
-  branchKind: string;
-  branchSaving: boolean;
-  branchSavingId: string;
-  onBranchKindChange: (value: string) => void;
-  onBranchNameChange: (value: string) => void;
-  onCreate: () => void;
-  onUpdate: (branchId: string, input: AppBranchUpdateInput) => void;
-}) {
-  const branchCards = branches
-    .map((branch) => {
-      const branchAds = ads.filter((ad) => ad.branch === branch.name);
-      const activeCandidates = candidates.filter((candidate) => candidate.branchId === branch.id && !candidate.archived);
-
-      return {
-        ...branch,
-        adCount: branchAds.length,
-        missingCount: branchAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length,
-        publishedCount: branchAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
-        candidateCount: activeCandidates.length,
-      };
-    })
-    .sort((a, b) => Number(a.archived) - Number(b.archived) || b.adCount - a.adCount || a.name.localeCompare(b.name, "cs"));
-  const activeCount = branches.filter((branch) => !branch.archived).length;
-  const branchAdCount = branchCards.reduce((sum, branch) => sum + branch.adCount, 0);
-  const branchesNeedingData = branchCards.filter((branch) => branch.missingCount > 0).length;
-
-  return (
-    <section id="branches" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-black">Pobočky a oblasti</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Pobočka má vlastní název, typ, kontakt a stav. Archivované pobočky zůstávají v historii, ale nepoužívají se pro nové reklamy.</p>
-        </div>
-        {canCreate ? (
-          <div className="grid gap-2 sm:grid-cols-[150px_minmax(180px,1fr)_auto]">
-            <select value={branchKind} onChange={(event) => onBranchKindChange(event.target.value)} className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold outline-none focus:border-[#f45d1f]">
-              <option value="centrala">Centrála</option>
-              <option value="kraj">Kraj</option>
-              <option value="oblast">Oblast</option>
-              <option value="pobočka">Pobočka</option>
-            </select>
-            <input value={branchName} onChange={(event) => onBranchNameChange(event.target.value)} placeholder="Název pobočky" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-            <button type="button" onClick={onCreate} disabled={branchSaving || !branchName.trim()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
-              <Plus size={15} />
-              {branchSaving ? "Ukládám" : "Přidat"}
-            </button>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        {[
-          ["Aktivní pobočky", activeCount],
-          ["Reklamy v pobočkách", branchAdCount],
-          ["Pobočky k doplnění", branchesNeedingData],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{label}</div>
-            <div className="mt-2 text-2xl font-semibold text-black">{value}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-3 grid gap-2 xl:grid-cols-3">
-        {branchCards.slice(0, 6).map((branch) => (
-          <article key={branch.id} className={`rounded-md border p-3 ${branch.archived ? "border-neutral-200 bg-neutral-50" : "border-black/10 bg-white"}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{branch.kind}</div>
-                <h3 className="mt-1 truncate text-sm font-semibold text-black">{branch.name}</h3>
-              </div>
-              <span className={`shrink-0 rounded-md border px-2 py-1 text-xs font-semibold ${branch.archived ? "border-neutral-200 bg-white text-neutral-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
-                {branch.archived ? "archiv" : "aktivní"}
-              </span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{branch.adCount} reklam</span>
-              <span className={`rounded-md px-2 py-1 text-xs font-semibold ${branch.missingCount ? "bg-orange-50 text-orange-800" : "bg-emerald-50 text-emerald-800"}`}>
-                {branch.missingCount} k doplnění
-              </span>
-              <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{branch.publishedCount} publikováno</span>
-              <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{branch.candidateCount} kandidátů</span>
-            </div>
-            {branch.contactEmail ? <div className="mt-3 truncate text-xs font-medium text-[#59616b]">{branch.contactEmail}</div> : null}
-          </article>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-2">
-        {branches.map((branch) => (
-          <form
-            key={branch.id}
-            className={`grid min-w-0 gap-2 rounded-md border p-3 xl:grid-cols-[minmax(160px,1fr)_150px_minmax(160px,1fr)_minmax(180px,1fr)_140px_130px] xl:items-end ${
-              branch.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"
-            }`}
-            onSubmit={(event) => {
-              event.preventDefault();
-              const formData = new FormData(event.currentTarget);
-              onUpdate(branch.id, {
-                name: String(formData.get("name") ?? ""),
-                kind: String(formData.get("kind") ?? branch.kind),
-                parentId: String(formData.get("parentId") ?? ""),
-                contactEmail: String(formData.get("contactEmail") ?? ""),
-                description: String(formData.get("description") ?? ""),
-                archived: formData.get("archived") === "on",
-              });
-            }}
-          >
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Název
-              <input name="name" defaultValue={branch.name} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Typ
-              <select name="kind" defaultValue={branch.kind} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]">
-                <option value="centrala">Centrála</option>
-                <option value="kraj">Kraj</option>
-                <option value="oblast">Oblast</option>
-                <option value="pobočka">Pobočka</option>
-              </select>
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Nadřazená
-              <select name="parentId" defaultValue={branch.parentId} disabled={!canCreate} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]">
-                <option value="">Bez nadřazené</option>
-                {branches.filter((item) => item.id !== branch.id && !item.archived).map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Kontakt
-              <input name="contactEmail" defaultValue={branch.contactEmail} type="email" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Poznámka
-              <input name="description" defaultValue={branch.description} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-            </label>
-            <div className="grid gap-2">
-              {canArchive ? (
-                <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-[#20242a]">
-                  <input name="archived" type="checkbox" defaultChecked={branch.archived} className="size-4 accent-[#f45d1f]" />
-                  Archiv
-                </label>
-              ) : null}
-              <button type="submit" disabled={Boolean(branchSavingId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
-                <Save size={15} />
-                {branchSavingId === branch.id ? "Ukládám" : "Uložit"}
-              </button>
-            </div>
-          </form>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function CampaignsPanel({
-  campaigns,
-  ads,
-  candidates,
-  campaignName,
-  campaignElection,
-  campaignStartsAt,
-  campaignEndsAt,
-  campaignTags,
-  campaignSaving,
-  campaignSavingId,
-  onCampaignNameChange,
-  onCampaignElectionChange,
-  onCampaignStartsAtChange,
-  onCampaignEndsAtChange,
-  onCampaignTagsChange,
-  onCreate,
-  onUpdate,
-}: {
-  campaigns: AppWorkspacePayload["campaigns"];
-  ads: AdRecord[];
-  candidates: AppWorkspacePayload["candidates"];
-  campaignName: string;
-  campaignElection: string;
-  campaignStartsAt: string;
-  campaignEndsAt: string;
-  campaignTags: string;
-  campaignSaving: boolean;
-  campaignSavingId: string;
-  onCampaignNameChange: (value: string) => void;
-  onCampaignElectionChange: (value: string) => void;
-  onCampaignStartsAtChange: (value: string) => void;
-  onCampaignEndsAtChange: (value: string) => void;
-  onCampaignTagsChange: (value: string) => void;
-  onCreate: () => void;
-  onUpdate: (campaignId: string, input: AppCampaignInput) => void;
-}) {
-  const activeCampaigns = campaigns.filter((campaign) => !campaign.archived);
-  const campaignCards = campaigns
-    .map((campaign) => {
-      const campaignAds = ads.filter((ad) => ad.campaignId === campaign.id);
-
-      return {
-        ...campaign,
-        missingCount: campaignAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length,
-        reviewCount: campaignAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED").length,
-        publishedCount: campaignAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
-      };
-    })
-    .sort((a, b) => Number(a.archived) - Number(b.archived) || b.adCount - a.adCount || a.name.localeCompare(b.name, "cs"));
-  const totalCampaignAds = campaignCards.reduce((sum, campaign) => sum + campaign.adCount, 0);
-  const topCampaign = campaignCards.find((campaign) => !campaign.archived) ?? campaignCards[0] ?? null;
-  const tagList = Array.from(new Set(campaigns.flatMap((campaign) => campaign.tags))).slice(0, 10);
-  const activeCandidates = candidates.filter((candidate) => !candidate.archived).length;
-
-  return (
-    <section id="campaigns" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-black">Kampaně a tagy</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Kampaň drží období, volby a štítky, podle kterých se reklamy třídí v interní práci i exportech.</p>
-        </div>
-        <div className="grid gap-2 lg:min-w-[620px] lg:grid-cols-[minmax(180px,1fr)_150px_135px_135px]">
-          <input value={campaignName} onChange={(event) => onCampaignNameChange(event.target.value)} placeholder="Název kampaně" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignElection} onChange={(event) => onCampaignElectionChange(event.target.value)} placeholder="Volby" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignStartsAt} onChange={(event) => onCampaignStartsAtChange(event.target.value)} type="date" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignEndsAt} onChange={(event) => onCampaignEndsAtChange(event.target.value)} type="date" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignTags} onChange={(event) => onCampaignTagsChange(event.target.value)} placeholder="Tagy oddělené čárkou" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f] lg:col-span-3" />
-          <button type="button" onClick={onCreate} disabled={campaignSaving || !campaignName.trim()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
-            <Plus size={15} />
-            {campaignSaving ? "Ukládám" : "Přidat"}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-black">Přehled kampaní</h3>
-            <p className="mt-1 text-sm leading-6 text-[#59616b]">
-              Vidíte, kde už běží reklamy, co čeká na doplnění a která kampaň nese nejvíc práce.
-            </p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-4 lg:min-w-[520px]">
-            {[
-              ["Aktivní", activeCampaigns.length],
-              ["Reklamy", totalCampaignAds],
-              ["Kandidáti", activeCandidates],
-              ["Tagy", tagList.length],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-md border border-black/10 bg-white p-2">
-                <div className="text-xs font-semibold text-[#68707a]">{label}</div>
-                <div className="mt-1 text-lg font-semibold text-black">{value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {topCampaign ? (
-          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="rounded-md border border-black/10 bg-white p-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Největší kampaň</div>
-              <div className="mt-1 text-sm font-semibold text-black">{topCampaign.name}</div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <span className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{topCampaign.adCount} reklam</span>
-                <span className="rounded-md bg-orange-50 px-2 py-1 text-xs font-semibold text-orange-800">{topCampaign.missingCount} k doplnění</span>
-                <span className="rounded-md bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800">{topCampaign.reviewCount} ke kontrole</span>
-                <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">{topCampaign.publishedCount} publikováno</span>
-              </div>
-            </div>
-            <div className="rounded-md border border-black/10 bg-white p-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Tagy pro třídění</div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {tagList.length ? tagList.map((tag) => (
-                  <span key={tag} className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">{tag}</span>
-                )) : <span className="text-sm text-[#59616b]">Zatím bez tagů.</span>}
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-4 grid gap-2">
-        {campaigns.map((campaign) => (
-          <form
-            key={campaign.id}
-            className={`grid min-w-0 gap-2 rounded-md border p-3 2xl:grid-cols-[minmax(180px,1fr)_145px_135px_135px_minmax(180px,1fr)_150px_130px] 2xl:items-end ${
-              campaign.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"
-            }`}
-            onSubmit={(event) => {
-              event.preventDefault();
-              const formData = new FormData(event.currentTarget);
-              onUpdate(campaign.id, {
-                name: String(formData.get("name") ?? ""),
-                slug: String(formData.get("slug") ?? ""),
-                election: String(formData.get("election") ?? ""),
-                description: String(formData.get("description") ?? ""),
-                tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
-                startsAt: String(formData.get("startsAt") ?? ""),
-                endsAt: String(formData.get("endsAt") ?? ""),
-                archived: formData.get("archived") === "on",
-              });
-            }}
-          >
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Název
-              <input name="name" defaultValue={campaign.name} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-[#59616b]">
-                <CalendarDays size={13} />
-                {campaign.adCount} reklam
-              </span>
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Volby
-              <input name="election" defaultValue={campaign.election} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Od
-              <input name="startsAt" defaultValue={campaign.startsAtIso} type="date" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Do
-              <input name="endsAt" defaultValue={campaign.endsAtIso} type="date" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Tagy
-              <input name="tags" defaultValue={campaign.tags.join(", ")} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-              <span className="inline-flex min-w-0 items-center gap-1 text-xs font-medium text-[#59616b]">
-                <Tags size={13} />
-                <span className="truncate">{campaign.tags.length ? campaign.tags.join(", ") : "bez tagů"}</span>
-              </span>
-            </label>
-            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-              Popis
-              <input name="description" defaultValue={campaign.description} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-              <input name="slug" type="hidden" defaultValue={campaign.slug} />
-            </label>
-            <div className="grid gap-2">
-              <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-[#20242a]">
-                <input name="archived" type="checkbox" defaultChecked={campaign.archived} className="size-4 accent-[#f45d1f]" />
-                Archiv
-              </label>
-              <button type="submit" disabled={Boolean(campaignSavingId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
-                <Save size={15} />
-                {campaignSavingId === campaign.id ? "Ukládám" : "Uložit"}
-              </button>
-            </div>
-          </form>
-        ))}
-        {campaigns.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není založená žádná kampaň.</div> : null}
-      </div>
-    </section>
-  );
-}
-
-function CandidatesPanel({
-  candidates,
-  branches,
-  ads,
-  candidateName,
-  candidateBranchId,
-  candidateBallotNumber,
-  candidateSaving,
-  candidateSavingId,
-  onCandidateNameChange,
-  onCandidateBranchChange,
-  onCandidateBallotNumberChange,
-  onCreate,
-  onUpdate,
-}: {
-  candidates: AppWorkspacePayload["candidates"];
-  branches: AppWorkspacePayload["branches"];
-  ads: AdRecord[];
-  candidateName: string;
-  candidateBranchId: string;
-  candidateBallotNumber: string;
-  candidateSaving: boolean;
-  candidateSavingId: string;
-  onCandidateNameChange: (value: string) => void;
-  onCandidateBranchChange: (value: string) => void;
-  onCandidateBallotNumberChange: (value: string) => void;
-  onCreate: () => void;
-  onUpdate: (candidateId: string, input: AppCandidateInput) => void;
-}) {
-  const activeBranches = branches.filter((branch) => !branch.archived);
-  const activeCount = candidates.filter((candidate) => !candidate.archived).length;
-  const candidateCards = candidates.map((candidate) => {
-    const candidateAds = ads.filter((ad) => ad.candidateId === candidate.id);
-
-    return {
-      ...candidate,
-      missingCount: candidateAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0).length,
-      reviewCount: candidateAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED").length,
-      publishedCount: candidateAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
-    };
-  });
-  const candidatesWithAds = candidateCards.filter((candidate) => !candidate.archived && candidate.adCount > 0).length;
-  const branchlessCandidates = candidateCards.filter((candidate) => !candidate.archived && !candidate.branchId).length;
-  const candidateAdCount = candidateCards.reduce((sum, candidate) => sum + candidate.adCount, 0);
-
-  return (
-    <section id="candidates" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-black">Kandidáti</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Udržujte kandidáty jako samostatný seznam a přiřazujte k nim reklamy bez opisování jmen do každého materiálu.</p>
-        </div>
-        <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
-          {activeCount} aktivních
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-4">
-        {[
-          ["Aktivní kandidáti", activeCount],
-          ["S reklamami", candidatesWithAds],
-          ["Bez pobočky", branchlessCandidates],
-          ["Reklamy kandidátů", candidateAdCount],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{label}</div>
-            <div className="mt-2 text-2xl font-semibold text-black">{value}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,260px)_120px_auto]">
-        <input
-          value={candidateName}
-          onChange={(event) => onCandidateNameChange(event.target.value)}
-          placeholder="Jméno kandidáta"
-          className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]"
-        />
-        <select
-          value={candidateBranchId}
-          onChange={(event) => onCandidateBranchChange(event.target.value)}
-          className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold outline-none focus:border-[#f45d1f]"
-        >
-          <option value="">Celý pracovní prostor</option>
-          {activeBranches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name}
-            </option>
-          ))}
-        </select>
-        <input
-          value={candidateBallotNumber}
-          onChange={(event) => onCandidateBallotNumberChange(event.target.value)}
-          placeholder="Číslo"
-          className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]"
-        />
-        <button
-          type="button"
-          onClick={onCreate}
-          disabled={candidateSaving || !candidateName.trim()}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-        >
-          <Plus size={15} />
-          {candidateSaving ? "Ukládám" : "Přidat"}
-        </button>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        {candidateCards.map((candidate) => (
-          <form
-            key={candidate.id}
-            className={`grid min-w-0 gap-3 rounded-md border p-3 ${candidate.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"}`}
-            onSubmit={(event) => {
-              event.preventDefault();
-              const formData = new FormData(event.currentTarget);
-              onUpdate(candidate.id, {
-                name: String(formData.get("name") ?? ""),
-                slug: String(formData.get("slug") ?? ""),
-                branchId: String(formData.get("branchId") ?? ""),
-                contactEmail: String(formData.get("contactEmail") ?? ""),
-                ballotNumber: String(formData.get("ballotNumber") ?? ""),
-                description: String(formData.get("description") ?? ""),
-                archived: formData.get("archived") === "on",
-              });
-            }}
-          >
-            <div className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_minmax(160px,220px)_100px]">
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                Jméno
-                <input name="name" defaultValue={candidate.name} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
-                <span className="flex flex-wrap gap-1 text-xs font-medium text-[#59616b]">
-                  <span>{candidate.adCount} reklam</span>
-                  <span>{candidate.missingCount} k doplnění</span>
-                  <span>{candidate.reviewCount} ke kontrole</span>
-                  <span>{candidate.publishedCount} publikováno</span>
-                </span>
-              </label>
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                Pobočka / oblast
-                <select name="branchId" defaultValue={candidate.branchId} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]">
-                  <option value="">Celý prostor</option>
-                  {activeBranches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                Číslo
-                <input name="ballotNumber" defaultValue={candidate.ballotNumber} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-              </label>
-            </div>
-            <div className="grid gap-2 md:grid-cols-[minmax(180px,240px)_minmax(220px,1fr)_120px] md:items-end">
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                E-mail
-                <input name="contactEmail" defaultValue={candidate.contactEmail} type="email" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-              </label>
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                Poznámka
-                <input name="description" defaultValue={candidate.description} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
-                <input name="slug" type="hidden" defaultValue={candidate.slug} />
-              </label>
-              <div className="grid gap-2">
-                <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-[#20242a]">
-                  <input name="archived" type="checkbox" defaultChecked={candidate.archived} className="size-4 accent-[#f45d1f]" />
-                  Archiv
-                </label>
-                <button type="submit" disabled={Boolean(candidateSavingId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
-                  <Save size={15} />
-                  {candidateSavingId === candidate.id ? "Ukládám" : "Uložit"}
-                </button>
-              </div>
-            </div>
-          </form>
-        ))}
-        {candidates.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není přidaný žádný kandidát.</div> : null}
-      </div>
-    </section>
-  );
-}
-
 function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
   const assetCount = workspace.ads.reduce((sum, ad) => sum + ad.assetCount, 0);
   const reviewCount = workspace.counts.review + workspace.counts.approved;
@@ -3095,7 +1930,7 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
             </div>
             <h2 className="mt-3 text-lg font-semibold text-black">Jeden balík pro kontrolu i vlastní archiv</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-              ZIP obsahuje reklamy, kampaně, pobočky, kandidáty, soubory, schválení a historii změn podle vašeho přístupu.
+              ZIP obsahuje reklamy, soubory, schválení a historii změn.
             </p>
           </div>
           <button
@@ -3162,7 +1997,7 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
         <div className="rounded-md border border-white/12 bg-white/8 p-3">
           <div className="text-sm font-semibold">Archivní období</div>
           <p className="mt-1 text-sm leading-6 text-white/72">
-            Data se drží podle nastavení pracovního prostoru: {workspace.tenant.retentionYears} let.
+            Data se drží {workspace.tenant.retentionYears} let.
           </p>
         </div>
         <div className="rounded-md border border-white/12 bg-white/8 p-3">
@@ -3178,18 +2013,23 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
   function auditActionLabel(action: string) {
     const labels: Record<string, string> = {
       approve_ad: "Schválení reklamy",
-      attach_asset: "Nahrání podkladu",
+      create_new_version: "Nová verze reklamy",
       create_ad: "Nová reklama",
       create_branch: "Nová pobočka",
       create_campaign: "Nová kampaň",
       create_candidate: "Nový kandidát",
       create_invitation: "Pozvánka",
+      download_ad_asset: "Stažení souboru",
+      download_audit_package: "Stažení auditního balíčku",
+      download_qr_package: "Stažení QR balíčku",
       export_workspace_archive: "Stažení balíčku pro kontrolu",
       import_ad: "Import reklamy",
       import_ads_batch: "Import agendy",
       login_magic_link: "Přihlášení e-mailem",
+      logout: "Odhlášení",
+      prepare_audit_export: "Příprava auditního balíčku",
       publish_ad: "Publikace reklamy",
-      request_changes: "Vrácení k doplnění",
+      request_ad_changes: "Vrácení k doplnění",
       retry_invitation_email: "Opětovné odeslání pozvánky",
       revoke_invitation: "Zrušení pozvánky",
       update_ad: "Úprava reklamy",
@@ -3199,13 +2039,46 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
       update_member: "Úprava přístupu",
       update_profile: "Úprava profilu",
       update_tenant_settings: "Nastavení pracovního prostoru",
+      upload_ad_asset: "Nahrání podkladu",
     };
     const key = action.toLowerCase();
 
     return labels[key] ?? key.split("_").filter(Boolean).join(" ");
   }
 
+  function formatAuditJson(value: unknown) {
+    if (!value || (typeof value === "object" && Object.keys(value as Record<string, unknown>).length === 0)) {
+      return "";
+    }
+
+    return JSON.stringify(value, null, 2);
+  }
+
+  const [filters, setFilters] = useState({
+    q: "",
+    actor: "all",
+    action: "all",
+    entityType: "all",
+    outcome: "all",
+  });
+  const [selectedAuditId, setSelectedAuditId] = useState("");
   const sortedLogs = [...logs].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+  const actorOptions = [...new Set(sortedLogs.map((log) => log.actor).filter(Boolean))].sort((a, b) => a.localeCompare(b, "cs"));
+  const actionOptions = [...new Set(sortedLogs.map((log) => log.action).filter(Boolean))].sort((a, b) => auditActionLabel(a).localeCompare(auditActionLabel(b), "cs"));
+  const entityOptions = [...new Set(sortedLogs.map((log) => log.entityType).filter(Boolean))].sort((a, b) => a.localeCompare(b, "cs"));
+  const filteredLogs = sortedLogs.filter((log) => {
+    const query = filters.q.trim().toLowerCase();
+    const haystack = [log.actor, log.action, log.message, log.entityType, log.entityId, log.entityLabel, log.requestId, log.entryHash].join(" ").toLowerCase();
+
+    return (
+      (!query || haystack.includes(query)) &&
+      (filters.actor === "all" || log.actor === filters.actor) &&
+      (filters.action === "all" || log.action === filters.action) &&
+      (filters.entityType === "all" || log.entityType === filters.entityType) &&
+      (filters.outcome === "all" || log.outcome === filters.outcome)
+    );
+  });
+  const selectedLog = filteredLogs.find((log) => log.id === selectedAuditId) ?? filteredLogs[0] ?? null;
   const actorCount = new Set(logs.map((log) => log.actor)).size;
   const actionCounts = Array.from(logs.reduce((counts, log) => {
     const label = auditActionLabel(log.action);
@@ -3215,6 +2088,7 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
     (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"),
   );
   const latestLog = sortedLogs[0] ?? null;
+  const verifiedCount = logs.filter((log) => log.entryHash && log.sequence !== "0").length;
 
   return (
     <section id="audit" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
@@ -3223,7 +2097,9 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
           <h2 className="text-lg font-semibold text-black">Historie změn</h2>
           <p className="mt-1 text-sm text-[#59616b]">Rychlý přehled, kdo co upravil, schválil, zveřejnil nebo stáhl.</p>
         </div>
-        <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">{logs.length} záznamů</span>
+        <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
+          {filteredLogs.length}/{logs.length} záznamů
+        </span>
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-4">
@@ -3231,7 +2107,7 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
           ["Záznamy", logs.length],
           ["Lidé v historii", actorCount],
           ["Typy změn", actionCounts.length],
-          ["Poslední změna", latestLog ? new Date(latestLog.createdAt).toLocaleDateString("cs-CZ") : "zatím žádná"],
+          ["Ověřitelné hashem", verifiedCount],
         ].map(([label, value]) => (
           <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
             <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{label}</div>
@@ -3259,395 +2135,151 @@ function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
         </div>
       </div>
 
+      <div className="mt-4 grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 lg:grid-cols-6">
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a] lg:col-span-2">
+          Hledat
+          <input
+            value={filters.q}
+            onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))}
+            placeholder="aktér, akce, objekt, request id"
+            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Aktér
+          <select
+            value={filters.actor}
+            onChange={(event) => setFilters((current) => ({ ...current, actor: event.target.value }))}
+            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
+          >
+            <option value="all">Všichni</option>
+            {actorOptions.map((actor) => (
+              <option key={actor} value={actor}>
+                {actor}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Akce
+          <select
+            value={filters.action}
+            onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))}
+            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
+          >
+            <option value="all">Všechny</option>
+            {actionOptions.map((action) => (
+              <option key={action} value={action}>
+                {auditActionLabel(action)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Objekt
+          <select
+            value={filters.entityType}
+            onChange={(event) => setFilters((current) => ({ ...current, entityType: event.target.value }))}
+            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
+          >
+            <option value="all">Všechny</option>
+            {entityOptions.map((entityType) => (
+              <option key={entityType} value={entityType}>
+                {entityType}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Výsledek
+          <select
+            value={filters.outcome}
+            onChange={(event) => setFilters((current) => ({ ...current, outcome: event.target.value }))}
+            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
+          >
+            <option value="all">Všechny</option>
+            <option value="success">Úspěch</option>
+            <option value="failure">Chyba</option>
+            <option value="denied">Zamítnuto</option>
+          </select>
+        </label>
+      </div>
+
       <div className="mt-4 grid gap-2">
-        {sortedLogs.slice(0, 12).map((log) => (
-          <article key={log.id} className="grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 lg:grid-cols-[180px_180px_minmax(0,1fr)]">
+        {filteredLogs.slice(0, 30).map((log) => (
+          <button
+            key={log.id}
+            type="button"
+            onClick={() => setSelectedAuditId(log.id)}
+            className={`grid gap-2 rounded-md border p-3 text-left lg:grid-cols-[180px_190px_150px_minmax(0,1fr)] ${
+              selectedLog?.id === log.id ? "border-[#f45d1f] bg-orange-50/55" : "border-black/10 bg-[#fbfbfc]"
+            }`}
+          >
             <div className="text-xs font-semibold text-[#68707a]">{new Date(log.createdAt).toLocaleString("cs-CZ")}</div>
             <div className="break-all text-sm font-semibold text-[#20242a]">{log.actor}</div>
+            <div className="text-xs font-semibold text-[#68707a]">
+              {log.entityType || "event"}
+              {log.sequence && log.sequence !== "0" ? ` #${log.sequence}` : ""}
+            </div>
             <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">{auditActionLabel(log.action)}</div>
               <p className="mt-1 text-sm leading-6 text-[#59616b]">{log.message}</p>
             </div>
-          </article>
+          </button>
         ))}
         {logs.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím tu nejsou žádné změny.</div> : null}
+        {logs.length > 0 && filteredLogs.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Filtr neodpovídá žádnému záznamu.</div> : null}
       </div>
-    </section>
-  );
-}
 
-function PeoplePanel({
-  users,
-  form,
-  saving,
-  retryingInviteId,
-  invitationActionId,
-  memberSavingId,
-  message,
-  onChange,
-  onCreate,
-  onRetryEmail,
-  onRevokeInvitation,
-  onUpdateMember,
-}: {
-  users: AppWorkspacePayload["users"];
-  form: InviteInput;
-  saving: boolean;
-  retryingInviteId: string;
-  invitationActionId: string;
-  memberSavingId: string;
-  message: string;
-  onChange: (form: InviteInput) => void;
-  onCreate: () => void;
-  onRetryEmail: (invitationId: string) => void;
-  onRevokeInvitation: (invitationId: string) => void;
-  onUpdateMember: (memberId: string, input: AppMemberUpdateInput) => void;
-}) {
-  const inviteRoleNeedsBranch = roleNeedsBranch(form.role);
-  const inviteRoleNeedsCandidate = roleNeedsCandidate(form.role);
-  const activeCandidates = users.candidates.filter((candidate) => !candidate.archived);
-  const inviteCandidate = users.candidates.find((candidate) => candidate.id === form.candidateId) ?? activeCandidates[0] ?? null;
-  const activeCount = users.members.filter((member) => member.statusKey === "ACTIVE").length;
-  const disabledCount = users.members.filter((member) => member.statusKey === "DISABLED").length;
-  const pendingInvitations = users.invitations.filter((invitation) => invitation.statusKey === "PENDING").length;
-  const emailActionCount = users.invitations.filter((invitation) => invitation.statusKey === "PENDING" && invitation.emailStatusKey !== "SENT").length;
-  const roleCounts = Array.from(
-    users.members.reduce((counts, member) => counts.set(member.role, (counts.get(member.role) ?? 0) + 1), new Map<string, number>()),
-  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"));
-  const displayedMembers = [...users.members].sort(
-    (a, b) => Number(a.statusKey === "DISABLED") - Number(b.statusKey === "DISABLED") || a.name.localeCompare(b.name, "cs"),
-  );
-  const actionInvitations = users.invitations.filter((invitation) => invitation.statusKey === "PENDING" && invitation.emailStatusKey !== "SENT").slice(0, 3);
-  const inviteCandidateMissing = inviteRoleNeedsCandidate && !form.candidateId;
-
-  function updateInviteRole(role: InviteInput["role"]) {
-    const nextCandidate = roleNeedsCandidate(role) ? inviteCandidate : null;
-    onChange({
-      ...form,
-      role,
-      candidateId: nextCandidate?.id ?? "",
-      branchId: roleNeedsCandidate(role) ? nextCandidate?.branchId ?? "" : form.branchId,
-    });
-  }
-
-  function updateInviteCandidate(candidateId: string) {
-    const candidate = users.candidates.find((item) => item.id === candidateId);
-    onChange({
-      ...form,
-      candidateId,
-      branchId: candidate?.branchId ?? form.branchId,
-    });
-  }
-
-  function invitationEmailText(invitation: AppWorkspacePayload["users"]["invitations"][number]) {
-    if (invitation.emailStatusKey === "SENT") {
-      return "e-mail odeslán";
-    }
-
-    if (invitation.emailStatusKey === "FAILED") {
-      return "e-mail se nepodařilo odeslat";
-    }
-
-    return "čeká na odeslání";
-  }
-
-  return (
-    <section id="people" className="grid min-w-0 scroll-mt-6 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <article className="min-w-0 rounded-md border border-black/10 bg-white p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-black">Správa lidí</h2>
-            <p className="mt-1 text-sm text-[#59616b]">Nastavte, kdo vidí celou stranu, konkrétní pobočku nebo jen reklamy vybraného kandidáta.</p>
-          </div>
-          <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
-            {activeCount} aktivních
-          </span>
-        </div>
-
-        <div className="mt-4 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      {selectedLog ? (
+        <div className="mt-4 rounded-md border border-black/10 bg-[#11161c] p-4 text-white">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-black">Přístupy a pozvánky</h3>
-              <p className="mt-1 text-sm leading-6 text-[#59616b]">
-                Rychlý přehled ukáže, kdo už pracuje v aplikaci, kdo čeká na pozvánku a kde je potřeba e-mail poslat znovu.
-              </p>
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-white/64">Detail auditního záznamu</div>
+              <h3 className="mt-2 text-lg font-semibold">{auditActionLabel(selectedLog.action)}</h3>
+              <p className="mt-1 text-sm leading-6 text-white/72">{selectedLog.message}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-4 lg:min-w-[560px]">
-              {[
-                ["Aktivní přístupy", activeCount],
-                ["Čeká na přijetí", pendingInvitations],
-                ["E-maily k odeslání", emailActionCount],
-                ["Pozastaveno", disabledCount],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-black/10 bg-white p-2">
-                  <div className="text-xs font-semibold text-[#68707a]">{label}</div>
-                  <div className="mt-1 text-lg font-semibold text-black">{value}</div>
-                </div>
-              ))}
-            </div>
+            <span className={`w-fit rounded-md px-2.5 py-1 text-xs font-semibold ${selectedLog.outcome === "success" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"}`}>
+              {selectedLog.outcome || "success"}
+            </span>
           </div>
-          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="rounded-md border border-black/10 bg-white p-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Role v týmu</div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {roleCounts.length ? roleCounts.map(([role, count]) => (
-                  <span key={role} className="rounded-md bg-[#f1f2f4] px-2 py-1 text-xs font-semibold text-[#59616b]">
-                    {role}: {count}
-                  </span>
-                )) : <span className="text-sm text-[#59616b]">Zatím bez členů.</span>}
+
+          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Aktér", selectedLog.actor],
+              ["Role", selectedLog.actorRole || "-"],
+              ["Oblast", selectedLog.actorScope || "-"],
+              ["Objekt", [selectedLog.entityType, selectedLog.entityLabel || selectedLog.entityId].filter(Boolean).join(": ") || "-"],
+              ["Request ID", selectedLog.requestId || "-"],
+              ["Correlation ID", selectedLog.correlationId || "-"],
+              ["Sequence", selectedLog.sequence || "-"],
+              ["Hash", selectedLog.entryHash ? `${selectedLog.entryHash.slice(0, 16)}...` : "-"],
+            ].map(([label, value]) => (
+              <div key={label} className="min-w-0 rounded-md border border-white/12 bg-white/8 p-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-white/56">{label}</div>
+                <div className="mt-1 break-all text-sm font-semibold text-white">{value}</div>
               </div>
-            </div>
-            <div className="rounded-md border border-black/10 bg-white p-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Pozvánky k dořešení</div>
-              {actionInvitations.length ? (
-                <div className="mt-2 grid gap-1.5">
-                  {actionInvitations.map((invitation) => (
-                    <div key={invitation.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md bg-orange-50 px-2 py-1.5 text-xs font-semibold text-orange-800">
-                      <span className="min-w-0 break-all">{invitation.email}</span>
-                      <span>{invitationEmailText(invitation)}</span>
-                    </div>
-                  ))}
+            ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 xl:grid-cols-3">
+            {[
+              ["Před změnou", selectedLog.before],
+              ["Po změně", selectedLog.after],
+              ["Metadata", selectedLog.metadata],
+            ].map(([label, value]) => {
+              const text = formatAuditJson(value);
+
+              return (
+                <div key={String(label)} className="min-w-0 rounded-md border border-white/12 bg-white/8 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-white/56">{String(label)}</div>
+                  {text ? <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-white/78">{text}</pre> : <p className="mt-2 text-sm text-white/56">Bez dat.</p>}
                 </div>
-              ) : (
-                <p className="mt-2 text-sm text-[#59616b]">Žádná pozvánka teď nečeká na dořešení e-mailu.</p>
-              )}
-            </div>
+              );
+            })}
           </div>
         </div>
-
-        <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-[#68707a]">Členové týmu</h3>
-            <div className="mt-2 grid gap-2">
-              {displayedMembers.map((member) => (
-                <form
-                  key={member.id}
-                  className="grid min-w-0 gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(160px,1.1fr)_minmax(150px,190px)_minmax(150px,190px)_minmax(150px,190px)_130px_120px] 2xl:items-end"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const formData = new FormData(event.currentTarget);
-                    onUpdateMember(member.id, {
-                      name: String(formData.get("name") ?? ""),
-                      role: String(formData.get("role") ?? member.roleKey) as AppMemberUpdateInput["role"],
-                      branchId: String(formData.get("branchId") ?? ""),
-                      candidateId: String(formData.get("candidateId") ?? ""),
-                      status: String(formData.get("status") ?? member.statusKey) as AppMemberUpdateInput["status"],
-                    });
-                  }}
-                >
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                    Jméno
-                    <input
-                      name="name"
-                      defaultValue={member.name}
-                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]"
-                    />
-                    <span className="break-all text-xs font-medium text-[#59616b]">{member.email}</span>
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                    Role
-                    <select
-                      name="role"
-                      defaultValue={member.roleKey}
-                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
-                    >
-                      {users.assignableRoles.some((role) => role.value === member.roleKey) ? null : (
-                        <option value={member.roleKey}>{member.role}</option>
-                      )}
-                      {users.assignableRoles.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                    Pobočka
-                    <select
-                      name="branchId"
-                      defaultValue={member.branchId}
-                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
-                    >
-                      <option value="">Celá strana</option>
-                      {users.branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                    Kandidát
-                    <select
-                      name="candidateId"
-                      defaultValue={member.candidateId}
-                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
-                    >
-                      <option value="">Bez kandidáta</option>
-                      {users.candidates.map((candidate) => (
-                        <option key={candidate.id} value={candidate.id}>
-                          {candidate.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
-                    Stav
-                    <select
-                      name="status"
-                      defaultValue={member.statusKey}
-                      className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a] outline-none focus:border-[#f45d1f]"
-                    >
-                      <option value="ACTIVE">Aktivní</option>
-                      <option value="DISABLED">Pozastavený</option>
-                    </select>
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={Boolean(memberSavingId)}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-                  >
-                    <Save size={15} />
-                    {memberSavingId === member.id ? "Ukládám" : "Uložit"}
-                  </button>
-                </form>
-              ))}
-              {users.members.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím není přidaný žádný člověk.</div> : null}
-            </div>
-          </div>
-
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-[#68707a]">Poslední pozvánky</h3>
-            <div className="mt-2 grid gap-2">
-              {users.invitations.slice(0, 6).map((invitation) => (
-                <div key={invitation.id} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="break-all font-semibold text-black">{invitation.email}</div>
-                      <div className="mt-1 text-sm text-[#59616b]">{invitation.role} · {invitation.scope}</div>
-                    </div>
-                    <span className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-[#25282d]">{invitation.status}</span>
-                  </div>
-                  <div className="mt-2 text-xs font-semibold text-[#68707a]">{invitationEmailText(invitation)} · do {invitation.expiresAt}</div>
-                  {invitation.inviteUrl ? (
-                    <a className="mt-2 block break-all text-xs font-semibold text-[#d94410]" href={invitation.inviteUrl}>
-                      {invitation.inviteUrl}
-                    </a>
-                  ) : null}
-                  {invitation.emailStatusKey !== "SENT" ? (
-                    <button
-                      type="button"
-                      onClick={() => onRetryEmail(invitation.id)}
-                      disabled={Boolean(retryingInviteId) || invitation.statusKey === "REVOKED" || invitation.statusKey === "ACCEPTED"}
-                      className="mt-2 inline-flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800 disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
-                    >
-                      <RefreshCw size={15} />
-                      {retryingInviteId === invitation.id ? "Odesílám" : "Zkusit odeslat znovu"}
-                    </button>
-                  ) : null}
-                  {invitation.statusKey !== "ACCEPTED" && invitation.statusKey !== "REVOKED" ? (
-                    <button
-                      type="button"
-                      onClick={() => onRevokeInvitation(invitation.id)}
-                      disabled={Boolean(invitationActionId)}
-                      className="mt-2 inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#25282d] disabled:cursor-not-allowed disabled:text-[#9aa0a8]"
-                    >
-                      <X size={15} />
-                      {invitationActionId === invitation.id ? "Ruším" : "Zrušit pozvánku"}
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-              {users.invitations.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím nebyla odeslaná žádná pozvánka.</div> : null}
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <aside className="min-w-0 rounded-md border border-black/10 bg-white p-4">
-        <h2 className="text-lg font-semibold text-black">Pozvat člověka</h2>
-        <div className="mt-3 grid gap-3">
-          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
-            E-mail
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => onChange({ ...form, email: event.target.value })}
-              placeholder="napr. grafik@example.cz"
-              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
-            />
-          </label>
-
-          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
-            Role
-            <select
-              value={form.role}
-              onChange={(event) => updateInviteRole(event.target.value as InviteInput["role"])}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
-            >
-              {users.assignableRoles.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {inviteRoleNeedsCandidate ? (
-            <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
-              Kandidát
-              <select
-                value={form.candidateId ?? ""}
-                onChange={(event) => updateInviteCandidate(event.target.value)}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f]"
-              >
-                <option value="">Vyberte kandidáta</option>
-                {activeCandidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          <label className="grid gap-1.5 text-sm font-semibold text-[#20242a]">
-            Pobočka nebo oblast
-            <select
-              value={form.branchId ?? ""}
-              onChange={(event) => onChange({ ...form, branchId: event.target.value })}
-              disabled={!inviteRoleNeedsBranch}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 font-normal outline-none focus:border-[#f45d1f] disabled:bg-[#f1f2f4]"
-            >
-              <option value="">{inviteRoleNeedsBranch ? "Vyberte pobočku" : "Celá strana"}</option>
-              {users.branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            type="button"
-            onClick={onCreate}
-            disabled={saving || !form.email.trim() || (inviteRoleNeedsBranch && !form.branchId) || inviteCandidateMissing}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#11161c] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
-          >
-            <Plus size={15} />
-            {saving ? "Posílám" : "Poslat pozvánku"}
-          </button>
-
-          {message ? (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-              Pozvánka je připravená.
-              <a className="mt-1 block break-all text-[#166534]" href={message}>
-                {message}
-              </a>
-            </div>
-          ) : null}
-        </div>
-      </aside>
+      ) : null}
     </section>
   );
 }
@@ -3665,7 +2297,7 @@ function MissingDataQueue({
   onSelect: (id: string) => void;
   onEdit: (ad: AdRecord) => void;
 }) {
-  const missingAds = ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0);
+  const missingAds = useMemo(() => ads.filter((ad) => ad.workflowStatus === "NEEDS_DATA" || ad.missing.length > 0), [ads]);
 
   if (missingAds.length === 0) {
     return null;
@@ -3676,7 +2308,7 @@ function MissingDataQueue({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-black">Co je potřeba doplnit</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Tyto reklamy nejdou posunout dál, dokud se nedoplní chybějící údaje nebo připomínky z kontroly.</p>
+          <p className="mt-1 text-sm text-[#59616b]">Doplňte chybějící údaje nebo připomínky.</p>
         </div>
         <span className="inline-flex w-fit rounded-md border border-orange-200 bg-white px-3 py-1.5 text-sm font-semibold text-orange-800">
           {missingAds.length} k doplnění
@@ -3731,9 +2363,27 @@ function ReviewInbox({
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
-  const reviewAds = ads.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW" || ad.workflowStatus === "APPROVED");
-  const waitingForApproval = reviewAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW").length;
-  const waitingForPublication = reviewAds.filter((ad) => ad.workflowStatus === "APPROVED").length;
+  const { reviewAds, waitingForApproval, waitingForPublication } = useMemo(() => {
+    const nextReviewAds: AdRecord[] = [];
+    let approvalCount = 0;
+    let publicationCount = 0;
+
+    for (const ad of ads) {
+      if (ad.workflowStatus === "READY_FOR_REVIEW") {
+        nextReviewAds.push(ad);
+        approvalCount += 1;
+      } else if (ad.workflowStatus === "APPROVED") {
+        nextReviewAds.push(ad);
+        publicationCount += 1;
+      }
+    }
+
+    return {
+      reviewAds: nextReviewAds,
+      waitingForApproval: approvalCount,
+      waitingForPublication: publicationCount,
+    };
+  }, [ads]);
 
   return (
     <section id="review" className="scroll-mt-6 rounded-md border border-sky-200 bg-sky-50/55 p-4">
@@ -3818,7 +2468,7 @@ function AdComplianceProcess({ ad }: { ad: AdRecord }) {
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-black">Kontrolní proces reklamy</h3>
           <p className="mt-1 text-sm leading-6 text-[#59616b]">
-            Osm bodů od založení reklamy po výstupy, které potřebujete pro TTPA.
+            Osm bodů od záznamu po TTPA výstupy.
           </p>
         </div>
         <div className="shrink-0 rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-2 text-sm font-semibold text-[#25282d]">
@@ -4010,7 +2660,7 @@ function DetailPanel({
               </div>
               <h3 className="mt-3 text-lg font-semibold text-black">QR, veřejné oznámení a kontrola</h3>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-[#59616b]">
-                Zkontrolujte veřejný odkaz, stáhněte QR podklady pro grafiku nebo balíček pro kontrolu.
+                Zkontrolujte odkaz, QR podklady a kontrolní balíček.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

@@ -1,8 +1,10 @@
 import JSZip from "jszip";
 import QRCode from "qrcode";
 import { getAppSession } from "@/lib/app-auth";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { getAppAdRecord, normalizeLocale } from "@/lib/workspace-db";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { getAppAdRecord } from "@/lib/workspace/services/ads";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +37,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     return Response.json({ error: "Too many QR package downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
-  const ad = await getAppAdRecord(session.userId, decodedCode, locale);
+  const ad = await withAuditContext(buildAuditContext(request, session), () => getAppAdRecord(session.userId, decodedCode, locale, "download_qr_package"));
 
   if (!ad) {
     return Response.json({ error: "Ad not found." }, { status: 404 });

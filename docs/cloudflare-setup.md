@@ -4,6 +4,8 @@ This guide describes optional Cloudflare configuration for a self-hosted Adclare
 
 Cloudflare is not required to run Adclare, but it is a practical option for DNS, TLS proxying, basic edge security, Turnstile and inbound email aliases. The Adclare production preflight expects public instances to have outbound email and Turnstile configured before real users are invited.
 
+For the full Adclare environment variable reference, see [docs/configuration.md](configuration.md).
+
 ## Inputs
 
 Choose these values before running the setup:
@@ -189,4 +191,7 @@ Use the location shown by your provider, for example `fsn1`, `nbg1` or `hel1` fo
 
 1. Revoke the temporary API token.
 2. Store production secrets outside Git.
-3. Keep operational notes outside the public repository when they contain real server addresses, credentials or customer-specific routing.
+3. Copy the Turnstile and Cloudflare Email Service values into the production `.env`.
+4. Run `npm run launch:preflight`.
+5. Run `SMOKE_URL=https://your-domain npm run launch:smoke` after DNS and HTTPS are live.
+6. Keep operational notes outside the public repository when they contain real server addresses, credentials or customer-specific routing.

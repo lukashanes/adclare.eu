@@ -115,6 +115,12 @@ export type PublicRepositoryFilters = {
   campaign: string;
 };
 
+export type PublicRepositoryPageInfo = {
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string;
+};
+
 export type PublicRepositoryOption = {
   value: string;
   label: string;
@@ -150,6 +156,7 @@ export type PublicRepositoryPayload = {
   ads: PublicRepositoryAdRecord[];
   totalCount: number;
   filteredCount: number;
+  pageInfo: PublicRepositoryPageInfo;
   filters: PublicRepositoryFilters;
   options: {
     channels: PublicRepositoryOption[];
@@ -341,7 +348,23 @@ export type AppTenantSettingsInput = {
 export type AppAuditRecord = {
   id: string;
   actor: string;
+  actorRole: string;
+  actorScope: string;
   action: string;
+  outcome: string;
+  severity: string;
+  entityType: string;
+  entityId: string;
+  entityLabel: string;
+  requestId: string;
+  correlationId: string;
+  sequence: string;
+  previousHash: string;
+  entryHash: string;
+  metadata: unknown;
+  before: unknown;
+  after: unknown;
+  diff: unknown;
   message: string;
   createdAt: string;
 };
@@ -401,6 +424,13 @@ export type InvitationNotice = {
   expiresAt: string;
 };
 
+export type AppWorkspacePageInfo = {
+  limit: number;
+  total: number;
+  hasMore: boolean;
+  nextCursor: string;
+};
+
 export type AppWorkspacePayload = {
   user: {
     name: string;
@@ -448,6 +478,7 @@ export type AppWorkspacePayload = {
   users: AdminUsersPayload;
   auditLogs: AppAuditRecord[];
   ads: AdRecord[];
+  adPageInfo: AppWorkspacePageInfo;
   counts: {
     all: number;
     needsData: number;

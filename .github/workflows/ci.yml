@@ -20,15 +20,32 @@ env:
   APP_URL: http://localhost:3000
   NEXT_PUBLIC_APP_URL: http://localhost:3000
   TURNSTILE_REQUIRED: "0"
+  ADCLARE_STORAGE_DRIVER: local
+  ADCLARE_LOCAL_STORAGE_DIR: .data/e2e-uploads
+  ADCLARE_LOG_EMAIL_LINKS: "0"
+  NEXT_PUBLIC_SHOW_DEMO_REPO: "0"
+  EMAIL_FROM: "Adclare <noreply@example.test>"
   SIGNUP_MODE: first-run
-  ADMIN_ACCESS_PASSWORD: ci-admin-password
-  ADMIN_SESSION_SECRET: ci-admin-session-secret-with-at-least-32-chars
 
 jobs:
   app:
     name: App Checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: adclare
+          POSTGRES_USER: adclare
+          POSTGRES_PASSWORD: adclare
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U adclare -d adclare"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Check out repository
@@ -42,6 +59,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare database
+        run: |
+          npm run db:generate
+          npx prisma migrate deploy
+          npm run db:seed
 
       - name: Run app checks
         run: npm run ci

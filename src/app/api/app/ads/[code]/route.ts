@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, updateAppAd } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { updateAppAd } from "@/lib/workspace/services/ads";
 import { parseEditableAdInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +25,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
   ]);
   try {
     const input = parseEditableAdInput(await request.json());
-    const ad = await updateAppAd(session.userId, decodeURIComponent(code), input, locale);
+    const ad = await withAuditContext(buildAuditContext(request, session), () => updateAppAd(session.userId, decodeURIComponent(code), input, locale));
 
     if (!ad) {
       return Response.json({ error: "Ad not found or not editable for this user." }, { status: 404 });

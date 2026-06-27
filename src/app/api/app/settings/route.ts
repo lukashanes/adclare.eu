@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, updateAppTenantSettings } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { updateAppTenantSettings } from "@/lib/workspace/services/settings";
 import { parseAppTenantSettingsInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +27,7 @@ export async function PATCH(request: Request) {
 
   try {
     const input = parseAppTenantSettingsInput(await request.json());
-    const tenant = await updateAppTenantSettings(session.userId, input);
+    const tenant = await withAuditContext(buildAuditContext(request, session), () => updateAppTenantSettings(session.userId, input));
 
     if (!tenant) {
       return Response.json({ error: "Nastavení strany nemůžete upravit." }, { status: 403 });

@@ -30,10 +30,12 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 - Export manifests with SHA-256 file hashes for QR packages, ad audit packages and workspace control archives.
 - Approval, publish, archive and version lock workflow.
 - Public repository for published and archived adverts.
-- Append-only audit log.
+- Append-only audit log with tenant hash chain verification.
 - Local file storage by default, with S3-compatible object storage integration when configured.
 - Cloudflare Turnstile and Cloudflare Email Service integrations when configured.
 - Docker Compose deployment and PostgreSQL backup/restore scripts.
+- Full configuration reference for local development, production Docker, Cloudflare, storage and launch checks.
+- Automated browser workflow tests for the release-critical flow.
 
 ## Primary Users
 
@@ -55,7 +57,6 @@ The project is self-hosted first. Political parties, candidate teams, agencies, 
 - More granular permission editor for large organizations.
 - Import mapping presets for organization-specific spreadsheet templates.
 - Upgrade guide for installations that move from the baseline migration to later versions.
-- Automated browser workflow tests for the core workflow.
 
 ## Current Data Model
 
@@ -74,6 +75,7 @@ The current schema contains these Prisma models:
 - `Approval`
 - `AdAsset`
 - `AuditLog`
+- `AuditChain`
 - `EmailMessage`
 - `RateLimitBucket`
 

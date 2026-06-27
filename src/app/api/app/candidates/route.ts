@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { createAppCandidate, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace/services/shared";
+import { createAppCandidate } from "@/lib/workspace/services/candidates";
 import { parseAppCandidateInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
 
   try {
     const input = parseAppCandidateInput(await request.json());
-    const candidate = await createAppCandidate(session.userId, input, locale);
+    const candidate = await withAuditContext(buildAuditContext(request, session), () => createAppCandidate(session.userId, input, locale));
 
     if (!candidate) {
       return Response.json({ error: "Nemáte přístup ke správě kandidátů." }, { status: 403 });

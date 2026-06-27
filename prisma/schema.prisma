@@ -78,6 +78,7 @@ model Tenant {
   candidates        Candidate[]
   ads               Ad[]
   auditLogs         AuditLog[]
+  auditChain        AuditChain?
   memberships       TenantMembership[]
   invitations       Invitation[]
   emailMessages     EmailMessage[]
@@ -400,24 +401,53 @@ model AuditLog {
   id          String   @id @default(cuid())
   tenantId    String
   adId        String?
+  entityType  String   @default("")
+  entityId    String   @default("")
+  entityLabel String   @default("")
   actor       String
   actorUserId String?
+  actorRole   String   @default("")
+  actorScope  String   @default("")
   action      String
+  outcome     String   @default("success")
+  severity    String   @default("info")
   messageCs   String
   messageEn   String
   ipAddress   String   @default("")
   userAgent   String   @default("")
   requestId   String   @default("")
+  correlationId String @default("")
+  before      Json?
+  after       Json?
+  diff        Json?
   metadata    Json?
+  sequence    BigInt   @default(0)
+  previousHash String  @default("")
+  entryHash   String   @default("")
   createdAt   DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ad     Ad?    @relation(fields: [adId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
+  @@index([tenantId, sequence])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, action, createdAt])
   @@index([adId, createdAt])
   @@index([actorUserId])
   @@map("audit_logs")
+}
+
+model AuditChain {
+  tenantId     String   @id
+  lastSequence BigInt   @default(0)
+  lastHash     String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("audit_chains")
 }
 
 model EmailMessage {

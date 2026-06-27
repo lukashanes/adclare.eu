@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, publishAppAd } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { publishAppAd } from "@/lib/workspace/services/ads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,7 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
   try {
-    const ad = await publishAppAd(session.userId, decodeURIComponent(code), locale);
+    const ad = await withAuditContext(buildAuditContext(request, session), () => publishAppAd(session.userId, decodeURIComponent(code), locale));
 
     if (!ad) {
       return Response.json({ error: "Ad not found or not publishable for this user." }, { status: 404 });

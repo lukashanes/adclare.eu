@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { createAppAd, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace/services/shared";
+import { createAppAd } from "@/lib/workspace/services/ads";
 import { parseEditableAdInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +19,12 @@ export async function GET(request: Request) {
     return unauthorized();
   }
 
-  const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
-  const payload = await getAppWorkspacePayload(session.userId, locale);
+  const url = new URL(request.url);
+  const locale = normalizeLocale(url.searchParams.get("locale"));
+  const payload = await getAppWorkspacePayload(session.userId, locale, {
+    cursor: url.searchParams.get("cursor") || "",
+    limit: url.searchParams.get("limit") || "",
+  });
 
   if (!payload) {
     return unauthorized();
@@ -45,7 +51,7 @@ export async function POST(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
   try {
     const input = parseEditableAdInput(await request.json());
-    const ad = await createAppAd(session.userId, input, locale);
+    const ad = await withAuditContext(buildAuditContext(request, session), () => createAppAd(session.userId, input, locale));
 
     if (!ad) {
       return Response.json({ error: "Ad could not be created for this user." }, { status: 403 });

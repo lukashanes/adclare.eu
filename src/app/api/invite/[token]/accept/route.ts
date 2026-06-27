@@ -1,5 +1,7 @@
 import { isSameOriginRequest } from "@/lib/request-security";
-import { acceptInvitation, normalizeLocale } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { acceptInvitation } from "@/lib/workspace/services/invitations";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
 import { parseInviteAcceptInput, validationErrorResponse } from "@/lib/request-validation";
 import { verifyTurnstileToken } from "@/lib/turnstile";
@@ -34,7 +36,7 @@ export async function POST(request: Request, context: { params: Promise<{ token:
       return Response.json({ error: "Verification failed." }, { status: 403 });
     }
 
-    const notice = await acceptInvitation(decodeURIComponent(token), body.name, locale);
+    const notice = await withAuditContext(buildAuditContext(request), () => acceptInvitation(decodeURIComponent(token), body.name, locale));
 
     if (!notice) {
       return Response.json({ error: "Invitation cannot be accepted." }, { status: 409 });

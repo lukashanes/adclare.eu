@@ -1,18 +1,31 @@
 import JSZip from "jszip";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { getAppAuditPackage, normalizeLocale, prepareAppAuditExport } from "@/lib/workspace-db";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { getAppAuditPackage, prepareAppAuditExport } from "@/lib/workspace/services/exports";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function toCsv(rows: Array<Record<string, string>>) {
+function toCsv(rows: Array<Record<string, unknown>>) {
   const headers = Object.keys(rows[0] ?? { id: "", actor: "", action: "", message: "", createdAt: "" });
-  const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
+  const cell = (value: unknown) => {
+    if (value === null || value === undefined) {
+      return "";
+    }
 
-  return [headers.map(escape).join(","), ...rows.map((row) => headers.map((header) => escape(row[header] ?? "")).join(","))].join("\n");
+    if (typeof value === "object") {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
+  };
+  const escape = (value: unknown) => `"${cell(value).replaceAll('"', '""')}"`;
+
+  return [headers.map(escape).join(","), ...rows.map((row) => headers.map((header) => escape(row[header])).join(","))].join("\n");
 }
 
 export async function POST(request: Request, context: { params: Promise<{ code: string }> }) {
@@ -39,7 +52,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     return Response.json({ error: "Too many export requests." }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
-  const exportReady = await prepareAppAuditExport(session.userId, decodedCode);
+  const exportReady = await withAuditContext(buildAuditContext(request, session), () => prepareAppAuditExport(session.userId, decodedCode));
 
   if (!exportReady) {
     return Response.json({ error: "Ad not found." }, { status: 404 });
@@ -71,7 +84,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     return Response.json({ error: "Too many audit package downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
-  const auditPackage = await getAppAuditPackage(session.userId, decodedCode, locale);
+  const auditPackage = await withAuditContext(buildAuditContext(request, session), () => getAppAuditPackage(session.userId, decodedCode, locale));
 
   if (!auditPackage) {
     return Response.json({ error: "Ad not found." }, { status: 404 });
@@ -89,6 +102,8 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
   addExportFile(zip, files, `${auditPackage.ad.id}-control-package.json`, JSON.stringify(auditPackage, null, 2), "application/json");
   addExportFile(zip, files, `${auditPackage.ad.id}-notice.json`, JSON.stringify(auditPackage.notice, null, 2), "application/json");
   addExportFile(zip, files, `${auditPackage.ad.id}-history.csv`, toCsv(auditPackage.auditLogs), "text/csv; charset=utf-8");
+  addExportFile(zip, files, `${auditPackage.ad.id}-audit-log.csv`, toCsv(auditPackage.auditLogs), "text/csv; charset=utf-8");
+  addExportFile(zip, files, `${auditPackage.ad.id}-audit-log.json`, JSON.stringify(auditPackage.auditLogs, null, 2), "application/json");
   addExportFile(zip, files, `${auditPackage.ad.id}-approvals.csv`, toCsv(auditPackage.approvals), "text/csv; charset=utf-8");
   zip.file(
     "manifest.json",
@@ -110,6 +125,10 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
           version: auditPackage.notice.version,
           approvals: auditPackage.approvals.length,
           auditLogs: auditPackage.auditLogs.length,
+          auditIntegrityChecked: auditPackage.auditIntegrity.checked,
+          auditIntegrityVerified: auditPackage.auditIntegrity.verified,
+          auditIntegrityBroken: auditPackage.auditIntegrity.broken,
+          auditIntegrityLastHash: auditPackage.auditIntegrity.lastHash,
           assets: auditPackage.assets.length,
         },
         files,

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Přihlášení do Adclare",
-  description: "Přihlášení uživatele do pracovní aplikace Adclare.",
+  description: "Přihlášení do Adclare.",
   robots: {
     index: false,
     follow: false,
@@ -49,16 +49,16 @@ export default async function LoginPage({
             </span>
             Adclare
           </Link>
-          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Pracovní přístup</p>
-          <h1 className="mt-3 text-4xl font-semibold leading-tight text-black sm:text-5xl">Přihlášení pro strany, pobočky a externí týmy</h1>
+          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.08em] text-[#d94410]">Adclare</p>
+          <h1 className="mt-3 text-4xl font-semibold leading-tight text-black sm:text-5xl">Přihlášení</h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-[#4c535d]">
-            Přístup se posílá na e-mail pozvaného uživatele. Každý po přihlášení vidí jen organizaci, pobočku a reklamy, které má řešit.
+            Zadejte e-mail. Pošleme vám odkaz pro vstup do aplikace.
           </p>
         </div>
 
         <aside className="rounded-md border border-black/10 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-black">Přihlásit se</h2>
-          <p className="mt-2 text-sm leading-6 text-[#59616b]">Zadejte e-mail, na který vám přišla pozvánka do Adclare.</p>
+          <p className="mt-2 text-sm leading-6 text-[#59616b]">Pošleme vám jednorázový odkaz.</p>
           <div className="mt-6">
             <LoginClient defaultEmail={email} turnstileSiteKey={publicTurnstileSiteKey()} />
           </div>

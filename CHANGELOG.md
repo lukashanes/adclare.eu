@@ -2,6 +2,25 @@
 
 All notable changes for Adclare are summarized here.
 
+## v0.2.0-beta.4 - 2026-06-25
+
+Release readiness, audit integrity and browser E2E gate for public beta.
+
+### Included
+
+- Extended the audit log into a general event stream with actor, entity, request context, before/after data and per-tenant hash chain integrity.
+- Added audit JSON/CSV exports and manifest integrity data to ad audit packages and workspace archives.
+- Added Playwright browser E2E coverage for public pages, login, workspace workflow, invitations, advert publication, repository, imports, exports, audit and role scopes.
+- Updated GitHub Actions with PostgreSQL service, database migration, seed data and Playwright Chromium installation before release checks.
+- Fixed the release dependency audit gate by overriding vulnerable transitive `hono`, `esbuild` and `js-yaml` versions to patched versions.
+- Updated release documentation for the public beta pass-through, production smoke requirements and full environment configuration.
+
+### Notes
+
+- CI now requires a seeded PostgreSQL database for workflow and browser E2E tests.
+- Public production launch still requires real environment values for domain, Cloudflare Email Service, Turnstile, storage and backup/restore operations.
+- For hosting, installation, migration, TTPA workflow design, integrations or production support, contact `support@adclare.eu`.
+
 ## v0.2.0-beta.3 - 2026-06-05
 
 Production configuration cleanup for the public beta.

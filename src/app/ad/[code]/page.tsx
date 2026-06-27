@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, ExternalLink, FileText, Landmark, QrCode, ShieldCheck } from "lucide-react";
-import { getTransparencyNotice } from "@/lib/workspace-db";
+import { getTransparencyNotice } from "@/lib/workspace/services/public-repository";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

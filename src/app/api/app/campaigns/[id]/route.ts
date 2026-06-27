@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, updateAppCampaign } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { updateAppCampaign } from "@/lib/workspace/services/campaigns";
 import { parseAppCampaignInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   try {
     const input = parseAppCampaignInput(await request.json());
-    const campaign = await updateAppCampaign(session.userId, decodeURIComponent(id), input, locale);
+    const campaign = await withAuditContext(buildAuditContext(request, session), () => updateAppCampaign(session.userId, decodeURIComponent(id), input, locale));
 
     if (!campaign) {
       return Response.json({ error: "Kampaň nenalezena nebo ji nemůžete upravit." }, { status: 404 });

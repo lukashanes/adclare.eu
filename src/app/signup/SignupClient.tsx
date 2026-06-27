@@ -60,10 +60,10 @@ export function SignupClient({
   if (!canCreateWorkspace) {
     return (
       <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-5 text-sm text-[#59616b]">
-        <div className="font-semibold text-[#20242a]">První organizace už je v této instalaci vytvořená.</div>
-        <p className="mt-2 leading-6">Další lidé se přidávají přes pozvánky od správce. Pokud už přístup máte, pokračujte na přihlášení.</p>
+        <div className="font-semibold text-[#20242a]">První organizace už existuje.</div>
+        <p className="mt-2 leading-6">Pokud máte přístup, pokračujte na přihlášení.</p>
         <Link className="mt-4 inline-flex rounded-md bg-[#11161c] px-4 py-3 font-semibold text-white" href="/login">
-          Pokračovat na přihlášení
+          Přihlášení
         </Link>
       </div>
     );
@@ -125,11 +125,11 @@ export function SignupClient({
         className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#f45d1f] px-4 text-sm font-semibold text-white transition hover:bg-[#d94410] disabled:cursor-not-allowed disabled:bg-[#c9cdd3]"
       >
         {state === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight size={16} />}
-        Založit pracovní prostor
+        Založit Adclare
       </button>
 
       <p className="text-xs leading-5 text-[#68707a]">
-        Odesláním se založí pracovní prostor v této instalaci. Pokračováním potvrzujete souhlas s{" "}
+        Pokračováním potvrzujete souhlas s{" "}
         <Link className="font-semibold text-[#d94410]" href="/cs/terms">obchodními podmínkami</Link>,{" "}
         <Link className="font-semibold text-[#d94410]" href="/cs/privacy">zpracováním osobních údajů</Link> a{" "}
         <Link className="font-semibold text-[#d94410]" href="/cs/dpa">DPA</Link>.

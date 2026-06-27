@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, updateAppMember } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { updateAppMember } from "@/lib/workspace/services/users";
 import { parseAppMemberUpdateInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   try {
     const input = parseAppMemberUpdateInput(await request.json());
-    const member = await updateAppMember(session.userId, decodeURIComponent(id), input, locale);
+    const member = await withAuditContext(buildAuditContext(request, session), () => updateAppMember(session.userId, decodeURIComponent(id), input, locale));
 
     if (!member) {
       return Response.json({ error: "Člověka se nepodařilo najít nebo nemáte přístup ke správě lidí." }, { status: 404 });
