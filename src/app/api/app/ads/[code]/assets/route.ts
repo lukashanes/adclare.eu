@@ -1,7 +1,9 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { attachAppAdAsset, getAppAdUploadTarget, normalizeLocale } from "@/lib/workspace-db";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { attachAppAdAsset, getAppAdUploadTarget } from "@/lib/workspace/services/ads";
 import { isAssetStorageAvailable, uploadAdAssetObject } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +59,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
       adCode: target.adCode,
       file,
     });
-    const ad = await attachAppAdAsset(session.userId, target.adCode, storedObject, locale);
+    const ad = await withAuditContext(buildAuditContext(request, session), () => attachAppAdAsset(session.userId, target.adCode, storedObject, locale));
 
     if (!ad) {
       return Response.json({ error: "Ad not found or not editable for this user." }, { status: 404 });

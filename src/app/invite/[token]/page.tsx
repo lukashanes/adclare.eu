@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getInvitationNotice } from "@/lib/workspace-db";
+import { getInvitationNotice } from "@/lib/workspace/services/invitations";
 import { publicTurnstileSiteKey } from "@/lib/turnstile";
 import { InviteAcceptClient } from "./InviteAcceptClient";
 
@@ -47,7 +47,7 @@ export default async function InvitePage({ params }: PageProps) {
     ["Organizace", invitation.tenant],
     ["E-mail", invitation.email],
     ["Role", invitation.role],
-    ["Rozsah", invitation.scope],
+    ["Oblast", invitation.scope],
     ["Platnost do", invitation.expiresAt],
   ];
 
@@ -58,10 +58,10 @@ export default async function InvitePage({ params }: PageProps) {
           <Link href="/cs" className="text-sm font-semibold text-white/70 transition hover:text-white">
             Adclare
           </Link>
-          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.08em] text-[#ffb199]">Pozvánka do administrace</p>
+          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.08em] text-[#ffb199]">Pozvánka</p>
           <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">Přístup pro {invitation.email}</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/72">
-            Přijetím pozvánky se uživatel přidá do organizace s uvedenou rolí a rozsahem.
+            Přijetím pozvánky získáte přístup do Adclare.
           </p>
         </div>
 

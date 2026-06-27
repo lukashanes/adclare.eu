@@ -1,6 +1,7 @@
 import { getAppSession } from "@/lib/app-auth";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { getAppAdAssetDownload } from "@/lib/workspace-db";
+import { getAppAdAssetDownload } from "@/lib/workspace/services/ads";
 import { downloadAdAssetObject } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     return Response.json({ error: "Too many downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
-  const asset = await getAppAdAssetDownload(session.userId, decodedCode, decodeURIComponent(assetId));
+  const asset = await withAuditContext(buildAuditContext(request, session), () => getAppAdAssetDownload(session.userId, decodedCode, decodeURIComponent(assetId)));
 
   if (!asset) {
     return Response.json({ error: "Asset not found." }, { status: 404 });

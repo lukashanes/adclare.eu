@@ -1,5 +1,6 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { requestAppLoginLink } from "@/lib/app-auth";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
 import { parseLoginRequestInput, validationErrorResponse } from "@/lib/request-validation";
 import { verifyTurnstileToken } from "@/lib/turnstile";
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Verification failed." }, { status: 403 });
     }
 
-    await requestAppLoginLink(body.email);
+    await withAuditContext(buildAuditContext(request), () => requestAppLoginLink(body.email));
     return Response.json({ ok: true });
   } catch (error) {
     const validation = validationErrorResponse(error);

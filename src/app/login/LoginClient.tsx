@@ -71,7 +71,7 @@ export function LoginClient({ defaultEmail = "", turnstileSiteKey = "" }: { defa
 
       {state === "error" ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
-          Odkaz se nepodařilo odeslat. Zkus to znovu nebo požádej administrátora strany.
+          Odkaz se nepodařilo odeslat. Zkuste to znovu.
         </div>
       ) : null}
     </form>

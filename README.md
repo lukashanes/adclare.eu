@@ -49,7 +49,7 @@ Adclare gives teams one place to:
 - Excel import for existing advert registers.
 - QR package and audit package downloads.
 - Export manifests with SHA-256 hashes for QR packages, ad audit packages and workspace archives.
-- Append-only audit log.
+- Append-only audit log with per-tenant hash chain verification.
 - Turnstile validation for public forms when configured.
 - Production health endpoint at `/api/health`.
 - Backup and restore scripts for PostgreSQL.
@@ -127,24 +127,24 @@ docker compose -f docker-compose.prod.yml --profile tools build preflight
 docker compose -f docker-compose.prod.yml --profile tools run --rm preflight
 ```
 
-See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide, [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for Hetzner deployment notes, [docs/release-checklist.md](docs/release-checklist.md) for release verification and [docs/roadmap.md](docs/roadmap.md) for the current product roadmap.
+See [docs/self-hosting.md](docs/self-hosting.md) for the vendor-neutral Docker guide, [docs/configuration.md](docs/configuration.md) for all environment variables, [docs/deployment-hetzner.md](docs/deployment-hetzner.md) for Hetzner deployment notes, [docs/cloudflare-setup.md](docs/cloudflare-setup.md) for Cloudflare setup, [docs/release-checklist.md](docs/release-checklist.md) for release verification and [docs/roadmap.md](docs/roadmap.md) for the current product roadmap.
 
 ## Configuration
 
-Important environment variables:
+Use `.env.example` for local development and `production.env.example` for a public instance.
 
-- `DATABASE_URL`: PostgreSQL connection string.
-- `APP_URL` and `NEXT_PUBLIC_APP_URL`: public URL of the instance. `APP_URL` is used at runtime by server-side links, feeds and metadata.
-- `EMAIL_FROM`: sender identity for transactional email.
-- `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN`: Cloudflare Email Service credentials. Optional for local development, required by the production preflight before real users are invited.
-- `ADCLARE_LOG_EMAIL_LINKS`: local development fallback for magic links; set to `0` to disable console output.
-- `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile protection. Optional for local development, required by the production preflight for public instances.
-- `ADCLARE_STORAGE_DRIVER`: `local` by default; set to `s3` for Hetzner Object Storage or another S3-compatible bucket.
-- `ADCLARE_LOCAL_STORAGE_DIR`: local uploaded asset directory; defaults to `.data/uploads` in local development and `/data/uploads` in Docker.
-- `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`: optional S3-compatible asset storage.
-- `MAX_AD_ASSET_UPLOAD_MB`: maximum uploaded advert asset size.
-- `SIGNUP_MODE`: `first-run` by default; use `open` only when public workspace creation is intentional, or `disabled` for invite-only operation.
-- `npm run launch:preflight`: validates the production launch configuration before real users are invited.
+The full reference is in [docs/configuration.md](docs/configuration.md). The most important settings are:
+
+| Area | Variables |
+| --- | --- |
+| URL | `APP_URL`, `NEXT_PUBLIC_APP_URL`, `SITE_ADDRESS` |
+| Database | `DATABASE_URL`, `DOCKER_DATABASE_URL`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` |
+| Signup | `SIGNUP_MODE` |
+| Email | `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, `ADCLARE_LOG_EMAIL_LINKS` |
+| Turnstile | `TURNSTILE_REQUIRED`, `TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_ALLOWED_HOSTNAMES` |
+| Storage | `ADCLARE_STORAGE_DRIVER`, `ADCLARE_LOCAL_STORAGE_DIR`, `OBJECT_STORAGE_*`, `MAX_AD_ASSET_UPLOAD_MB` |
+
+Run `npm run launch:preflight` before inviting real users on a public instance.
 
 ## File Storage
 
@@ -200,11 +200,20 @@ npm run test
 
 GitHub Actions runs the same app checks plus Docker build checks for pushes, tags and pull requests. Dependabot is enabled for npm dependencies and GitHub Actions updates.
 
+## Documentation Map
+
+- [Configuration reference](docs/configuration.md)
+- [Self-hosting guide](docs/self-hosting.md)
+- [Hetzner deployment guide](docs/deployment-hetzner.md)
+- [Cloudflare setup](docs/cloudflare-setup.md)
+- [Release checklist](docs/release-checklist.md)
+- [Roadmap](docs/roadmap.md)
+
 ## Current Release
 
-The current public beta release is `v0.2.0-beta.3`.
+The current public beta release is `v0.2.0-beta.4`.
 
-See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-v0.2.0-beta.3.md](docs/release-notes-v0.2.0-beta.3.md).
+See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-v0.2.0-beta.4.md](docs/release-notes-v0.2.0-beta.4.md).
 
 ## Support
 

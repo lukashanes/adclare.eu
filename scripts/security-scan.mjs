@@ -38,8 +38,11 @@ const patterns = [
   },
 ];
 
-function trackedFiles() {
-  return execSync("git ls-files -z", { encoding: "buffer" }).toString("utf8").split("\0").filter(Boolean);
+function scannedFiles() {
+  return execSync("git ls-files -co --exclude-standard -z", { encoding: "buffer" })
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean);
 }
 
 function extension(path) {
@@ -62,7 +65,7 @@ function isPlaceholderLine(line) {
 
 const findings = [];
 
-for (const file of trackedFiles()) {
+for (const file of scannedFiles()) {
   if (skippedFiles.has(file) || skippedExtensions.has(extension(file))) {
     continue;
   }
@@ -115,4 +118,4 @@ if (findings.length > 0) {
   process.exit(1);
 }
 
-console.log("Security scan passed. No common secret patterns found in tracked files.");
+console.log("Security scan passed. No common secret patterns found in tracked or untracked source files.");

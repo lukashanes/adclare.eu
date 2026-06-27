@@ -17,6 +17,10 @@ function turnstileSecret() {
 }
 
 export function publicTurnstileSiteKey() {
+  if (!shouldRequireTurnstile()) {
+    return "";
+  }
+
   const siteKey = (process.env.TURNSTILE_SITE_KEY || process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
   return placeholderSiteKeys.has(siteKey) ? "" : siteKey;
 }
@@ -57,19 +61,19 @@ function requestIp(request: Request) {
 }
 
 export async function verifyTurnstileToken(request: Request, token: string | undefined) {
-  if (!isTurnstileConfigured()) {
-    if (shouldRequireTurnstile()) {
-      return {
-        ok: false,
-        skipped: false,
-        errorCodes: ["turnstile-not-configured"],
-      };
-    }
-
+  if (!shouldRequireTurnstile()) {
     return {
       ok: true,
       skipped: true,
       errorCodes: [] as string[],
+    };
+  }
+
+  if (!isTurnstileConfigured()) {
+    return {
+      ok: false,
+      skipped: false,
+      errorCodes: ["turnstile-not-configured"],
     };
   }
 

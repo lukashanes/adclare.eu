@@ -37,8 +37,8 @@ type LegalLocaleContent = {
 };
 
 const updated = {
-  cs: "4. června 2026",
-  en: "4 June 2026",
+  cs: "13. června 2026",
+  en: "13 June 2026",
 } as const;
 
 const legal = {
@@ -74,7 +74,7 @@ const legal = {
             body: [
               "Aenze s.r.o. vystupuje jako správce osobních údajů při provozu webu adclare.eu, obchodní komunikaci, uzavírání a plnění smluv, poskytování podpory, bezpečnosti vlastních služeb, vlastním marketingu vůči zákazníkům a ochraně svých právních nároků.",
               "Pokud Aenze s.r.o. provozuje Adclare pro zákazníka nebo mu poskytuje podporu s přístupem k zákaznickému obsahu, může u údajů vložených do kampaní, reklam, transparentních oznámení, souborů, schvalování, auditních záznamů a exportů vystupovat jako zpracovatel podle čl. 28 GDPR. Toto zpracování se řídí smlouvou se zákazníkem a případnou zpracovatelskou přílohou.",
-              "U self-hosted instalací, které Aenze s.r.o. neprovozuje ani nespravuje, určuje správce, zpracovatele, příjemce, infrastrukturu a retenční pravidla provozovatel dané instalace.",
+              "U vlastních instalací, které Aenze s.r.o. neprovozuje ani nespravuje, určuje správce, zpracovatele, příjemce, infrastrukturu a retenční pravidla provozovatel dané instalace.",
               "Zákazník zůstává odpovědný za zákonnost, správnost, úplnost a zveřejnění údajů, které do Adclare vloží nebo prostřednictvím služby publikuje.",
             ],
           },
@@ -265,7 +265,7 @@ const legal = {
       dpa: {
         title: "Zpracovatelská příloha",
         intro:
-          "Tato zpracovatelská příloha upravuje zpracování osobních údajů zákaznického obsahu, pokud Aenze s.r.o. zpracovává osobní údaje pro zákazníka jako zpracovatel podle čl. 28 GDPR. U self-hosted instalací, které Aenze s.r.o. neprovozuje ani k nim nemá přístup, musí provozovatel použít vlastní zpracovatelské podmínky a seznam dodavatelů.",
+          "Tato zpracovatelská příloha upravuje zpracování osobních údajů zákaznického obsahu, pokud Aenze s.r.o. zpracovává osobní údaje pro zákazníka jako zpracovatel podle čl. 28 GDPR. U vlastních instalací, které Aenze s.r.o. neprovozuje ani k nim nemá přístup, musí provozovatel použít vlastní zpracovatelské podmínky a seznam dodavatelů.",
         sections: [
           {
             title: "Použití přílohy",
@@ -342,7 +342,7 @@ const legal = {
           {
             title: "Jak přehled používat",
             body: [
-              "Přehled se vztahuje k běžnému provozu webu adclare.eu a instancí Adclare provozovaných Aenze s.r.o. U self-hosted instalací si infrastrukturu, dodavatele a příjemce určuje provozovatel dané instalace.",
+              "Přehled se vztahuje k běžnému provozu webu adclare.eu a instancí Adclare provozovaných Aenze s.r.o. U vlastních instalací si infrastrukturu, dodavatele a příjemce určuje provozovatel dané instalace.",
               "Někteří poskytovatelé jednají jako zpracovatelé Aenze s.r.o.; někteří mohou v omezeném rozsahu jednat jako samostatní správci, zejména pokud jim tuto roli ukládají právní předpisy nebo pravidla jejich regulovaného odvětví.",
             ],
           },
@@ -754,7 +754,7 @@ const legal = {
           {
             title: "Subprocessor changes",
             body: [
-              "Aenze s.r.o. may change, add or replace subprocessors where needed for operation, security, availabilitys or development of the service.",
+              "Aenze s.r.o. may change, add or replace subprocessors where needed for operation, security, availability or development of the service.",
               "A material change will be reflected by updating this page or notifying the customer by another reasonable method. The customer may object on reasonable grounds under the data processing addendum or agreement.",
             ],
           },

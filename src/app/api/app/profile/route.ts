@@ -1,6 +1,7 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { updateAppProfile } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { updateAppProfile } from "@/lib/workspace/services/users";
 import { parseAppProfileInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function PATCH(request: Request) {
 
   try {
     const input = parseAppProfileInput(await request.json());
-    const user = await updateAppProfile(session.userId, input);
+    const user = await withAuditContext(buildAuditContext(request, session), () => updateAppProfile(session.userId, input));
 
     if (!user) {
       return unauthorized();

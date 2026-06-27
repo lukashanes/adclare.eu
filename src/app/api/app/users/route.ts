@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { createAppInvitation, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace/services/shared";
+import { createAppInvitation } from "@/lib/workspace/services/users";
 import { parseInviteInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
   try {
     const input = parseInviteInput(await request.json());
-    const invitation = await createAppInvitation(session.userId, input, locale);
+    const invitation = await withAuditContext(buildAuditContext(request, session), () => createAppInvitation(session.userId, input, locale));
 
     if (!invitation) {
       return Response.json({ error: "Nemáte přístup ke správě lidí." }, { status: 403 });

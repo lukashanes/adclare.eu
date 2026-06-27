@@ -10,79 +10,135 @@ type Locale = (typeof locales)[number];
 const content = {
   cs: {
     title: "Jak začít s Adclare",
-    description: "Jak spustit Adclare a připravit první reklamy podle TTPA.",
+    description: "Jak spustit Adclare, nastavit provoz a připravit první reklamy podle TTPA.",
     back: "Zpět na web",
-    eyebrow: "Open source",
+    eyebrow: "Open source nástroj pro TTPA",
     intro:
-      "Adclare pomůže dát politické reklamy, QR kódy, schvalování a podklady pro kontrolu na jedno místo. Cílem je méně ruční práce a jasný proces podle TTPA.",
+      "Adclare pomáhá politickým stranám, kandidátům a agenturám vést reklamy na jednom místě: údaje podle TTPA, soubory, QR kódy, schvalování, veřejné oznámení a auditní export.",
     sections: [
       {
         icon: Server,
-        title: "1. Spusťte aplikaci",
-        text: "Stáhněte kód z GitHubu, vyplňte nastavení podle README a spusťte aplikaci. Technické detaily jsou v dokumentaci v repozitáři.",
+        title: "1. Spusťte instalaci",
+        text: "Lokálně stačí PostgreSQL z Dockeru a npm. Pro veřejný provoz použijte produkční env šablonu, doménu a HTTPS.",
       },
       {
         icon: Database,
-        title: "2. První organizace",
-        text: "Založte pracovní prostor strany nebo organizace. Vytvoří se první administrátor, centrála a výchozí kampaň.",
+        title: "2. Nastavte provoz",
+        text: "Vyplňte databázi, e-mail pro přihlašovací odkazy, Turnstile a úložiště souborů. Před ostrým použitím spusťte preflight.",
       },
       {
         icon: Workflow,
-        title: "3. Proces reklam",
-        text: "Každá reklama projde evidencí, kontrolou povinných údajů, QR kódem, veřejným oznámením, schválením a exportem pro audit.",
+        title: "3. Založte první organizaci",
+        text: "V režimu first-run vytvoří první návštěva /signup organizaci a správce. Další lidé se zvou z aplikace.",
       },
       {
         icon: ShieldCheck,
-        title: "4. Bezpečnost",
-        text: "Přístupy se řídí rolemi a členstvím v organizaci. V provozu používejte HTTPS, zálohy databáze a zabezpečené úložiště souborů.",
+        title: "4. Veďte reklamy přes workflow",
+        text: "Každá reklama má povinná pole, soubor, kontrolu chybějících údajů, QR výstupy, schválení, publikaci a auditní stopu.",
       },
       {
         icon: Mail,
-        title: "5. Podpora",
-        text: "Pokud chcete rychlejší start, migraci dat, školení nebo úpravy pro vlastní tým, napište na support@adclare.eu.",
+        title: "5. Zálohujte a kontrolujte",
+        text: "Zálohujte PostgreSQL i nahrané soubory. Auditní exporty obsahují CSV, JSON, manifest a ověření hash řetězce.",
       },
     ],
     commandsTitle: "Rychlý start",
-    commands: ["git clone https://github.com/lukashanes/adclare.eu.git", "cp .env.example .env", "docker compose up --build"],
-    docs: "Technické detaily jsou v README a složce docs v repozitáři.",
+    commandGroups: [
+      {
+        title: "Lokální vývoj",
+        commands: [
+          "git clone https://github.com/lukashanes/adclare.eu.git",
+          "cd adclare.eu",
+          "cp .env.example .env",
+          "npm ci",
+          "docker compose up -d db",
+          "npm run db:migrate",
+          "npm run dev",
+        ],
+      },
+      {
+        title: "Veřejná instalace",
+        commands: [
+          "cp production.env.example .env",
+          "docker compose up -d --build",
+          "npm run launch:preflight",
+          "SMOKE_URL=https://vase-domena.example npm run launch:smoke",
+        ],
+      },
+    ],
+    docs: "Podrobný setup, proměnné prostředí a kontroly jsou v GitHub dokumentaci.",
+    links: [
+      { label: "GitHub repository", href: "https://github.com/lukashanes/adclare.eu" },
+      { label: "Configuration reference", href: "https://github.com/lukashanes/adclare.eu/blob/main/docs/configuration.md" },
+      { label: "Self-hosting guide", href: "https://github.com/lukashanes/adclare.eu/blob/main/docs/self-hosting.md" },
+      { label: "Cloudflare setup", href: "https://github.com/lukashanes/adclare.eu/blob/main/docs/cloudflare-setup.md" },
+    ],
   },
   en: {
     title: "How to start with Adclare",
-    description: "How to run Adclare and prepare the first ads for TTPA.",
+    description: "How to run Adclare, configure an instance and prepare the first ads for TTPA.",
     back: "Back to website",
-    eyebrow: "Open source",
+    eyebrow: "Open source TTPA tool",
     intro:
-      "Adclare brings political ad records, QR codes, approvals and audit files into one place. The goal is less manual work and a clear process for TTPA.",
+      "Adclare helps political parties, candidates and agencies manage ads in one place: TTPA data, files, QR codes, approvals, public notices and audit exports.",
     sections: [
       {
         icon: Server,
-        title: "1. Run the app",
-        text: "Download the code from GitHub, fill the settings from README and start the application. Technical details live in the repository docs.",
+        title: "1. Run the instance",
+        text: "For local work, use PostgreSQL from Docker and npm. For a public instance, start with the production env template, a domain and HTTPS.",
       },
       {
         icon: Database,
-        title: "2. First organization",
-        text: "Create the party or organization workspace. Adclare creates the first administrator, headquarters and initial campaign.",
+        title: "2. Configure operations",
+        text: "Set database, email for login links, Turnstile and file storage. Run preflight before real use.",
       },
       {
         icon: Workflow,
-        title: "3. Ad process",
-        text: "Each ad moves through records, required data checks, QR code, public notice, approval and audit export.",
+        title: "3. Create the first organization",
+        text: "In first-run mode, the first /signup creates the organization and administrator. More users are invited from the app.",
       },
       {
         icon: ShieldCheck,
-        title: "4. Security",
-        text: "Access is controlled by roles and organization membership. In production, use HTTPS, database backups and secure file storage.",
+        title: "4. Move ads through workflow",
+        text: "Each ad has required fields, a file, missing-data checks, QR outputs, approval, publication and audit trail.",
       },
       {
         icon: Mail,
-        title: "5. Support",
-        text: "For a faster start, data migration, training or changes for your team, contact support@adclare.eu.",
+        title: "5. Back up and verify",
+        text: "Back up PostgreSQL and uploaded files. Audit exports include CSV, JSON, manifest and hash-chain verification.",
       },
     ],
     commandsTitle: "Quick Start",
-    commands: ["git clone https://github.com/lukashanes/adclare.eu.git", "cp .env.example .env", "docker compose up --build"],
-    docs: "Technical details are in README and the docs folder in the repository.",
+    commandGroups: [
+      {
+        title: "Local development",
+        commands: [
+          "git clone https://github.com/lukashanes/adclare.eu.git",
+          "cd adclare.eu",
+          "cp .env.example .env",
+          "npm ci",
+          "docker compose up -d db",
+          "npm run db:migrate",
+          "npm run dev",
+        ],
+      },
+      {
+        title: "Public instance",
+        commands: [
+          "cp production.env.example .env",
+          "docker compose up -d --build",
+          "npm run launch:preflight",
+          "SMOKE_URL=https://your-domain.example npm run launch:smoke",
+        ],
+      },
+    ],
+    docs: "Detailed setup, environment variables and checks are in the GitHub documentation.",
+    links: [
+      { label: "GitHub repository", href: "https://github.com/lukashanes/adclare.eu" },
+      { label: "Configuration reference", href: "https://github.com/lukashanes/adclare.eu/blob/main/docs/configuration.md" },
+      { label: "Self-hosting guide", href: "https://github.com/lukashanes/adclare.eu/blob/main/docs/self-hosting.md" },
+      { label: "Cloudflare setup", href: "https://github.com/lukashanes/adclare.eu/blob/main/docs/cloudflare-setup.md" },
+    ],
   },
 } satisfies Record<Locale, {
   title: string;
@@ -92,8 +148,9 @@ const content = {
   intro: string;
   sections: Array<{ icon: LucideIcon; title: string; text: string }>;
   commandsTitle: string;
-  commands: string[];
+  commandGroups: Array<{ title: string; commands: string[] }>;
   docs: string;
+  links: Array<{ label: string; href: string }>;
 }>;
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -153,11 +210,25 @@ export default async function HelpPage({ params }: { params: Promise<{ locale: s
             <Server size={15} />
             {t.commandsTitle}
           </div>
-          <pre className="mt-4 overflow-x-auto rounded-md bg-black/35 p-4 text-sm leading-7 text-white">{t.commands.join("\n")}</pre>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {t.commandGroups.map((group) => (
+              <div key={group.title}>
+                <h2 className="text-sm font-semibold text-white">{group.title}</h2>
+                <pre className="mt-2 overflow-x-auto rounded-md bg-black/35 p-4 text-sm leading-7 text-white">{group.commands.join("\n")}</pre>
+              </div>
+            ))}
+          </div>
           <p className="mt-4 flex items-center gap-2 text-sm text-white/75">
             <CheckCircle2 size={16} />
             {t.docs}
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {t.links.map((link) => (
+              <a key={link.href} href={link.href} className="rounded-md border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:border-orange-200 hover:text-orange-100">
+                {link.label}
+              </a>
+            ))}
+          </div>
         </section>
       </section>
     </main>

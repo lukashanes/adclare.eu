@@ -1,14 +1,27 @@
 import JSZip from "jszip";
 import { getAppSession } from "@/lib/app-auth";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { getAppArchivePackage, normalizeLocale } from "@/lib/workspace-db";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { getAppArchivePackage } from "@/lib/workspace/services/exports";
 import { addExportFile, buildExportManifest, type ExportManifestFile } from "@/lib/export-manifest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function toCsv(headers: string[], rows: Array<Record<string, string | number | boolean | null | undefined>>) {
-  const escape = (value: string | number | boolean | null | undefined) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {
+  const cell = (value: unknown) => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    if (typeof value === "object") {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
+  };
+  const escape = (value: unknown) => `"${cell(value).replaceAll('"', '""')}"`;
 
   return [headers.map(escape).join(","), ...rows.map((row) => headers.map((header) => escape(row[header])).join(","))].join("\n");
 }
@@ -32,7 +45,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "Too many archive downloads." }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
-  const archive = await getAppArchivePackage(session.userId, locale);
+  const archive = await withAuditContext(buildAuditContext(request, session), () => getAppArchivePackage(session.userId, locale));
 
   if (!archive) {
     return Response.json({ error: "Archive export is not available for this user." }, { status: 403 });
@@ -44,15 +57,15 @@ export async function GET(request: Request) {
   const readme =
     locale === "cs"
       ? [
-          "Kontrolní archiv Adclare.",
+          "Balíček pro kontrolu Adclare.",
           "",
-          "Balík obsahuje evidenci reklam, kampaně, pobočky, kandidáty, podklady, schvalování a auditní stopu podle rozsahu přihlášeného uživatele.",
+          "Balík obsahuje reklamy, soubory, schválení a historii změn.",
           "Soubor archive.json obsahuje kompletní strukturovaná data. CSV soubory slouží pro rychlé otevření v tabulkovém editoru.",
         ].join("\n")
       : [
-          "Adclare control archive.",
+          "Adclare control package.",
           "",
-          "The package contains ads, campaigns, branches, candidates, assets, approvals and audit trail according to the signed-in user's access scope.",
+          "The package contains ads, files, approvals and change history.",
           "archive.json contains the full structured data. CSV files are included for quick spreadsheet review.",
         ].join("\n");
 
@@ -152,7 +165,35 @@ export async function GET(request: Request) {
     "text/csv; charset=utf-8",
   );
   addExportFile(zip, files, "approvals.csv", toCsv(["adId", "actor", "status", "note", "createdAt"], archive.approvals), "text/csv; charset=utf-8");
-  addExportFile(zip, files, "audit-log.csv", toCsv(["id", "actor", "action", "message", "createdAt"], archive.auditLogs), "text/csv; charset=utf-8");
+  addExportFile(
+    zip,
+    files,
+    "audit-log.csv",
+    toCsv(
+      [
+        "id",
+        "sequence",
+        "actor",
+        "actorRole",
+        "actorScope",
+        "action",
+        "outcome",
+        "severity",
+        "entityType",
+        "entityId",
+        "entityLabel",
+        "requestId",
+        "correlationId",
+        "entryHash",
+        "previousHash",
+        "message",
+        "createdAt",
+      ],
+      archive.auditLogs,
+    ),
+    "text/csv; charset=utf-8",
+  );
+  addExportFile(zip, files, "audit-log.json", JSON.stringify(archive.auditLogs, null, 2), "application/json");
 
   if (archive.accessDirectory.included) {
     addExportFile(
@@ -212,6 +253,10 @@ export async function GET(request: Request) {
           candidates: archive.counts.candidates,
           assets: archive.counts.assets,
           auditLogs: archive.counts.auditLogs,
+          auditIntegrityChecked: archive.auditIntegrity.checked,
+          auditIntegrityVerified: archive.auditIntegrity.verified,
+          auditIntegrityBroken: archive.auditIntegrity.broken,
+          auditIntegrityLastHash: archive.auditIntegrity.lastHash,
         },
         files,
       }),

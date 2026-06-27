@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, ExternalLink, FileText, Landmark, QrCode, ShieldCheck } from "lucide-react";
-import { getTransparencyNotice } from "@/lib/workspace-db";
+import { getTransparencyNotice } from "@/lib/workspace/services/public-repository";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -71,8 +71,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   return {
-    title: `${notice.ad.id} - transparentní oznámení`,
-    description: `Transparentní oznámení k politické reklamě ${notice.ad.title}.`,
+    title: `${notice.ad.id} - veřejné oznámení`,
+    description: `Veřejné oznámení k politické reklamě ${notice.ad.title}.`,
   };
 }
 
@@ -98,7 +98,7 @@ export default async function TransparencyNoticePage({ params }: PageProps) {
                 <QrCode className="h-4 w-4" aria-hidden="true" />
                 QR odkaz
               </div>
-              <h1 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl">Oznámení zatím není publikované</h1>
+              <h1 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl">Veřejné oznámení zatím není publikované</h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-white/72">
                 Odkaz v QR kódu je připravený. Detail reklamy se zobrazí po doplnění povinných údajů, schválení a publikaci záznamu.
               </p>
@@ -180,7 +180,7 @@ export default async function TransparencyNoticePage({ params }: PageProps) {
             <div className="mt-8 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-2 rounded-md border border-white/12 bg-white/8 px-3 py-1.5 text-sm font-semibold text-[#ffb199]">
                 <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                Transparentní oznámení podle TTPA
+                Veřejné oznámení podle TTPA
               </span>
               <span className="inline-flex items-center gap-2 rounded-md border border-emerald-200/20 bg-emerald-400/12 px-3 py-1.5 text-sm font-semibold text-emerald-100">
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
@@ -201,7 +201,7 @@ export default async function TransparencyNoticePage({ params }: PageProps) {
                   href={`/repo/${notice.tenantSlug}?locale=cs`}
                   className="mt-4 inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#11161c] transition hover:bg-white/90"
                 >
-                  Veřejný repozitář
+                  Veřejný archiv
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </div>

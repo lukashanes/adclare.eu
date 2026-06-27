@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, FileJson, Search, ShieldCheck, SlidersHorizontal } from "lucide-react";
-import { getPublicRepositoryPayload, normalizeLocale } from "@/lib/workspace-db";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { getPublicRepositoryPayload } from "@/lib/workspace/services/public-repository";
 import type { AdChannel, Locale, PublicRepositoryFilters, Status } from "@/lib/workspace-types";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +19,14 @@ type PageProps = {
 const copy = {
   cs: {
     back: "Adclare",
-    title: "Veřejný repozitář politické reklamy",
+    title: "Veřejný archiv politické reklamy",
     description:
-      "Vyhledatelné záznamy reklam, transparentních oznámení a povinných údajů podle nařízení Evropského parlamentu a Rady (EU) 2024/900.",
+      "Reklamy, veřejná oznámení a povinné údaje podle TTPA.",
     regulation: "Nařízení (EU) 2024/900",
     total: "Celkem v archivu",
-    shown: "Zobrazeno",
+    filtered: "Po filtru",
+    shown: "Na stránce",
+    nextPage: "Další stránka",
     json: "JSON endpoint",
     filters: "Filtry",
     search: "Hledat",
@@ -42,13 +45,13 @@ const copy = {
       type: "Typ",
       date: "Zveřejnění",
       status: "Stav",
-      notice: "Oznámení",
+      notice: "Veřejné oznámení",
     },
     online: "online",
     offline: "offline",
     missing: "Chybí",
     notice: "Otevřít",
-    empty: "Pro vybrané filtry nejsou v repozitáři žádné reklamy.",
+    empty: "Pro vybrané filtry nejsou v archivu žádné reklamy.",
     complete: "Povinné údaje vyplněny",
     lastUpdated: "Aktualizace",
     language: "Jazyk",
@@ -56,12 +59,14 @@ const copy = {
   },
   en: {
     back: "Adclare",
-    title: "Public political ad repository",
+    title: "Public political ad archive",
     description:
-      "Searchable ad records, transparency notices and required data under Regulation (EU) 2024/900 of the European Parliament and of the Council.",
+      "Ads, public notices and required data under TTPA.",
     regulation: "Regulation (EU) 2024/900",
     total: "Total in archive",
-    shown: "Shown",
+    filtered: "After filters",
+    shown: "On this page",
+    nextPage: "Next page",
     json: "JSON endpoint",
     filters: "Filters",
     search: "Search",
@@ -80,7 +85,7 @@ const copy = {
       type: "Type",
       date: "Publication",
       status: "Status",
-      notice: "Notice",
+      notice: "Public notice",
     },
     online: "online",
     offline: "offline",
@@ -109,6 +114,13 @@ function filtersFromSearchParams(searchParams: Record<string, string | string[] 
   };
 }
 
+function paginationFromSearchParams(searchParams: Record<string, string | string[] | undefined>) {
+  return {
+    cursor: firstSearchValue(searchParams.cursor),
+    limit: firstSearchValue(searchParams.limit),
+  };
+}
+
 function jsonHref(tenant: string, locale: Locale, filters: PublicRepositoryFilters) {
   const params = new URLSearchParams({ locale });
 
@@ -119,6 +131,18 @@ function jsonHref(tenant: string, locale: Locale, filters: PublicRepositoryFilte
   });
 
   return `/api/repo/${encodeURIComponent(tenant)}/ads?${params.toString()}`;
+}
+
+function pageHref(tenant: string, locale: Locale, filters: PublicRepositoryFilters, cursor: string, limit: number) {
+  const params = new URLSearchParams({ locale, cursor, limit: String(limit) });
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value && value !== "all") {
+      params.set(key, value);
+    }
+  });
+
+  return `/repo/${encodeURIComponent(tenant)}?${params.toString()}`;
 }
 
 function statusClass(status: Status) {
@@ -146,13 +170,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!payload) {
     return {
-      title: "Repozitář nenalezen",
+      title: "Archiv nenalezen",
     };
   }
 
   return {
-    title: `Repozitář reklam - ${payload.tenant.name}`,
-    description: `Veřejný repozitář politické reklamy pro ${payload.tenant.name}.`,
+    title: `Archiv reklam - ${payload.tenant.name}`,
+    description: `Veřejný archiv politické reklamy pro ${payload.tenant.name}.`,
   };
 }
 
@@ -161,13 +185,16 @@ export default async function PublicRepositoryPage({ params, searchParams }: Pag
   const locale = normalizeLocale(firstSearchValue(query.locale));
   const texts = copy[locale];
   const tenantSlug = decodeURIComponent(tenant);
-  const payload = await getPublicRepositoryPayload(tenantSlug, locale, filtersFromSearchParams(query));
+  const payload = await getPublicRepositoryPayload(tenantSlug, locale, filtersFromSearchParams(query), paginationFromSearchParams(query));
 
   if (!payload) {
     notFound();
   }
 
   const repositoryJsonHref = jsonHref(payload.tenant.slug, locale, payload.filters);
+  const nextPageHref = payload.pageInfo.hasMore
+    ? pageHref(payload.tenant.slug, locale, payload.filters, payload.pageInfo.nextCursor, payload.pageInfo.limit)
+    : "";
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] px-4 py-6 text-[#11161c] sm:px-6 lg:px-8">
@@ -189,18 +216,22 @@ export default async function PublicRepositoryPage({ params, searchParams }: Pag
                 <p className="mt-5 text-lg font-semibold text-white">{payload.tenant.name}</p>
               </div>
 
-              <div className="grid min-w-full grid-cols-2 gap-3 text-sm sm:min-w-[340px]">
+              <div className="grid min-w-full grid-cols-3 gap-3 text-sm sm:min-w-[460px]">
                 <div className="rounded-md border border-white/12 bg-white/8 p-4">
                   <div className="text-white/55">{texts.total}</div>
                   <div className="mt-2 text-3xl font-semibold">{payload.totalCount}</div>
                 </div>
                 <div className="rounded-md border border-white/12 bg-white/8 p-4">
-                  <div className="text-white/55">{texts.shown}</div>
+                  <div className="text-white/55">{texts.filtered}</div>
                   <div className="mt-2 text-3xl font-semibold">{payload.filteredCount}</div>
+                </div>
+                <div className="rounded-md border border-white/12 bg-white/8 p-4">
+                  <div className="text-white/55">{texts.shown}</div>
+                  <div className="mt-2 text-3xl font-semibold">{payload.ads.length}</div>
                 </div>
                 <a
                   href={repositoryJsonHref}
-                  className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md bg-white px-4 py-3 font-semibold text-[#11161c] transition hover:bg-white/90"
+                  className="col-span-3 inline-flex items-center justify-center gap-2 rounded-md bg-white px-4 py-3 font-semibold text-[#11161c] transition hover:bg-white/90"
                 >
                   <FileJson className="h-4 w-4" aria-hidden="true" />
                   {texts.json}
@@ -251,9 +282,10 @@ export default async function PublicRepositoryPage({ params, searchParams }: Pag
           </form>
 
           {payload.ads.length > 0 ? (
-            <div className="grid gap-3 bg-white p-4 sm:p-5">
-              {payload.ads.map((ad) => (
-                <article key={ad.id} className="min-w-0 rounded-md border border-black/10 bg-white p-4">
+            <div className="bg-white p-4 sm:p-5">
+              <div className="grid gap-3">
+                {payload.ads.map((ad) => (
+                  <article key={ad.id} className="min-w-0 rounded-md border border-black/10 bg-white p-4">
                   <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <div className="font-mono text-xs font-semibold text-[#68707a]">{ad.id}</div>
@@ -296,8 +328,19 @@ export default async function PublicRepositoryPage({ params, searchParams }: Pag
                   <div className="mt-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm leading-6 text-[#59616b]">
                     {ad.missing.length > 0 ? `${texts.missing}: ${ad.missing.join(", ")}` : texts.complete}
                   </div>
-                </article>
-              ))}
+                  </article>
+                ))}
+              </div>
+              {nextPageHref ? (
+                <div className="mt-5 flex justify-center">
+                  <Link
+                    href={nextPageHref}
+                    className="inline-flex items-center justify-center rounded-md border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-[#20242a] transition hover:border-[#f45d1f] hover:text-[#d94410]"
+                  >
+                    {texts.nextPage}
+                  </Link>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="bg-white p-10 text-center text-sm font-semibold text-[#68707a]">{texts.empty}</div>

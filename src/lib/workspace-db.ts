@@ -42,22 +42,16 @@ import type {
   AdminMemberRecord,
   AdminRoleKey,
   EditableAdInput,
-  InvitationNotice,
   InviteInput,
   Locale,
   MemberStatusKey,
-  PublicRepositoryAdRecord,
-  PublicRepositoryFilters,
-  PublicRepositoryOption,
-  PublicRepositoryPayload,
   ReviewDecisionInput,
   Status,
 } from "@/lib/workspace-types";
+import { writeAuditEvent, verifyAuditEntries, type AuditEventInput } from "@/lib/audit";
 import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
-
-const publicWorkflowStatuses: AdWorkflowStatus[] = [AdWorkflowStatus.PUBLISHED, AdWorkflowStatus.ARCHIVED];
 
 type AdWithUnit = Ad & {
   orgUnit: OrganizationUnit;
@@ -67,7 +61,6 @@ type AdWithUnit = Ad & {
   assets?: AdAsset[];
   approvals?: Approval[];
 };
-type AdWithRepositoryRelations = AdWithUnit;
 
 const adMappingInclude = {
   orgUnit: true,
@@ -266,6 +259,32 @@ function mapReviewEvent(event: Approval, locale: Locale) {
   };
 }
 
+function mapAuditLog(log: AuditLog, locale: Locale): AppAuditRecord {
+  return {
+    id: log.id,
+    actor: log.actor,
+    actorRole: log.actorRole,
+    actorScope: log.actorScope,
+    action: log.action,
+    outcome: log.outcome,
+    severity: log.severity,
+    entityType: log.entityType,
+    entityId: log.entityId,
+    entityLabel: log.entityLabel,
+    requestId: log.requestId,
+    correlationId: log.correlationId,
+    sequence: log.sequence.toString(),
+    previousHash: log.previousHash,
+    entryHash: log.entryHash,
+    metadata: log.metadata,
+    before: log.before,
+    after: log.after,
+    diff: log.diff,
+    message: locale === "cs" ? log.messageCs : log.messageEn,
+    createdAt: log.createdAt.toISOString(),
+  };
+}
+
 function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
   const isCs = locale === "cs";
   const missing = missingForAd(ad, locale);
@@ -386,7 +405,7 @@ function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit:
     ``,
     `byl vám vytvořen přístup do Adclare pro ${tenantName}.`,
     `Role: ${role}`,
-    `Rozsah: ${scope}`,
+    `Oblast: ${scope}`,
     ``,
     `Pozvánku přijmete zde:`,
     inviteUrl,
@@ -396,7 +415,7 @@ function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit:
   const bodyHtml = `
     <p>Dobrý den,</p>
     <p>Byl vám vytvořen přístup do <strong>Adclare</strong> pro ${escapeHtml(tenantName)}.</p>
-    <p><strong>Role:</strong> ${escapeHtml(role)}<br><strong>Rozsah:</strong> ${escapeHtml(scope)}</p>
+    <p><strong>Role:</strong> ${escapeHtml(role)}<br><strong>Oblast:</strong> ${escapeHtml(scope)}</p>
     <p><a href="${escapeHtml(inviteUrl)}">Přijmout pozvánku</a></p>
     <p>Odkaz je platný do ${escapeHtml(formatDate(invitation.expiresAt, "cs"))}.</p>
   `;
@@ -728,13 +747,100 @@ function mapInvitation(invitation: InvitationWithUnit, locale: Locale): AdminInv
   };
 }
 
-function mapRepositoryAd(ad: AdWithRepositoryRelations, locale: Locale): PublicRepositoryAdRecord {
+type AppAdsPaginationInput = {
+  cursor?: string;
+  limit?: string | number;
+};
+
+function appAdsPageLimit(input: AppAdsPaginationInput) {
+  const configured = Number(input.limit || 100);
+
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return 100;
+  }
+
+  return Math.min(250, Math.max(25, Math.round(configured)));
+}
+
+function appAdsCursor(cursor: string | undefined) {
+  if (!cursor) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as {
+      publicationDate?: string;
+      code?: string;
+    };
+    const publicationDate = new Date(parsed.publicationDate || "");
+    const code = parsed.code?.trim() || "";
+
+    if (!code || Number.isNaN(publicationDate.getTime())) {
+      return null;
+    }
+
+    return { publicationDate, code };
+  } catch {
+    return null;
+  }
+}
+
+function encodeAppAdsCursor(ad: Pick<Ad, "publicationDate" | "code">) {
+  return Buffer.from(
+    JSON.stringify({
+      publicationDate: ad.publicationDate.toISOString(),
+      code: ad.code,
+    }),
+    "utf8",
+  ).toString("base64url");
+}
+
+function appAdsPageWhere(baseWhere: Prisma.AdWhereInput, pagination: AppAdsPaginationInput): Prisma.AdWhereInput {
+  const cursor = appAdsCursor(pagination.cursor);
+
+  if (!cursor) {
+    return baseWhere;
+  }
+
   return {
-    ...mapAd(ad, locale),
-    campaign: locale === "cs" ? ad.campaign.nameCs : ad.campaign.nameEn,
-    campaignSlug: ad.campaign.slug,
-    election: ad.campaign.election,
-    lastUpdated: formatDate(ad.updatedAt, locale),
+    AND: [
+      baseWhere,
+      {
+        OR: [
+          {
+            publicationDate: {
+              gt: cursor.publicationDate,
+            },
+          },
+          {
+            publicationDate: cursor.publicationDate,
+            code: {
+              gt: cursor.code,
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+async function countWorkspaceAds(where: Prisma.AdWhereInput): Promise<AppWorkspacePayload["counts"]> {
+  const [all, needsData, review, approved, published, blocked] = await Promise.all([
+    prisma.ad.count({ where }),
+    prisma.ad.count({ where: { AND: [where, { workflowStatus: AdWorkflowStatus.NEEDS_DATA }] } }),
+    prisma.ad.count({ where: { AND: [where, { workflowStatus: AdWorkflowStatus.READY_FOR_REVIEW }] } }),
+    prisma.ad.count({ where: { AND: [where, { workflowStatus: AdWorkflowStatus.APPROVED }] } }),
+    prisma.ad.count({ where: { AND: [where, { workflowStatus: AdWorkflowStatus.PUBLISHED }] } }),
+    prisma.ad.count({ where: { AND: [where, { status: AdStatus.BLOCKED }] } }),
+  ]);
+
+  return {
+    all,
+    needsData,
+    review,
+    approved,
+    published,
+    blocked,
   };
 }
 
@@ -951,10 +1057,6 @@ function workflowStatusForAd(ad: Ad, missing: string[]) {
   return AdWorkflowStatus.READY_FOR_REVIEW;
 }
 
-function isPublicWorkflowStatus(status: AdWorkflowStatus) {
-  return publicWorkflowStatuses.includes(status);
-}
-
 function statusForInput(input: EditableAdInput) {
   return statusForMissing(requiredMissing(input, "cs"), parsePublicationDate(input.publicationDate));
 }
@@ -972,92 +1074,6 @@ function statusLabel(status: AdStatus, locale: Locale) {
   };
 
   return labels[status][locale];
-}
-
-function publicStatusOptions(locale: Locale): PublicRepositoryOption[] {
-  return [
-    { value: "all", label: locale === "cs" ? "Všechny stavy" : "All statuses" },
-    { value: "ready", label: statusLabel(AdStatus.READY, locale) },
-    { value: "warning", label: statusLabel(AdStatus.WARNING, locale) },
-    { value: "blocked", label: statusLabel(AdStatus.BLOCKED, locale) },
-    { value: "review", label: statusLabel(AdStatus.REVIEW, locale) },
-  ];
-}
-
-function publicChannelOptions(locale: Locale): PublicRepositoryOption[] {
-  return [
-    { value: "all", label: locale === "cs" ? "Online i offline" : "Online and offline" },
-    { value: "online", label: "Online" },
-    { value: "offline", label: "Offline" },
-  ];
-}
-
-function uniqueOptions(values: string[], allLabel: string): PublicRepositoryOption[] {
-  const seen = new Set<string>();
-  const options = values
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .filter((value) => {
-      const key = value.toLowerCase();
-
-      if (seen.has(key)) {
-        return false;
-      }
-
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => a.localeCompare(b, "cs"));
-
-  return [{ value: "all", label: allLabel }, ...options.map((value) => ({ value, label: value }))];
-}
-
-function normalizeRepositoryFilters(input: Partial<PublicRepositoryFilters>): PublicRepositoryFilters {
-  const channel = input.channel === "online" || input.channel === "offline" ? input.channel : "all";
-  const status =
-    input.status === "ready" || input.status === "warning" || input.status === "blocked" || input.status === "review"
-      ? input.status
-      : "all";
-
-  return {
-    q: input.q?.trim() || "",
-    channel,
-    status,
-    type: input.type?.trim() || "all",
-    branch: input.branch?.trim() || "all",
-    campaign: input.campaign?.trim() || "all",
-  };
-}
-
-function matchesValue(filter: string, value: string) {
-  return filter === "all" || value === filter;
-}
-
-function matchesSearch(ad: PublicRepositoryAdRecord, query: string) {
-  if (!query) {
-    return true;
-  }
-
-  const needle = query.toLowerCase();
-  const haystack = [
-    ad.id,
-    ad.title,
-    ad.branch,
-    ad.candidate,
-    ad.owner,
-    ad.type,
-    ad.campaign,
-    ad.distributionArea,
-    ad.payer,
-    ad.supplier,
-    ad.fundingSource,
-    ad.targeting,
-    ad.targetAudience,
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  return haystack.includes(needle);
 }
 
 function statusLabelForInput(input: EditableAdInput, locale: Locale) {
@@ -1110,234 +1126,9 @@ function normalizeMemberStatus(status: string): MembershipStatus {
   return allowedStatuses.has(status as MembershipStatus) ? (status as MembershipStatus) : MembershipStatus.ACTIVE;
 }
 
-export async function getInvitationNotice(token: string, locale: Locale): Promise<InvitationNotice | null> {
-  const rawToken = decodeURIComponent(token);
-  const invitation = await prisma.invitation.findUnique({
-    where: {
-      tokenHash: hashToken(rawToken),
-    },
-    include: {
-      tenant: true,
-      orgUnit: true,
-      candidate: true,
-    },
-  });
-
-  if (!invitation) {
-    return null;
-  }
-
-  return {
-    token: rawToken,
-    email: invitation.email,
-    role: roleLabel(invitation.role, locale),
-    scope: accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, locale),
-    tenant: locale === "cs" ? invitation.tenant.nameCs : invitation.tenant.nameEn,
-    status: invitationStatusKey(invitation.status, invitation.expiresAt),
-    expiresAt: formatDate(invitation.expiresAt, locale),
-  };
-}
-
-export async function acceptInvitation(token: string, name: string, locale: Locale) {
-  const rawToken = decodeURIComponent(token);
-  const invitation = await prisma.invitation.findUnique({
-    where: {
-      tokenHash: hashToken(rawToken),
-    },
-    include: {
-      tenant: true,
-      orgUnit: true,
-      candidate: true,
-    },
-  });
-
-  if (!invitation || invitationStatusKey(invitation.status, invitation.expiresAt) !== "PENDING") {
-    return null;
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const user = await tx.user.upsert({
-      where: {
-        email: invitation.email,
-      },
-      update: {
-        name: name.trim() || invitation.email,
-      },
-      create: {
-        email: invitation.email,
-        name: name.trim() || invitation.email,
-      },
-    });
-
-    await tx.tenantMembership.upsert({
-      where: {
-        tenantId_userId: {
-          tenantId: invitation.tenantId,
-          userId: user.id,
-        },
-      },
-      update: {
-        role: invitation.role,
-        status: MembershipStatus.ACTIVE,
-        orgUnitId: invitation.orgUnitId,
-        candidateId: invitation.candidateId,
-      },
-      create: {
-        tenantId: invitation.tenantId,
-        userId: user.id,
-        orgUnitId: invitation.orgUnitId,
-        candidateId: invitation.candidateId,
-        role: invitation.role,
-        status: MembershipStatus.ACTIVE,
-      },
-    });
-
-    await tx.invitation.update({
-      where: {
-        id: invitation.id,
-      },
-      data: {
-        status: InvitationStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        tenantId: invitation.tenantId,
-        actor: user.email,
-        actorUserId: user.id,
-        action: "accept_invitation",
-        messageCs: `Pozvánka přijata uživatelem ${user.email}.`,
-        messageEn: `Invitation accepted by ${user.email}.`,
-      },
-    });
-  });
-
-  return getInvitationNotice(rawToken, locale);
-}
-
-export async function getTransparencyNotice(publicToken: string, locale: Locale) {
-  const ad = await prisma.ad.findUnique({
-    where: {
-      publicToken,
-    },
-    include: {
-      orgUnit: true,
-      campaign: true,
-      candidate: true,
-      tenant: true,
-    },
-  });
-
-  if (!ad) {
-    return null;
-  }
-
-  const publicUrl = `${publicAppUrl()}/ad/${ad.publicToken}`;
-
-  if (!isPublicWorkflowStatus(ad.workflowStatus)) {
-    return {
-      status: "pending" as const,
-      publicToken: ad.publicToken,
-      publicUrl,
-      lastUpdated: formatDate(ad.updatedAt, locale),
-    };
-  }
-
-  return {
-    status: "published" as const,
-    tenant: locale === "cs" ? ad.tenant.nameCs : ad.tenant.nameEn,
-    tenantSlug: ad.tenant.slug,
-    campaign: locale === "cs" ? ad.campaign.nameCs : ad.campaign.nameEn,
-    election: ad.campaign.election,
-    ad: mapAd(ad, locale),
-    lastUpdated: formatDate(ad.updatedAt, locale),
-    publicUrl,
-  };
-}
-
-export async function getPublicRepositoryPayload(
-  requestedTenantSlug: string,
-  locale: Locale,
-  inputFilters: Partial<PublicRepositoryFilters> = {},
-): Promise<PublicRepositoryPayload | null> {
-  const tenant = await prisma.tenant.findUnique({
-    where: {
-      slug: requestedTenantSlug,
-    },
-  });
-
-  if (!tenant) {
-    return null;
-  }
-
-  if (!tenant.publicRepositoryEnabled) {
-    return null;
-  }
-
-  const ads = await prisma.ad.findMany({
-    where: {
-      tenantId: tenant.id,
-      workflowStatus: {
-        in: publicWorkflowStatuses,
-      },
-    },
-    include: {
-      orgUnit: true,
-      campaign: true,
-      candidate: true,
-      tenant: true,
-    },
-    orderBy: [{ publicationDate: "desc" }, { code: "asc" }],
-  });
-
-  const mappedAds = ads.map((ad) => mapRepositoryAd(ad, locale));
-  const filters = normalizeRepositoryFilters(inputFilters);
-  const filteredAds = mappedAds.filter(
-    (ad) =>
-      matchesSearch(ad, filters.q) &&
-      matchesValue(filters.channel, ad.channel) &&
-      matchesValue(filters.status, ad.status) &&
-      matchesValue(filters.type, ad.type) &&
-      matchesValue(filters.branch, ad.branch) &&
-      matchesValue(filters.campaign, ad.campaignSlug),
-  );
-
-  return {
-    tenant: {
-      name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
-      slug: tenant.slug,
-    },
-    ads: filteredAds,
-    totalCount: mappedAds.length,
-    filteredCount: filteredAds.length,
-    filters,
-    options: {
-      channels: publicChannelOptions(locale),
-      statuses: publicStatusOptions(locale),
-      types: uniqueOptions(mappedAds.map((ad) => ad.type), locale === "cs" ? "Všechny typy" : "All types"),
-      branches: uniqueOptions(mappedAds.map((ad) => ad.branch), locale === "cs" ? "Všechny pobočky" : "All branches"),
-      campaigns: [
-        { value: "all", label: locale === "cs" ? "Všechny kampaně" : "All campaigns" },
-        ...uniqueOptions(
-          mappedAds.map((ad) => `${ad.campaignSlug}::${ad.campaign}`),
-          "",
-        )
-          .slice(1)
-          .map((option) => {
-            const [value, label] = option.value.split("::");
-            return { value, label };
-          }),
-      ],
-    },
-  };
-}
-
 function adSnapshot(ad: Ad) {
   return {
     code: ad.code,
-    publicToken: ad.publicToken,
     candidateId: ad.candidateId,
     titleCs: ad.titleCs,
     titleEn: ad.titleEn,
@@ -1553,6 +1344,24 @@ async function getAppAccessContext(userId: string) {
     membership,
     tenantWideRole: isTenantWideRole(membership.role),
   };
+}
+
+type AppAccessContext = NonNullable<Awaited<ReturnType<typeof getAppAccessContext>>>;
+type WorkspaceAuditInput = Omit<AuditEventInput, "tenantId" | "actor" | "actorUserId" | "actorRole" | "actorScope">;
+
+function auditActorScope(context: AppAccessContext) {
+  return accessScopeLabel(context.membership.orgUnit, context.membership.candidate ?? null, "cs");
+}
+
+async function writeWorkspaceAudit(db: Parameters<typeof writeAuditEvent>[0], context: AppAccessContext, input: WorkspaceAuditInput) {
+  return writeAuditEvent(db, {
+    tenantId: context.membership.tenantId,
+    actor: context.membership.user.email,
+    actorUserId: context.membership.userId,
+    actorRole: context.membership.role,
+    actorScope: auditActorScope(context),
+    ...input,
+  });
 }
 
 async function getAppCampaign(tenantId: string) {
@@ -1920,7 +1729,7 @@ async function getAppSuperAdminPayload(locale: Locale): Promise<AppSuperAdminPay
   };
 }
 
-export async function getAppWorkspacePayload(userId: string, locale: Locale): Promise<AppWorkspacePayload | null> {
+export async function getAppWorkspacePayload(userId: string, locale: Locale, adPagination: AppAdsPaginationInput = {}): Promise<AppWorkspacePayload | null> {
   const context = await getAppAccessContext(userId);
 
   if (!context) {
@@ -1930,9 +1739,11 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
   const { membership, tenantWideRole } = context;
   const permissions = appRolePermissions(membership.role);
   const managedOrgUnitId = tenantWideRole ? "" : membership.orgUnitId || "__missing_org_scope__";
-  const [ads, branches, campaigns, candidates, memberships, invitations, auditLogs, superAdmin] = await Promise.all([
+  const adLimit = appAdsPageLimit(adPagination);
+  const adWhere = scopedAdWhere(context);
+  const [ads, counts, branches, campaigns, candidates, memberships, invitations, auditLogs, superAdmin] = await Promise.all([
     prisma.ad.findMany({
-      where: scopedAdWhere(context),
+      where: appAdsPageWhere(adWhere, adPagination),
       include: {
         orgUnit: true,
         campaign: true,
@@ -1951,7 +1762,9 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
         },
       },
       orderBy: [{ publicationDate: "asc" }, { code: "asc" }],
+      take: adLimit + 1,
     }),
+    countWorkspaceAds(adWhere),
     prisma.organizationUnit.findMany({
       where: {
         tenantId: membership.tenantId,
@@ -2038,7 +1851,10 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
     permissions.canManageAllTenants ? getAppSuperAdminPayload(locale) : Promise.resolve(null),
   ]);
 
-  const mappedAds = ads.map((ad) => mapAd(ad, locale));
+  const hasMoreAds = ads.length > adLimit;
+  const visibleAds = ads.slice(0, adLimit);
+  const lastVisibleAd = visibleAds.at(-1);
+  const mappedAds = visibleAds.map((ad) => mapAd(ad, locale));
   const membershipScope = tenantWideRole
     ? scopeLabel(null, locale)
     : membership.orgUnit || membership.candidate
@@ -2077,23 +1893,16 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale): Pr
       candidates: sortMappedCandidates(candidates.filter((candidate) => !candidate.archivedAt).map((candidate) => mapCandidate(candidate, locale))),
       assignableRoles: assignableRolesForContext(context, locale),
     },
-    auditLogs: auditLogs.map((log): AppAuditRecord => ({
-      id: log.id,
-      actor: log.actor,
-      action: log.action,
-      message: locale === "cs" ? log.messageCs : log.messageEn,
-      createdAt: log.createdAt.toISOString(),
-    })),
+    auditLogs: auditLogs.map((log) => mapAuditLog(log, locale)),
     storage: objectStorageStatus(),
     ads: mappedAds,
-    counts: {
-      all: mappedAds.length,
-      needsData: mappedAds.filter((ad) => ad.workflowStatus === "NEEDS_DATA").length,
-      review: mappedAds.filter((ad) => ad.workflowStatus === "READY_FOR_REVIEW").length,
-      approved: mappedAds.filter((ad) => ad.workflowStatus === "APPROVED").length,
-      published: mappedAds.filter((ad) => ad.workflowStatus === "PUBLISHED").length,
-      blocked: mappedAds.filter((ad) => ad.status === "blocked").length,
+    adPageInfo: {
+      limit: adLimit,
+      total: counts.all,
+      hasMore: hasMoreAds,
+      nextCursor: hasMoreAds && lastVisibleAd ? encodeAppAdsCursor(lastVisibleAd) : "",
     },
+    counts,
     superAdmin,
   };
 }
@@ -2145,14 +1954,18 @@ export async function createAppBranch(userId: string, input: AppBranchInput, loc
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "create_branch",
-        messageCs: `Založena pobočka ${created.nameCs}.`,
-        messageEn: `Created branch ${created.nameEn}.`,
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "branch",
+      entityId: created.id,
+      entityLabel: created.nameCs,
+      action: "create_branch",
+      messageCs: `Založena pobočka ${created.nameCs}.`,
+      messageEn: `Created branch ${created.nameEn}.`,
+      after: {
+        id: created.id,
+        slug: created.slug,
+        kind: created.kind,
+        name: created.nameCs,
       },
     });
 
@@ -2316,19 +2129,26 @@ export async function createAppCampaign(userId: string, input: AppCampaignInput,
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "create_campaign",
-        messageCs: `Založena kampaň ${created.nameCs}.`,
-        messageEn: `Created campaign ${created.nameEn}.`,
-        metadata: {
-          campaignId: created.id,
-          slug: created.slug,
-          tags,
-        },
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "campaign",
+      entityId: created.id,
+      entityLabel: created.nameCs,
+      action: "create_campaign",
+      messageCs: `Založena kampaň ${created.nameCs}.`,
+      messageEn: `Created campaign ${created.nameEn}.`,
+      after: {
+        id: created.id,
+        slug: created.slug,
+        name: created.nameCs,
+        election: created.election,
+        startsAt: created.startsAt.toISOString(),
+        endsAt: created.endsAt.toISOString(),
+        tags,
+      },
+      metadata: {
+        campaignId: created.id,
+        slug: created.slug,
+        tags,
       },
     });
 
@@ -2417,20 +2237,36 @@ export async function updateAppCampaign(userId: string, campaignId: string, inpu
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "update_campaign",
-        messageCs: `Upravena kampaň ${updated.nameCs}.`,
-        messageEn: `Updated campaign ${updated.nameEn}.`,
-        metadata: {
-          campaignId: updated.id,
-          slug: updated.slug,
-          archived: Boolean(updated.archivedAt),
-          tags,
-        },
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "campaign",
+      entityId: updated.id,
+      entityLabel: updated.nameCs,
+      action: "update_campaign",
+      messageCs: `Upravena kampaň ${updated.nameCs}.`,
+      messageEn: `Updated campaign ${updated.nameEn}.`,
+      before: {
+        slug: existing.slug,
+        name: existing.nameCs,
+        election: existing.election,
+        startsAt: existing.startsAt.toISOString(),
+        endsAt: existing.endsAt.toISOString(),
+        archived: Boolean(existing.archivedAt),
+        tags: existing.tags,
+      },
+      after: {
+        slug: updated.slug,
+        name: updated.nameCs,
+        election: updated.election,
+        startsAt: updated.startsAt.toISOString(),
+        endsAt: updated.endsAt.toISOString(),
+        archived: Boolean(updated.archivedAt),
+        tags,
+      },
+      metadata: {
+        campaignId: updated.id,
+        slug: updated.slug,
+        archived: Boolean(updated.archivedAt),
+        tags,
       },
     });
 
@@ -2530,19 +2366,24 @@ export async function createAppCandidate(userId: string, input: AppCandidateInpu
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "create_candidate",
-        messageCs: `Přidán kandidát ${created.nameCs}.`,
-        messageEn: `Created candidate ${created.nameEn}.`,
-        metadata: {
-          candidateId: created.id,
-          slug: created.slug,
-          orgUnitId: created.orgUnitId,
-        },
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "candidate",
+      entityId: created.id,
+      entityLabel: created.nameCs,
+      action: "create_candidate",
+      messageCs: `Přidán kandidát ${created.nameCs}.`,
+      messageEn: `Created candidate ${created.nameEn}.`,
+      after: {
+        id: created.id,
+        slug: created.slug,
+        name: created.nameCs,
+        orgUnitId: created.orgUnitId,
+        ballotNumber: created.ballotNumber,
+      },
+      metadata: {
+        candidateId: created.id,
+        slug: created.slug,
+        orgUnitId: created.orgUnitId,
       },
     });
 
@@ -2623,20 +2464,34 @@ export async function updateAppCandidate(userId: string, candidateId: string, in
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "update_candidate",
-        messageCs: `Upraven kandidát ${updated.nameCs}.`,
-        messageEn: `Updated candidate ${updated.nameEn}.`,
-        metadata: {
-          candidateId: updated.id,
-          slug: updated.slug,
-          orgUnitId: updated.orgUnitId,
-          archived: Boolean(updated.archivedAt),
-        },
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "candidate",
+      entityId: updated.id,
+      entityLabel: updated.nameCs,
+      action: "update_candidate",
+      messageCs: `Upraven kandidát ${updated.nameCs}.`,
+      messageEn: `Updated candidate ${updated.nameEn}.`,
+      before: {
+        slug: existing.slug,
+        name: existing.nameCs,
+        orgUnitId: existing.orgUnitId,
+        contactEmail: existing.contactEmail,
+        ballotNumber: existing.ballotNumber,
+        archived: Boolean(existing.archivedAt),
+      },
+      after: {
+        slug: updated.slug,
+        name: updated.nameCs,
+        orgUnitId: updated.orgUnitId,
+        contactEmail: updated.contactEmail,
+        ballotNumber: updated.ballotNumber,
+        archived: Boolean(updated.archivedAt),
+      },
+      metadata: {
+        candidateId: updated.id,
+        slug: updated.slug,
+        orgUnitId: updated.orgUnitId,
+        archived: Boolean(updated.archivedAt),
       },
     });
 
@@ -2694,19 +2549,33 @@ export async function updateAppTenantSettings(userId: string, input: AppTenantSe
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "update_tenant_settings",
-        messageCs: `Upraveno nastavení strany ${updated.nameCs}.`,
-        messageEn: `Updated settings for ${updated.nameEn}.`,
-        metadata: {
-          slug: updated.slug,
-          publicRepositoryEnabled: updated.publicRepositoryEnabled,
-          retentionYears: updated.retentionYears,
-        },
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "tenant",
+      entityId: updated.id,
+      entityLabel: updated.nameCs,
+      action: "update_tenant_settings",
+      messageCs: `Upraveno nastavení strany ${updated.nameCs}.`,
+      messageEn: `Updated settings for ${updated.nameEn}.`,
+      before: {
+        slug: context.membership.tenant.slug,
+        name: context.membership.tenant.nameCs,
+        contactEmail: context.membership.tenant.contactEmail,
+        defaultLocale: context.membership.tenant.defaultLocale,
+        publicRepositoryEnabled: context.membership.tenant.publicRepositoryEnabled,
+        retentionYears: context.membership.tenant.retentionYears,
+      },
+      after: {
+        slug: updated.slug,
+        name: updated.nameCs,
+        contactEmail: updated.contactEmail,
+        defaultLocale: updated.defaultLocale,
+        publicRepositoryEnabled: updated.publicRepositoryEnabled,
+        retentionYears: updated.retentionYears,
+      },
+      metadata: {
+        slug: updated.slug,
+        publicRepositoryEnabled: updated.publicRepositoryEnabled,
+        retentionYears: updated.retentionYears,
       },
     });
 
@@ -2799,18 +2668,32 @@ export async function updateAppBranch(userId: string, branchId: string, input: A
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "update_branch",
-        messageCs: `Upravena pobočka ${updated.nameCs}.`,
-        messageEn: `Updated branch ${updated.nameEn}.`,
-        metadata: {
-          branchId: updated.id,
-          archived: Boolean(updated.archivedAt),
-        },
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "branch",
+      entityId: updated.id,
+      entityLabel: updated.nameCs,
+      action: "update_branch",
+      messageCs: `Upravena pobočka ${updated.nameCs}.`,
+      messageEn: `Updated branch ${updated.nameEn}.`,
+      before: {
+        parentId: existing.parentId,
+        slug: existing.slug,
+        kind: existing.kind,
+        name: existing.nameCs,
+        contactEmail: existing.contactEmail,
+        archived: Boolean(existing.archivedAt),
+      },
+      after: {
+        parentId: updated.parentId,
+        slug: updated.slug,
+        kind: updated.kind,
+        name: updated.nameCs,
+        contactEmail: updated.contactEmail,
+        archived: Boolean(updated.archivedAt),
+      },
+      metadata: {
+        branchId: updated.id,
+        archived: Boolean(updated.archivedAt),
       },
     });
 
@@ -2888,19 +2771,25 @@ export async function createAppInvitation(userId: string, input: InviteInput, lo
 
   const emailMessage = await sendInvitationEmail(invitation, token);
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId: context.membership.tenantId,
-      actor: context.membership.user.email,
-      actorUserId: context.membership.userId,
-      action: "create_invitation",
-      messageCs: `Pozván ${email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
-      messageEn: `Invited ${email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
-      metadata: {
-        role,
-        orgUnitId: orgUnit?.id ?? null,
-        candidateId: candidate?.id ?? null,
-      },
+  await writeWorkspaceAudit(prisma, context, {
+    entityType: "invitation",
+    entityId: invitation.id,
+    entityLabel: email,
+    action: "create_invitation",
+    messageCs: `Pozván ${email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
+    messageEn: `Invited ${email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
+    after: {
+      email,
+      role,
+      orgUnitId: orgUnit?.id ?? null,
+      candidateId: candidate?.id ?? null,
+      status: invitation.status,
+      emailStatus: emailMessage.status,
+    },
+    metadata: {
+      role,
+      orgUnitId: orgUnit?.id ?? null,
+      candidateId: candidate?.id ?? null,
     },
   });
 
@@ -2967,14 +2856,15 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
     emailMessage = await sendInvitationEmail(invitationForEmail, rawToken);
   }
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId: context.membership.tenantId,
-      actor: context.membership.user.email,
-      actorUserId: context.membership.userId,
-      action: "retry_invitation_email",
-      messageCs: `Znovu zpracováno odeslání pozvánky pro ${invitation.email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
-      messageEn: `Retried invitation email for ${invitation.email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
+  await writeWorkspaceAudit(prisma, context, {
+    entityType: "invitation",
+    entityId: invitation.id,
+    entityLabel: invitation.email,
+    action: "retry_invitation_email",
+    messageCs: `Znovu zpracováno odeslání pozvánky pro ${invitation.email}. Stav e-mailu: ${emailStatusLabel(emailMessage.status, "cs")}.`,
+    messageEn: `Retried invitation email for ${invitation.email}. Email status: ${emailStatusLabel(emailMessage.status, "en")}.`,
+    metadata: {
+      emailStatus: emailMessage.status,
     },
   });
 
@@ -3034,14 +2924,18 @@ export async function revokeAppInvitation(userId: string, invitationId: string, 
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "revoke_invitation",
-        messageCs: `Zrušena pozvánka pro ${revoked.email}.`,
-        messageEn: `Revoked invitation for ${revoked.email}.`,
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "invitation",
+      entityId: revoked.id,
+      entityLabel: revoked.email,
+      action: "revoke_invitation",
+      messageCs: `Zrušena pozvánka pro ${revoked.email}.`,
+      messageEn: `Revoked invitation for ${revoked.email}.`,
+      before: {
+        status: invitation.status,
+      },
+      after: {
+        status: revoked.status,
       },
     });
 
@@ -3074,14 +2968,18 @@ export async function updateAppProfile(userId: string, input: AppProfileInput) {
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "update_profile",
-        messageCs: `Uživatel ${context.membership.user.email} upravil svoje jméno.`,
-        messageEn: `User ${context.membership.user.email} updated their profile name.`,
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "user",
+      entityId: updated.id,
+      entityLabel: updated.email,
+      action: "update_profile",
+      messageCs: `Uživatel ${context.membership.user.email} upravil svoje jméno.`,
+      messageEn: `User ${context.membership.user.email} updated their profile name.`,
+      before: {
+        name: context.membership.user.name,
+      },
+      after: {
+        name: updated.name,
       },
     });
 
@@ -3200,21 +3098,33 @@ export async function updateAppMember(userId: string, memberId: string, input: A
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "update_member",
-        messageCs: `Upraven přístup uživatele ${updated.user.email}.`,
-        messageEn: `Updated access for ${updated.user.email}.`,
-        metadata: {
-          memberId: updated.id,
-          role,
-          status,
-          orgUnitId: updated.orgUnitId,
-          candidateId: updated.candidateId,
-        },
+    await writeWorkspaceAudit(tx, context, {
+      entityType: "membership",
+      entityId: updated.id,
+      entityLabel: updated.user.email,
+      action: "update_member",
+      messageCs: `Upraven přístup uživatele ${updated.user.email}.`,
+      messageEn: `Updated access for ${updated.user.email}.`,
+      before: {
+        name: existing.user.name,
+        role: existing.role,
+        status: existing.status,
+        orgUnitId: existing.orgUnitId,
+        candidateId: existing.candidateId,
+      },
+      after: {
+        name: updated.user.name,
+        role,
+        status,
+        orgUnitId: updated.orgUnitId,
+        candidateId: updated.candidateId,
+      },
+      metadata: {
+        memberId: updated.id,
+        role,
+        status,
+        orgUnitId: updated.orgUnitId,
+        candidateId: updated.candidateId,
       },
     });
 
@@ -3297,15 +3207,22 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        adId: created.id,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "create_ad",
-        messageCs: `Vytvořena reklama ${created.code}.`,
-        messageEn: `Created ad ${created.code}.`,
+    await writeWorkspaceAudit(tx, context, {
+      adId: created.id,
+      entityType: "ad",
+      entityId: created.id,
+      entityLabel: created.code,
+      action: "create_ad",
+      messageCs: `Vytvořena reklama ${created.code}.`,
+      messageEn: `Created ad ${created.code}.`,
+      after: {
+        code: created.code,
+        title: input.title.trim(),
+        campaignId: campaign.id,
+        orgUnitId: unit.id,
+        candidateId: candidate?.id ?? null,
+        workflowStatus: workflowForInput(input),
+        missing: missingCs,
       },
     });
 
@@ -3436,19 +3353,26 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
           },
         });
 
-        await tx.auditLog.create({
-          data: {
-            tenantId: context.membership.tenantId,
-            adId: created.id,
-            actor: context.membership.user.email,
-            actorUserId: context.membership.userId,
-            action: "import_ad",
-            messageCs: `Importována reklama ${created.code} z Excelu, řádek ${row.rowNumber}.`,
-            messageEn: `Imported ad ${created.code} from Excel, row ${row.rowNumber}.`,
-            metadata: {
-              rowNumber: row.rowNumber,
-              raw: row.raw ?? {},
-            },
+        await writeWorkspaceAudit(tx, context, {
+          adId: created.id,
+          entityType: "ad",
+          entityId: created.id,
+          entityLabel: created.code,
+          action: "import_ad",
+          messageCs: `Importována reklama ${created.code} z Excelu, řádek ${row.rowNumber}.`,
+          messageEn: `Imported ad ${created.code} from Excel, row ${row.rowNumber}.`,
+          after: {
+            code: created.code,
+            title: input.title.trim(),
+            campaignId: campaign.id,
+            orgUnitId: unit.id,
+            candidateId: candidate?.id ?? null,
+            workflowStatus: workflowForInput(input),
+            missing: missingCs,
+          },
+          metadata: {
+            rowNumber: row.rowNumber,
+            raw: row.raw ?? {},
           },
         });
 
@@ -3490,20 +3414,18 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
   }
 
   if (result.createdCount > 0) {
-    await prisma.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "import_ads_batch",
-        messageCs: `Import z Excelu založil ${result.createdCount} reklam, přeskočil ${result.skippedCount} a neuložil ${result.failedCount}.`,
-        messageEn: `Excel import created ${result.createdCount} ads, skipped ${result.skippedCount} and failed ${result.failedCount}.`,
-        metadata: {
-          totalRows: result.totalRows,
-          createdCount: result.createdCount,
-          skippedCount: result.skippedCount,
-          failedCount: result.failedCount,
-        },
+    await writeWorkspaceAudit(prisma, context, {
+      entityType: "ad_import",
+      entityId: "",
+      entityLabel: "Excel import",
+      action: "import_ads_batch",
+      messageCs: `Import z Excelu založil ${result.createdCount} reklam, přeskočil ${result.skippedCount} a neuložil ${result.failedCount}.`,
+      messageEn: `Excel import created ${result.createdCount} ads, skipped ${result.skippedCount} and failed ${result.failedCount}.`,
+      metadata: {
+        totalRows: result.totalRows,
+        createdCount: result.createdCount,
+        skippedCount: result.skippedCount,
+        failedCount: result.failedCount,
       },
     });
   }
@@ -3632,15 +3554,27 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        adId: updated.id,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: versionBumpNeeded ? "create_new_version" : "update_ad",
-        messageCs: versionBumpNeeded ? `Upravena publikovaná reklama ${updated.code}, verze ${updated.version}.` : `Upravena reklama ${updated.code}.`,
-        messageEn: versionBumpNeeded ? `Edited published ad ${updated.code}, version ${updated.version}.` : `Updated ad ${updated.code}.`,
+    await writeWorkspaceAudit(tx, context, {
+      adId: updated.id,
+      entityType: "ad",
+      entityId: updated.id,
+      entityLabel: updated.code,
+      action: versionBumpNeeded ? "create_new_version" : "update_ad",
+      messageCs: versionBumpNeeded ? `Upravena publikovaná reklama ${updated.code}, verze ${updated.version}.` : `Upravena reklama ${updated.code}.`,
+      messageEn: versionBumpNeeded ? `Edited published ad ${updated.code}, version ${updated.version}.` : `Updated ad ${updated.code}.`,
+      before: adSnapshot(existing),
+      after: {
+        code: updated.code,
+        version: updated.version,
+        title: input.title.trim(),
+        campaignId: campaign.id,
+        orgUnitId: unit.id,
+        candidateId: candidate?.id ?? null,
+        workflowStatus: workflowForInput(input),
+        missing: missingCs,
+      },
+      metadata: {
+        versionBumpNeeded,
       },
     });
 
@@ -3664,7 +3598,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
   return mapAd(ad, locale);
 }
 
-export async function getAppAdRecord(userId: string, code: string, locale: Locale) {
+export async function getAppAdRecord(userId: string, code: string, locale: Locale, auditAction = "") {
   const context = await getAppAccessContext(userId);
 
   if (!context) {
@@ -3701,6 +3635,18 @@ export async function getAppAdRecord(userId: string, code: string, locale: Local
     return null;
   }
 
+  if (auditAction) {
+    await writeWorkspaceAudit(prisma, context, {
+      adId: ad.id,
+      entityType: "ad",
+      entityId: ad.id,
+      entityLabel: ad.code,
+      action: auditAction,
+      messageCs: `Stažen výstup reklamy ${ad.code}.`,
+      messageEn: `Downloaded output for ad ${ad.code}.`,
+    });
+  }
+
   return mapAd(ad, locale);
 }
 
@@ -3724,16 +3670,14 @@ export async function prepareAppAuditExport(userId: string, code: string) {
     return false;
   }
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId: context.membership.tenantId,
-      adId: ad.id,
-      actor: context.membership.user.email,
-      actorUserId: context.membership.userId,
-      action: "prepare_audit_export",
-      messageCs: `Připraven auditní export pro reklamu ${ad.code}.`,
-      messageEn: `Audit export prepared for ad ${ad.code}.`,
-    },
+  await writeWorkspaceAudit(prisma, context, {
+    adId: ad.id,
+    entityType: "ad",
+    entityId: ad.id,
+    entityLabel: ad.code,
+    action: "prepare_audit_export",
+    messageCs: `Připraven balíček pro kontrolu reklamy ${ad.code}.`,
+    messageEn: `Control package prepared for ad ${ad.code}.`,
   });
 
   return true;
@@ -3786,6 +3730,17 @@ export async function getAppAuditPackage(userId: string, code: string, locale: L
   }
 
   const typedAd = ad as AuditPackageAd;
+  const downloadLog = await writeWorkspaceAudit(prisma, context, {
+    adId: typedAd.id,
+    entityType: "ad",
+    entityId: typedAd.id,
+    entityLabel: typedAd.code,
+    action: "download_audit_package",
+    messageCs: `Stažen balíček pro kontrolu reklamy ${typedAd.code}.`,
+    messageEn: `Downloaded control package for ad ${typedAd.code}.`,
+  });
+  const auditLogsForPackage = [...typedAd.auditLogs, downloadLog];
+  const auditIntegrity = verifyAuditEntries(auditLogsForPackage, false);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -3836,13 +3791,8 @@ export async function getAppAuditPackage(userId: string, code: string, locale: L
       uploadedBy: asset.uploadedBy,
       createdAt: asset.createdAt.toISOString(),
     })),
-    auditLogs: typedAd.auditLogs.map((log) => ({
-      id: log.id,
-      actor: log.actor,
-      action: log.action,
-      message: locale === "cs" ? log.messageCs : log.messageEn,
-      createdAt: log.createdAt.toISOString(),
-    })),
+    auditIntegrity,
+    auditLogs: auditLogsForPackage.map((log) => mapAuditLog(log, locale)),
   };
 }
 
@@ -3853,19 +3803,17 @@ export async function getAppArchivePackage(userId: string, locale: Locale) {
     return null;
   }
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId: context.membership.tenantId,
-      actor: context.membership.user.email,
-      actorUserId: context.membership.userId,
-      action: "export_workspace_archive",
-      messageCs: "Stažen kontrolní archiv pracovního prostoru.",
-      messageEn: "Workspace control archive downloaded.",
-      metadata: {
-        role: context.membership.role,
-        orgUnitId: context.membership.orgUnitId,
-        candidateId: context.membership.candidateId,
-      },
+  await writeWorkspaceAudit(prisma, context, {
+    entityType: "workspace",
+    entityId: context.membership.tenantId,
+    entityLabel: context.membership.tenant.slug,
+    action: "export_workspace_archive",
+    messageCs: "Stažen kontrolní archiv pracovního prostoru.",
+    messageEn: "Workspace control archive downloaded.",
+    metadata: {
+      role: context.membership.role,
+      orgUnitId: context.membership.orgUnitId,
+      candidateId: context.membership.candidateId,
     },
   });
 
@@ -3995,13 +3943,8 @@ export async function getAppArchivePackage(userId: string, locale: Locale) {
     : ads
         .flatMap((ad) => ad.auditLogs)
         .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
-  const mappedAuditLogs = scopedAdAuditLogs.map((log) => ({
-    id: log.id,
-    actor: log.actor,
-    action: log.action,
-    message: locale === "cs" ? log.messageCs : log.messageEn,
-    createdAt: log.createdAt.toISOString(),
-  }));
+  const auditIntegrity = verifyAuditEntries(scopedAdAuditLogs, context.tenantWideRole);
+  const mappedAuditLogs = scopedAdAuditLogs.map((log) => mapAuditLog(log, locale));
   const mappedAds = ads.map((ad) => mapAd(ad, locale));
   const mappedCampaigns = sortMappedCampaigns(campaigns.map((campaign) => mapCampaign(campaign, locale)));
   const mappedBranches = branches.map((branch) => mapBranch(branch, locale));
@@ -4032,6 +3975,7 @@ export async function getAppArchivePackage(userId: string, locale: Locale) {
       assets: ads.reduce((sum, ad) => sum + ad.assets.length, 0),
       auditLogs: mappedAuditLogs.length,
     },
+    auditIntegrity,
     ads: mappedAds,
     campaigns: mappedCampaigns,
     branches: mappedBranches,
@@ -4118,6 +4062,8 @@ export async function getAppAdUploadTarget(userId: string, code: string) {
     adCode: ad.code,
     userId: context.membership.userId,
     userEmail: context.membership.user.email,
+    userRole: context.membership.role,
+    userScope: auditActorScope(context),
   };
 }
 
@@ -4129,7 +4075,7 @@ export async function attachAppAdAsset(userId: string, code: string, input: Stor
   }
 
   const adId = await prisma.$transaction(async (tx) => {
-    await tx.adAsset.create({
+    const asset = await tx.adAsset.create({
       data: {
         tenantId: target.tenantId,
         adId: target.adId,
@@ -4147,23 +4093,33 @@ export async function attachAppAdAsset(userId: string, code: string, input: Stor
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: target.tenantId,
-        adId: target.adId,
-        actor: target.userEmail,
-        actorUserId: target.userId,
-        action: "upload_ad_asset",
-        messageCs: `Nahrán soubor ${input.originalName} k reklamě ${target.adCode}.`,
-        messageEn: `Uploaded file ${input.originalName} for ad ${target.adCode}.`,
-        metadata: {
-          fileName: input.fileName,
-          originalName: input.originalName,
-          contentType: input.contentType,
-          byteSize: input.byteSize,
-          storageKey: input.key,
-          checksumSha256: input.checksumSha256,
-        },
+    await writeAuditEvent(tx, {
+      tenantId: target.tenantId,
+      adId: target.adId,
+      entityType: "ad_asset",
+      entityId: asset.id,
+      entityLabel: input.originalName,
+      actor: target.userEmail,
+      actorUserId: target.userId,
+      actorRole: target.userRole,
+      actorScope: target.userScope,
+      action: "upload_ad_asset",
+      messageCs: `Nahrán soubor ${input.originalName} k reklamě ${target.adCode}.`,
+      messageEn: `Uploaded file ${input.originalName} for ad ${target.adCode}.`,
+      after: {
+        fileName: input.fileName,
+        originalName: input.originalName,
+        contentType: input.contentType,
+        byteSize: input.byteSize,
+        checksumSha256: input.checksumSha256,
+      },
+      metadata: {
+        fileName: input.fileName,
+        originalName: input.originalName,
+        contentType: input.contentType,
+        byteSize: input.byteSize,
+        storageKey: input.key,
+        checksumSha256: input.checksumSha256,
       },
     });
 
@@ -4198,6 +4154,23 @@ export async function getAppAdAssetDownload(userId: string, code: string, assetI
   ) {
     return null;
   }
+
+  await writeWorkspaceAudit(prisma, context, {
+    adId: asset.adId,
+    entityType: "ad_asset",
+    entityId: asset.id,
+    entityLabel: asset.originalName || asset.fileName,
+    action: "download_ad_asset",
+    messageCs: `Stažen soubor ${asset.originalName || asset.fileName} k reklamě ${asset.ad.code}.`,
+    messageEn: `Downloaded file ${asset.originalName || asset.fileName} for ad ${asset.ad.code}.`,
+    metadata: {
+      fileName: asset.fileName,
+      originalName: asset.originalName,
+      contentType: asset.contentType,
+      byteSize: asset.byteSize,
+      checksumSha256: asset.checksumSha256,
+    },
+  });
 
   return {
     id: asset.id,
@@ -4284,15 +4257,23 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        adId: ad.id,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "approve_ad",
-        messageCs: `Schválena reklama ${ad.code}.`,
-        messageEn: `Approved ad ${ad.code}.`,
+    await writeWorkspaceAudit(tx, context, {
+      adId: ad.id,
+      entityType: "ad",
+      entityId: ad.id,
+      entityLabel: ad.code,
+      action: "approve_ad",
+      messageCs: `Schválena reklama ${ad.code}.`,
+      messageEn: `Approved ad ${ad.code}.`,
+      before: {
+        workflowStatus: ad.workflowStatus,
+        status: ad.status,
+        approvedAt: ad.approvedAt?.toISOString() ?? null,
+      },
+      after: {
+        workflowStatus: AdWorkflowStatus.APPROVED,
+        status: AdStatus.READY,
+        approvedAt: now.toISOString(),
       },
     });
 
@@ -4366,15 +4347,25 @@ export async function requestAppAdChanges(userId: string, code: string, input: R
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        adId: ad.id,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "request_ad_changes",
-        messageCs: `Reklama ${ad.code} vrácena k doplnění: ${note}`,
-        messageEn: `Ad ${ad.code} returned for changes: ${note}`,
+    await writeWorkspaceAudit(tx, context, {
+      adId: ad.id,
+      entityType: "ad",
+      entityId: ad.id,
+      entityLabel: ad.code,
+      action: "request_ad_changes",
+      severity: "warning",
+      messageCs: `Reklama ${ad.code} vrácena k doplnění: ${note}`,
+      messageEn: `Ad ${ad.code} returned for changes: ${note}`,
+      before: {
+        workflowStatus: ad.workflowStatus,
+        status: ad.status,
+        approvedAt: ad.approvedAt?.toISOString() ?? null,
+      },
+      after: {
+        workflowStatus: AdWorkflowStatus.NEEDS_DATA,
+        status: AdStatus.WARNING,
+        approvedAt: null,
+        note,
       },
     });
 
@@ -4460,15 +4451,25 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
       },
     });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: context.membership.tenantId,
-        adId: ad.id,
-        actor: context.membership.user.email,
-        actorUserId: context.membership.userId,
-        action: "publish_ad",
-        messageCs: `Publikována reklama ${ad.code}.`,
-        messageEn: `Published ad ${ad.code}.`,
+    await writeWorkspaceAudit(tx, context, {
+      adId: ad.id,
+      entityType: "ad",
+      entityId: ad.id,
+      entityLabel: ad.code,
+      action: "publish_ad",
+      messageCs: `Publikována reklama ${ad.code}.`,
+      messageEn: `Published ad ${ad.code}.`,
+      before: {
+        workflowStatus: ad.workflowStatus,
+        status: ad.status,
+        publishedAt: ad.publishedAt?.toISOString() ?? null,
+        lockedAt: ad.lockedAt?.toISOString() ?? null,
+      },
+      after: {
+        workflowStatus: AdWorkflowStatus.PUBLISHED,
+        status: AdStatus.READY,
+        publishedAt: now.toISOString(),
+        lockedAt: now.toISOString(),
       },
     });
 

@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { createAppCampaign, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace/services/shared";
+import { createAppCampaign } from "@/lib/workspace/services/campaigns";
 import { parseAppCampaignInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
 
   try {
     const input = parseAppCampaignInput(await request.json());
-    const campaign = await createAppCampaign(session.userId, input, locale);
+    const campaign = await withAuditContext(buildAuditContext(request, session), () => createAppCampaign(session.userId, input, locale));
 
     if (!campaign) {
       return Response.json({ error: "Nemáte přístup ke správě kampaní." }, { status: 403 });

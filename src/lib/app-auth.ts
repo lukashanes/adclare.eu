@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { EmailStatus, MembershipStatus } from "@/generated/prisma/client";
+import { writeAuditEvent, writeSystemAuditEvent } from "@/lib/audit";
 import { readCookieFromHeader } from "@/lib/request-security";
 import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { prisma } from "@/lib/prisma";
@@ -255,14 +256,15 @@ export async function requestAppLoginLink(rawEmail: string) {
 
   await deliverLoginEmail(tenantId, email, `${publicAppUrl()}/api/login/verify/${token}`);
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      actor: email,
-      action: "request_login_link",
-      messageCs: `Vyžádán přihlašovací odkaz pro ${email}.`,
-      messageEn: `Requested login link for ${email}.`,
-    },
+  await writeSystemAuditEvent({
+    tenantId,
+    actor: email,
+    entityType: "user",
+    entityId: user.id,
+    entityLabel: email,
+    action: "request_login_link",
+    messageCs: `Vyžádán přihlašovací odkaz pro ${email}.`,
+    messageEn: `Requested login link for ${email}.`,
   });
 
   return { ok: true };
@@ -329,14 +331,17 @@ export async function consumeAppLoginToken(token: string) {
       },
     });
 
-    await transaction.auditLog.create({
-      data: {
-        tenantId: user.memberships[0].tenantId,
-        actor: user.email,
-        action: "login_magic_link",
-        messageCs: `Uživatel ${user.email} se přihlásil přes e-mailový odkaz.`,
-        messageEn: `User ${user.email} signed in via email link.`,
-      },
+    await writeAuditEvent(transaction, {
+      tenantId: user.memberships[0].tenantId,
+      actor: user.email,
+      actorUserId: user.id,
+      actorRole: user.memberships[0].role,
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: user.email,
+      action: "login_magic_link",
+      messageCs: `Uživatel ${user.email} se přihlásil přes e-mailový odkaz.`,
+      messageEn: `User ${user.email} signed in via email link.`,
     });
 
     return true;
@@ -409,9 +414,44 @@ export async function deleteAppSession(cookieHeader: string | null) {
     return;
   }
 
-  await prisma.userSession.deleteMany({
+  const tokenHash = hashToken(rawToken);
+  const session = await prisma.userSession.findUnique({
     where: {
-      tokenHash: hashToken(rawToken),
+      tokenHash,
+    },
+    include: {
+      user: {
+        include: {
+          memberships: {
+            where: {
+              status: MembershipStatus.ACTIVE,
+            },
+            take: 1,
+          },
+        },
+      },
     },
   });
+
+  await prisma.userSession.deleteMany({
+    where: {
+      tokenHash,
+    },
+  });
+
+  const membership = session?.user.memberships[0];
+  if (session && membership) {
+    await writeSystemAuditEvent({
+      tenantId: membership.tenantId,
+      actor: session.user.email,
+      actorUserId: session.user.id,
+      actorRole: membership.role,
+      entityType: "user_session",
+      entityId: session.id,
+      entityLabel: session.user.email,
+      action: "logout",
+      messageCs: `Uživatel ${session.user.email} se odhlásil.`,
+      messageEn: `User ${session.user.email} signed out.`,
+    });
+  }
 }

@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, updateAppCandidate } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { updateAppCandidate } from "@/lib/workspace/services/candidates";
 import { parseAppCandidateInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   try {
     const input = parseAppCandidateInput(await request.json());
-    const candidate = await updateAppCandidate(session.userId, decodeURIComponent(id), input, locale);
+    const candidate = await withAuditContext(buildAuditContext(request, session), () => updateAppCandidate(session.userId, decodeURIComponent(id), input, locale));
 
     if (!candidate) {
       return Response.json({ error: "Nemáte přístup k úpravě kandidáta." }, { status: 403 });

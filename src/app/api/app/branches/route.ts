@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { createAppBranch, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace/services/shared";
+import { createAppBranch } from "@/lib/workspace/services/branches";
 import { parseAppBranchInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
   try {
     const input = parseAppBranchInput(await request.json());
-    const branch = await createAppBranch(session.userId, input, locale);
+    const branch = await withAuditContext(buildAuditContext(request, session), () => createAppBranch(session.userId, input, locale));
 
     if (!branch) {
       return Response.json({ error: "Branch could not be created for this user." }, { status: 403 });

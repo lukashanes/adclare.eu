@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { normalizeLocale, updateAppBranch } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { updateAppBranch } from "@/lib/workspace/services/branches";
 import { parseAppBranchUpdateInput, validationErrorResponse } from "@/lib/request-validation";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   try {
     const input = parseAppBranchUpdateInput(await request.json());
-    const branch = await updateAppBranch(session.userId, decodeURIComponent(id), input, locale);
+    const branch = await withAuditContext(buildAuditContext(request, session), () => updateAppBranch(session.userId, decodeURIComponent(id), input, locale));
 
     if (!branch) {
       return Response.json({ error: "Pobočku nemůžete upravit nebo neexistuje." }, { status: 404 });

@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
 import { publicAppUrl } from "@/lib/instance-config";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 function requestOrigin(requestHeaders: Headers) {
   const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host");
@@ -32,15 +21,15 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(baseUrl),
     title: {
-      default: "Adclare: politická reklama pod kontrolou",
+      default: "Adclare: politická reklama připravená pro TTPA",
       template: "%s | Adclare",
     },
     description:
-      "Nástroj pro evidenci politické reklamy, QR kódy, transparentní oznámení, schvalování, pobočky a audit podle TTPA.",
+      "Otevřený nástroj pro TTPA: evidence politické reklamy, povinné údaje, QR kódy, veřejné oznámení, schválení a balíček pro kontrolu.",
     openGraph: {
-      title: "Adclare: politická reklama pod kontrolou",
+      title: "Adclare: politická reklama připravená pro TTPA",
       description:
-        "Pobočky a grafici doplní data, systém hlídá termíny, generuje QR a drží auditní stopu pro politickou reklamu.",
+        "Strany, pobočky a grafici mají jedno místo pro reklamy, povinné údaje, QR kódy, veřejné oznámení a kontrolu podle TTPA.",
       url: baseUrl,
       siteName: "Adclare",
       locale: "cs_CZ",
@@ -55,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="cs" data-scroll-behavior="smooth" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="cs" data-scroll-behavior="smooth" className="h-full antialiased">
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

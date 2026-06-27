@@ -1,6 +1,8 @@
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
-import { importAppAds, normalizeLocale } from "@/lib/workspace-db";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
+import { normalizeLocale } from "@/lib/workspace/services/shared";
+import { importAppAds } from "@/lib/workspace/services/ads";
 import { parseXlsxAdImport } from "@/lib/xlsx-ad-import";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +48,7 @@ export async function POST(request: Request) {
         campaignId,
       },
     }));
-    const result = await importAppAds(session.userId, rows, locale);
+    const result = await withAuditContext(buildAuditContext(request, session), () => importAppAds(session.userId, rows, locale));
 
     if (!result) {
       return Response.json({ error: "Nemáte oprávnění importovat reklamy." }, { status: 403 });

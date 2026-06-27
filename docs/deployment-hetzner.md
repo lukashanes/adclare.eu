@@ -4,6 +4,8 @@ This guide describes a generic Hetzner VPS deployment for a self-hosted Adclare 
 
 Use your own domain, server address and paths. Do not commit real production IP addresses, private hostnames or secrets to the repository.
 
+For the complete environment reference, see [docs/configuration.md](configuration.md).
+
 ## Target Shape
 
 - VPS: Ubuntu or Debian.
@@ -77,6 +79,14 @@ The root Compose file runs migrations before the web container starts. To rerun 
 
 ```bash
 docker compose run --rm migrate
+```
+
+Before inviting users:
+
+```bash
+npm ci
+npm run launch:preflight
+SMOKE_URL=https://adclare.example.org npm run launch:smoke
 ```
 
 ## Shared Nginx Server
@@ -175,6 +185,15 @@ Behavior before production secrets are configured:
 
 For a public instance, do not invite real users until email, Turnstile and storage are configured and the production preflight is green.
 
+If you use local storage instead of object storage, keep:
+
+```bash
+ADCLARE_STORAGE_DRIVER='local'
+ADCLARE_LOCAL_STORAGE_DIR='/data/uploads'
+```
+
+Then include the Docker `asset_data` volume in backups together with PostgreSQL.
+
 Object storage check:
 
 ```bash
@@ -194,6 +213,12 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm preflight
 ```
 
 Run it before inviting real users. It checks the production URL, Cloudflare Email Service, Turnstile, storage mode, signup mode and backup scripts.
+
+Live smoke check after DNS and HTTPS point to the server:
+
+```bash
+SMOKE_URL=https://adclare.example.org npm run launch:smoke
+```
 
 ## Backups
 

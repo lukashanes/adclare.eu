@@ -8,19 +8,21 @@
   --orange: #f45d1f;
   --orange-dark: #d94410;
   --ink: #101216;
+  --font-system-sans: Arial, Helvetica, sans-serif;
+  --font-system-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-system-sans);
+  --font-mono: var(--font-system-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-system-sans);
 }
 
 ::selection {

@@ -1,4 +1,5 @@
 import { isSameOriginRequest } from "@/lib/request-security";
+import { buildAuditContext, withAuditContext } from "@/lib/audit";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
 import { parseSignupInput, validationErrorResponse } from "@/lib/request-validation";
 import { createSignupWorkspace } from "@/lib/signup";
@@ -31,11 +32,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "Verification failed." }, { status: 403 });
     }
 
-    const signup = await createSignupWorkspace({
+    const signup = await withAuditContext(buildAuditContext(request), () => createSignupWorkspace({
       organizationName: body.organizationName,
       name: body.name,
       email: body.email,
-    });
+    }));
 
     return Response.json(signup);
   } catch (error) {

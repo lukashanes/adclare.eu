@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { MembershipStatus, UserRole } from "@/generated/prisma/client";
 import { requestAppLoginLink } from "@/lib/app-auth";
+import { writeAuditEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export type SignupInput = {
@@ -191,13 +192,22 @@ export async function createSignupWorkspace(input: SignupInput) {
       },
     });
 
-    await tx.auditLog.create({
-      data: {
+    await writeAuditEvent(tx, {
+      tenantId: createdTenant.id,
+      actor: email,
+      actorUserId: user.id,
+      actorRole: initialRole,
+      entityType: "tenant",
+      entityId: createdTenant.id,
+      entityLabel: organizationName,
+      action: "create_workspace",
+      messageCs: `Vytvořena organizace ${organizationName}.`,
+      messageEn: `Created organization ${organizationName}.`,
+      after: {
         tenantId: createdTenant.id,
-        actor: email,
-        action: "create_workspace",
-        messageCs: `Vytvořen pracovní prostor pro ${organizationName}.`,
-        messageEn: `Created workspace for ${organizationName}.`,
+        slug: createdTenant.slug,
+        name: organizationName,
+        initialRole,
       },
     });
 
