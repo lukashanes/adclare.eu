@@ -1,8 +1,14 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { EmailStatus, MembershipStatus } from "@/generated/prisma/client";
 import { writeAuditEvent, writeSystemAuditEvent } from "@/lib/audit";
+import {
+  cloudflareEmailMissingConfigError,
+  deliverEmailMessage,
+  escapeEmailHtml,
+  isCloudflareEmailConfigured,
+} from "@/lib/cloudflare-email";
 import { readCookieFromHeader } from "@/lib/request-security";
-import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
+import { logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { prisma } from "@/lib/prisma";
 
 export const APP_SESSION_COOKIE = "adclare_user_session";
@@ -13,18 +19,6 @@ const loginRequestLimitWindowMs = 60 * 60 * 1000;
 const maxLoginRequestsPerWindow = 5;
 const sessionTtlSeconds = 30 * 24 * 60 * 60;
 const sessionTouchIntervalMs = 5 * 60 * 1000;
-
-function cloudflareEmailAccountId() {
-  return (process.env.CLOUDFLARE_EMAIL_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
-}
-
-function cloudflareEmailApiToken() {
-  return (process.env.CLOUDFLARE_EMAIL_API_TOKEN || "").trim();
-}
-
-function isCloudflareEmailConfigured() {
-  return Boolean(cloudflareEmailAccountId() && cloudflareEmailApiToken());
-}
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -45,15 +39,6 @@ function safeEqual(left: string, right: string) {
   }
 
   return timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 function serializeCookie(name: string, value: string, attributes: Record<string, string | number | boolean>) {
@@ -93,7 +78,7 @@ export function serializeAppSessionClearCookie() {
 }
 
 async function deliverLoginEmail(tenantId: string, toEmail: string, loginUrl: string) {
-  const safeLoginUrl = escapeHtml(loginUrl);
+  const safeLoginUrl = escapeEmailHtml(loginUrl);
   const subject = "Přihlášení do Adclare";
   const bodyText = [
     "Dobrý den,",
@@ -121,70 +106,15 @@ async function deliverLoginEmail(tenantId: string, toEmail: string, loginUrl: st
       bodyHtml: storedBodyHtml,
       provider: "cloudflare_email_service",
       status: EmailStatus.PENDING_PROVIDER,
-      error: isCloudflareEmailConfigured() ? "" : "CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are not configured.",
+      error: isCloudflareEmailConfigured() ? "" : cloudflareEmailMissingConfigError,
     },
   });
 
   if (!isCloudflareEmailConfigured()) {
     logPendingEmailLink("Login", toEmail, loginUrl);
-    return email;
   }
 
-  try {
-    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cloudflareEmailAccountId()}/email/sending/send`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${cloudflareEmailApiToken()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: defaultEmailFrom(),
-        to: toEmail,
-        subject,
-        html: bodyHtml,
-        text: bodyText,
-      }),
-    });
-
-    const result = (await response.json().catch(() => ({}))) as {
-      success?: boolean;
-      errors?: { code?: number; message?: string }[];
-      result?: {
-        delivered?: string[];
-        queued?: string[];
-      };
-    };
-
-    if (!response.ok || !result.success) {
-      const message = result.errors?.map((item) => item.message || item.code).filter(Boolean).join(", ");
-      throw new Error(message || `Cloudflare Email Service responded with ${response.status}.`);
-    }
-
-    const delivered = result.result?.delivered ?? [];
-    const queued = result.result?.queued ?? [];
-
-    return prisma.emailMessage.update({
-      where: {
-        id: email.id,
-      },
-      data: {
-        status: EmailStatus.SENT,
-        providerMessageId: [...delivered.map((item) => `delivered:${item}`), ...queued.map((item) => `queued:${item}`)].join(","),
-        error: "",
-        sentAt: new Date(),
-      },
-    });
-  } catch (error) {
-    return prisma.emailMessage.update({
-      where: {
-        id: email.id,
-      },
-      data: {
-        status: EmailStatus.FAILED,
-        error: error instanceof Error ? error.message : "Unknown email send error.",
-      },
-    });
-  }
+  return deliverEmailMessage(email, { bodyText, bodyHtml });
 }
 
 export async function requestAppLoginLink(rawEmail: string) {

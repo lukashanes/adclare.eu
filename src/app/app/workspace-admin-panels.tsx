@@ -87,7 +87,7 @@ export function SettingsPanel({
       </div>
 
       <form
-        className="mt-4 grid gap-3 lg:grid-cols-[minmax(180px,1.2fr)_180px_minmax(180px,1fr)_150px_150px_150px]"
+        className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(180px,1.2fr)_180px_minmax(180px,1fr)_minmax(180px,1fr)_150px_150px_150px]"
         onSubmit={(event) => {
           event.preventDefault();
           const formData = new FormData(event.currentTarget);
@@ -95,6 +95,7 @@ export function SettingsPanel({
             name: String(formData.get("name") ?? ""),
             slug: String(formData.get("slug") ?? ""),
             contactEmail: String(formData.get("contactEmail") ?? ""),
+            complianceEmail: String(formData.get("complianceEmail") ?? ""),
             defaultLocale: String(formData.get("defaultLocale") ?? "cs") === "en" ? "en" : "cs",
             publicRepositoryEnabled: formData.get("publicRepositoryEnabled") === "on",
             retentionYears: Number(formData.get("retentionYears") ?? tenant.retentionYears),
@@ -114,6 +115,10 @@ export function SettingsPanel({
           <input name="contactEmail" defaultValue={tenant.contactEmail} type="email" className="h-10 rounded-md border border-black/10 px-3 text-sm text-black outline-none focus:border-[#f45d1f]" />
         </label>
         <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
+          Hlášení reklam
+          <input name="complianceEmail" defaultValue={tenant.complianceEmail} type="email" className="h-10 rounded-md border border-black/10 px-3 text-sm text-black outline-none focus:border-[#f45d1f]" />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
           Jazyk
           <select name="defaultLocale" defaultValue={tenant.defaultLocale} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]">
             <option value="cs">Čeština</option>
@@ -122,7 +127,7 @@ export function SettingsPanel({
         </label>
         <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
           Archiv roky
-          <input name="retentionYears" defaultValue={tenant.retentionYears} type="number" min={1} max={20} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
+          <input name="retentionYears" defaultValue={tenant.retentionYears} type="number" min={7} max={20} className="h-10 rounded-md border border-black/10 px-3 text-sm font-semibold text-black outline-none focus:border-[#f45d1f]" />
         </label>
         <div className="grid gap-2">
           <label className="flex h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold text-[#20242a]">
@@ -326,37 +331,17 @@ export function CampaignsPanel({
   campaigns,
   ads,
   candidates,
-  campaignName,
-  campaignElection,
-  campaignStartsAt,
-  campaignEndsAt,
-  campaignTags,
   campaignSaving,
   campaignSavingId,
-  onCampaignNameChange,
-  onCampaignElectionChange,
-  onCampaignStartsAtChange,
-  onCampaignEndsAtChange,
-  onCampaignTagsChange,
   onCreate,
   onUpdate,
 }: {
   campaigns: AppWorkspacePayload["campaigns"];
   ads: AdRecord[];
   candidates: AppWorkspacePayload["candidates"];
-  campaignName: string;
-  campaignElection: string;
-  campaignStartsAt: string;
-  campaignEndsAt: string;
-  campaignTags: string;
   campaignSaving: boolean;
   campaignSavingId: string;
-  onCampaignNameChange: (value: string) => void;
-  onCampaignElectionChange: (value: string) => void;
-  onCampaignStartsAtChange: (value: string) => void;
-  onCampaignEndsAtChange: (value: string) => void;
-  onCampaignTagsChange: (value: string) => void;
-  onCreate: () => void;
+  onCreate: (input: AppCampaignInput) => Promise<boolean>;
   onUpdate: (campaignId: string, input: AppCampaignInput) => void;
 }) {
   const campaignStatsById = useMemo(() => adStatsBy(ads, (ad) => ad.campaignId), [ads]);
@@ -390,17 +375,49 @@ export function CampaignsPanel({
           <h2 className="text-lg font-semibold text-black">Kampaně a tagy</h2>
           <p className="mt-1 text-sm text-[#59616b]">Období, volby a štítky pro třídění reklam.</p>
         </div>
-        <div className="grid gap-2 lg:min-w-[620px] lg:grid-cols-[minmax(180px,1fr)_150px_135px_135px]">
-          <input value={campaignName} onChange={(event) => onCampaignNameChange(event.target.value)} placeholder="Název kampaně" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignElection} onChange={(event) => onCampaignElectionChange(event.target.value)} placeholder="Volby" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignStartsAt} onChange={(event) => onCampaignStartsAtChange(event.target.value)} type="date" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignEndsAt} onChange={(event) => onCampaignEndsAtChange(event.target.value)} type="date" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
-          <input value={campaignTags} onChange={(event) => onCampaignTagsChange(event.target.value)} placeholder="Tagy oddělené čárkou" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f] lg:col-span-3" />
-          <button type="button" onClick={onCreate} disabled={campaignSaving || !campaignName.trim()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
+        <form
+          className="grid w-full gap-2 lg:max-w-[980px] lg:grid-cols-2 xl:grid-cols-4"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const formData = new FormData(form);
+            const created = await onCreate({
+              name: String(formData.get("name") ?? ""),
+              election: String(formData.get("election") ?? ""),
+              electionLevel: String(formData.get("electionLevel") ?? ""),
+              electionDate: String(formData.get("electionDate") ?? ""),
+              officialInformationUrl: String(formData.get("officialInformationUrl") ?? ""),
+              aggregatedAmount: String(formData.get("aggregatedAmount") ?? ""),
+              benefitsInKind: String(formData.get("benefitsInKind") ?? ""),
+              currency: String(formData.get("currency") ?? "EUR"),
+              calculationMethod: String(formData.get("calculationMethod") ?? ""),
+              startsAt: String(formData.get("startsAt") ?? ""),
+              endsAt: String(formData.get("endsAt") ?? ""),
+              tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
+            });
+
+            if (created) {
+              form.reset();
+            }
+          }}
+        >
+          <input name="name" required placeholder="Název kampaně" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="election" required placeholder="Volby" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="electionLevel" required placeholder="Úroveň voleb" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="electionDate" required type="date" aria-label="Datum voleb" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="startsAt" required type="date" aria-label="Začátek kampaně" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="endsAt" required type="date" aria-label="Konec kampaně" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="officialInformationUrl" required type="url" placeholder="Oficiální odkaz k volbám" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f] xl:col-span-2" />
+          <input name="aggregatedAmount" required placeholder="Náklady kampaně" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="benefitsInKind" required placeholder="Nepeněžní plnění, nebo 0" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="currency" required defaultValue="EUR" placeholder="Měna" className="h-10 rounded-md border border-black/10 px-3 text-sm uppercase outline-none focus:border-[#f45d1f]" />
+          <input name="calculationMethod" required placeholder="Jak byly náklady vypočteny" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f]" />
+          <input name="tags" placeholder="Tagy oddělené čárkou" className="h-10 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-[#f45d1f] xl:col-span-3" />
+          <button type="submit" disabled={campaignSaving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#11161c] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c9cdd3]">
             <Plus size={15} />
             {campaignSaving ? "Ukládám" : "Přidat"}
           </button>
-        </div>
+        </form>
       </div>
 
       <div className="mt-4 rounded-md border border-black/10 bg-[#fbfbfc] p-3">
@@ -453,7 +470,7 @@ export function CampaignsPanel({
         {campaigns.map((campaign) => (
           <form
             key={campaign.id}
-            className={`grid min-w-0 gap-2 rounded-md border p-3 2xl:grid-cols-[minmax(180px,1fr)_145px_135px_135px_minmax(180px,1fr)_150px_130px] 2xl:items-end ${
+            className={`grid min-w-0 gap-3 rounded-md border p-3 md:grid-cols-2 xl:grid-cols-4 ${
               campaign.archived ? "border-neutral-200 bg-neutral-50 opacity-80" : "border-black/10 bg-[#fbfbfc]"
             }`}
             onSubmit={(event) => {
@@ -463,6 +480,13 @@ export function CampaignsPanel({
                 name: String(formData.get("name") ?? ""),
                 slug: String(formData.get("slug") ?? ""),
                 election: String(formData.get("election") ?? ""),
+                electionLevel: String(formData.get("electionLevel") ?? ""),
+                electionDate: String(formData.get("electionDate") ?? ""),
+                officialInformationUrl: String(formData.get("officialInformationUrl") ?? ""),
+                aggregatedAmount: String(formData.get("aggregatedAmount") ?? ""),
+                benefitsInKind: String(formData.get("benefitsInKind") ?? ""),
+                currency: String(formData.get("currency") ?? ""),
+                calculationMethod: String(formData.get("calculationMethod") ?? ""),
                 description: String(formData.get("description") ?? ""),
                 tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
                 startsAt: String(formData.get("startsAt") ?? ""),
@@ -484,6 +508,14 @@ export function CampaignsPanel({
               <input name="election" defaultValue={campaign.election} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
             </label>
             <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Úroveň
+              <input name="electionLevel" defaultValue={campaign.electionLevel} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Datum voleb
+              <input name="electionDate" defaultValue={campaign.electionDateIso} type="date" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
               Od
               <input name="startsAt" defaultValue={campaign.startsAtIso} type="date" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
             </label>
@@ -498,6 +530,26 @@ export function CampaignsPanel({
                 <Tags size={13} />
                 <span className="truncate">{campaign.tags.length ? campaign.tags.join(", ") : "bez tagů"}</span>
               </span>
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a] md:col-span-2">
+              Oficiální informace o volbách
+              <input name="officialInformationUrl" defaultValue={campaign.officialInformationUrl} type="url" className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Náklady kampaně
+              <input name="aggregatedAmount" defaultValue={campaign.aggregatedAmount} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Nepeněžní plnění
+              <input name="benefitsInKind" defaultValue={campaign.benefitsInKind} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
+              Měna
+              <input name="currency" defaultValue={campaign.currency} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm uppercase text-black outline-none focus:border-[#f45d1f]" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a] xl:col-span-3">
+              Výpočet nákladů
+              <input name="calculationMethod" defaultValue={campaign.calculationMethod} className="min-w-0 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#f45d1f]" />
             </label>
             <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#68707a]">
               Popis

@@ -26,6 +26,65 @@ test.describe.serial("public release application pass-through", () => {
   let branchName = "Praha 3";
   let createdPublicUrl = "";
 
+  function completeOfflineAdInput(options: { code: string; title: string; type: string; publicationDate: string; amount: string }) {
+    return {
+      ...options,
+      campaignId,
+      branch: branchName,
+      owner: "Demo strana",
+      ownerEmail: "office@example.test",
+      ownerPostalAddress: "Politická 1, 110 00 Praha 1",
+      ownerEstablishmentAddress: "Politická 1, 110 00 Praha 1",
+      ownerRegistrationNumber: "12345678",
+      ownerEntityType: "legal",
+      controllerName: "",
+      controllerEmail: "",
+      controllerPostalAddress: "",
+      controllerEstablishmentAddress: "",
+      controllerEntityType: "",
+      channel: "offline",
+      disseminationStartsAt: options.publicationDate,
+      disseminationEndsAt: "2026-09-30",
+      period: `${options.publicationDate} až 2026-09-30`,
+      distributionArea: "Praha 3",
+      payer: "Demo strana",
+      payerEmail: "finance@example.test",
+      payerPostalAddress: "Politická 1, 110 00 Praha 1",
+      payerEstablishmentAddress: "Politická 1, 110 00 Praha 1",
+      payerEntityType: "legal",
+      supplier: "E2E Studio",
+      benefitsInKind: "0",
+      currency: "CZK",
+      fundingSource: "Transparentní volební účet",
+      fundingOrigin: "private",
+      fundingJurisdiction: "eu",
+      calculationMethod: "Cena výroby a distribuce podle faktury dodavatele.",
+      advertisementUrl: "",
+      publisherPlatform: "",
+      europeanRepositoryUrl: "",
+      republishedAfterInfringement: false,
+      infringementDetails: "",
+      language: "cs",
+      isTargeted: false,
+      usesPersonalData: false,
+      targeting: "nepoužito",
+      targetAudience: "",
+      targetingDataCategories: "",
+      targetingLogic: "",
+      targetingAiUse: "",
+      targetingPolicyUrl: "",
+      dataController: "",
+      consentWithdrawUrl: "",
+      dataRightsUrl: "",
+      privacyInformationUrl: "",
+      reachViews: null,
+      reachEngagements: null,
+      reachClicks: null,
+      reachLikes: null,
+      reachComments: null,
+    };
+  }
+
   test("login request creates an email record and workspace opens for seed admin", async ({ page }) => {
     await queryAll(`DELETE FROM "rate_limit_buckets" WHERE "scope" = $1 AND "identifier" LIKE $2`, ["login-link", "%:admin@demo-strana.cz"]);
     await page.goto("/login?email=admin@demo-strana.cz");
@@ -72,9 +131,20 @@ test.describe.serial("public release application pass-through", () => {
 
     await page.goto("/app#campaigns");
     const campaignsSection = page.locator("#campaigns");
-    await campaignsSection.getByPlaceholder("Název kampaně").fill(`E2E kampaň ${suffix}`);
-    await campaignsSection.getByPlaceholder("Tagy oddělené čárkou").fill("e2e, ttpa");
-    await campaignsSection.getByRole("button", { name: "Přidat" }).click();
+    const campaignForm = campaignsSection.locator("form").first();
+    await campaignForm.getByPlaceholder("Název kampaně").fill(`E2E kampaň ${suffix}`);
+    await campaignForm.getByPlaceholder("Volby", { exact: true }).fill("Komunální volby 2026");
+    await campaignForm.getByPlaceholder("Úroveň voleb").fill("obecní");
+    await campaignForm.getByLabel("Datum voleb").fill("2026-10-09");
+    await campaignForm.getByLabel("Začátek kampaně").fill("2026-08-01");
+    await campaignForm.getByLabel("Konec kampaně").fill("2026-10-09");
+    await campaignForm.getByPlaceholder("Oficiální odkaz k volbám").fill("https://www.mvcr.cz/volby/");
+    await campaignForm.getByPlaceholder("Náklady kampaně").fill("250000");
+    await campaignForm.getByPlaceholder("Nepeněžní plnění, nebo 0").fill("0");
+    await campaignForm.getByPlaceholder("Měna").fill("CZK");
+    await campaignForm.getByPlaceholder("Jak byly náklady vypočteny").fill("Součet faktur a interních nákladů kampaně.");
+    await campaignForm.getByPlaceholder("Tagy oddělené čárkou").fill("e2e, ttpa");
+    await campaignForm.getByRole("button", { name: "Přidat" }).click();
     await expect.poll(async () => (await workspace(page.request)).campaigns.some((campaign) => campaign.name === `E2E kampaň ${suffix}`)).toBeTruthy();
 
     data = await workspace(page.request);
@@ -142,26 +212,13 @@ test.describe.serial("public release application pass-through", () => {
     expect(missingApprove.status()).toBe(409);
 
     const createResponse = await page.request.post("/api/app/ads?locale=cs", {
-      data: {
+      data: completeOfflineAdInput({
         code: completeAdCode,
-        campaignId,
         title: `E2E hotová reklama ${suffix}`,
-        branch: branchName,
-        owner: "E2E tým",
         type: "plakát",
-        channel: "offline",
         publicationDate: "2026-09-12",
-        period: "12. 9. - 30. 9. 2026",
-        distributionArea: "Praha 3",
-        payer: "Demo strana",
-        supplier: "E2E Studio",
-        amount: "9 900 Kč",
-        fundingSource: "volební účet",
-        language: "cs",
-        isTargeted: false,
-        targeting: "nepoužito",
-        targetAudience: "",
-      },
+        amount: "9 900",
+      }),
     });
     expect(createResponse.status()).toBe(201);
     const createdAd = (await createResponse.json()).ad as { id: string; publicUrl: string; workflowStatus: string };
@@ -190,26 +247,13 @@ test.describe.serial("public release application pass-through", () => {
     expect(approve.ok()).toBeTruthy();
 
     const changesResponse = await page.request.post("/api/app/ads?locale=cs", {
-      data: {
+      data: completeOfflineAdInput({
         code: changesAdCode,
-        campaignId,
         title: `E2E reklama k doplnění ${suffix}`,
-        branch: branchName,
-        owner: "E2E tým",
         type: "leták",
-        channel: "offline",
         publicationDate: "2026-09-13",
-        period: "13. 9. - 30. 9. 2026",
-        distributionArea: "Praha 3",
-        payer: "Demo strana",
-        supplier: "E2E Studio",
-        amount: "4 900 Kč",
-        fundingSource: "volební účet",
-        language: "cs",
-        isTargeted: false,
-        targeting: "nepoužito",
-        targetAudience: "",
-      },
+        amount: "4 900",
+      }),
     });
     expect(changesResponse.status()).toBe(201);
     const changesAd = (await changesResponse.json()).ad as { id: string };
@@ -233,13 +277,58 @@ test.describe.serial("public release application pass-through", () => {
     const data = await workspace(page.request);
     const publishedAd = data.ads.find((ad) => ad.id === completeAdCode || ad.publicUrl === createdPublicUrl) ?? data.ads.find((ad) => ad.workflowStatus === "PUBLISHED");
     expect(publishedAd?.publicUrl).toBeTruthy();
+    const effectiveAdCode = publishedAd?.id ?? completeAdCode;
+    campaignId ||= publishedAd?.campaignId ?? data.campaigns[0]?.id ?? "";
+    branchName = publishedAd?.branch || branchName;
+
+    const publicToken = new URL(publishedAd?.publicUrl ?? createdPublicUrl).pathname.split("/").filter(Boolean).at(-1) ?? "";
+    const machineNotice = await page.request.get(`/api/public/ads/${encodeURIComponent(publicToken)}?locale=cs`);
+    expect(machineNotice.ok()).toBeTruthy();
+    const machinePayload = (await machineNotice.json()) as {
+      profile: string;
+      encoding: string;
+      metadataLanguage: string;
+      identification: { publisherAdvertisementId: string; transparencyNoticeUrl: string };
+      transparencyNotice: { status: string };
+    };
+    expect(machinePayload.profile).toBe("adclare-ttpa-transparency-notice");
+    expect(machinePayload.encoding).toBe("UTF-8");
+    expect(machinePayload.metadataLanguage).toBe("cs");
+    expect(machinePayload.identification.publisherAdvertisementId).toBe(publishedAd?.id);
+    expect(machinePayload.transparencyNotice.status).toBe("published");
 
     await page.goto(new URL(publishedAd?.publicUrl ?? createdPublicUrl).pathname);
     await expect(page.getByText("Veřejné oznámení podle TTPA")).toBeVisible();
     await expect(page.locator("body")).toContainText(/Financování|Cílení|Identifikace reklamy/);
+    await expect(page.getByRole("link", { name: "Data JSON" })).toBeVisible();
+    await page.getByRole("link", { name: "Nahlásit nesrovnalost" }).click();
+    await page.getByLabel("Důvod").selectOption("missing-information");
+    await page.getByLabel("Popis").fill(`E2E hlášení ${suffix}: na oznámení je potřeba zkontrolovat jeden údaj.`);
+    await page.getByLabel("Jméno").fill("E2E Oznamovatel");
+    await page.getByLabel("E-mail", { exact: true }).fill(`reporter-${suffix}@example.test`);
+    await page.getByRole("button", { name: "Odeslat hlášení" }).click();
+    await expect(page.getByRole("status")).toContainText("Hlášení bylo přijato");
+
+    const reportsResponse = await page.request.get("/api/app/compliance-reports?page=1&limit=25");
+    expect(reportsResponse.ok()).toBeTruthy();
+    const reportsPayload = (await reportsResponse.json()) as {
+      reports: Array<{ id: string; reporterName: string; reporterEmail: string; responseDueAt: string }>;
+    };
+    const report = reportsPayload.reports.find((item) => item.reporterEmail === `reporter-${suffix}@example.test`);
+    expect(report?.reporterName).toBe("E2E Oznamovatel");
+    const resolveReport = await page.request.patch(`/api/app/compliance-reports/${encodeURIComponent(report?.id ?? "")}`, {
+      data: {
+        status: "RESOLVED",
+        resolution: `Údaj byl ověřen a oznámení aktualizováno. ${suffix}`,
+      },
+    });
+    expect(resolveReport.ok()).toBeTruthy();
 
     const pending = data.ads.find((ad) => ad.id === missingAdCode);
     if (pending?.publicUrl) {
+      const pendingToken = new URL(pending.publicUrl).pathname.split("/").filter(Boolean).at(-1) ?? "";
+      const pendingMachineNotice = await page.request.get(`/api/public/ads/${encodeURIComponent(pendingToken)}?locale=cs`);
+      expect(pendingMachineNotice.status()).toBe(404);
       await page.goto(new URL(pending.publicUrl).pathname);
       await expect(page.locator("body")).toContainText(/čeká|není zveřejněná|Pending/i);
       await expect(page.locator("body")).not.toContainText(`E2E nekompletní reklama ${suffix}`);
@@ -271,9 +360,12 @@ test.describe.serial("public release application pass-through", () => {
     expect(importPayload.result.createdCount).toBeGreaterThanOrEqual(1);
     expect(importPayload.result.failedCount).toBeGreaterThanOrEqual(1);
 
-    const auditPackage = await page.request.get(`/api/app/ads/${encodeURIComponent(completeAdCode)}/audit-export?locale=cs`);
+    const qrResponse = await page.request.get(`/api/app/ads/${encodeURIComponent(effectiveAdCode)}/qr-package?locale=cs`);
+    expect(qrResponse.ok()).toBeTruthy();
+
+    const auditPackage = await page.request.get(`/api/app/ads/${encodeURIComponent(effectiveAdCode)}/audit-export?locale=cs`);
     const auditEntries = await zipEntries(auditPackage);
-    expect(auditEntries).toEqual(expect.arrayContaining([`${completeAdCode}-audit-log.csv`, `${completeAdCode}-audit-log.json`, `${completeAdCode}-approvals.csv`, "manifest.json"]));
+    expect(auditEntries).toEqual(expect.arrayContaining([`${effectiveAdCode}-audit-log.csv`, `${effectiveAdCode}-audit-log.json`, `${effectiveAdCode}-approvals.csv`, "manifest.json"]));
 
     const archive = await page.request.get("/api/app/exports/archive?locale=cs");
     const archiveEntries = await zipEntries(archive);
@@ -281,11 +373,11 @@ test.describe.serial("public release application pass-through", () => {
 
     await page.goto("/app#archive");
     await expect(page.getByRole("heading", { name: "Historie změn" })).toBeVisible();
-    await page.getByPlaceholder("aktér, akce, objekt, request id").fill("download_qr_package");
+    await page.locator("#audit").getByLabel("Akce").fill("download_qr_package");
     await expect(page.getByRole("heading", { name: "Stažení QR balíčku" })).toBeVisible();
 
-    const auditRows = await queryAll<{ action: string; entryHash: string; sequence: string; outcome: string }>(
-      `SELECT "action", "entryHash", "sequence"::text, "outcome"
+    const auditRows = await queryAll<{ action: string; entryHash: string; sequence: string; outcome: string; severity: string }>(
+      `SELECT "action", "entryHash", "sequence"::text, "outcome", "severity"
        FROM "audit_logs" al
        JOIN "tenants" t ON t."id" = al."tenantId"
        WHERE t."slug" = 'demo-party' AND al."sequence" > 0
@@ -293,32 +385,27 @@ test.describe.serial("public release application pass-through", () => {
     );
     expect(auditRows.length).toBeGreaterThan(8);
     expect(auditRows.some((row) => row.action === "download_qr_package")).toBe(true);
-    expect(auditRows.every((row) => /^[a-f0-9]{64}$/.test(row.entryHash) && row.outcome === "success")).toBe(true);
+    expect(auditRows.every((row) => /^[a-f0-9]{64}$/.test(row.entryHash))).toBe(true);
+    expect(
+      auditRows
+        .filter((row) => row.outcome !== "success")
+        .every((row) =>
+          ["notify_compliance_report", "confirm_compliance_report", "notify_compliance_report_resolution"].includes(row.action) &&
+          row.severity === "warning",
+        ),
+    ).toBe(true);
     for (let index = 1; index < auditRows.length; index += 1) {
       expect(Number(auditRows[index].sequence)).toBeGreaterThan(Number(auditRows[index - 1].sequence));
     }
 
-    const versionResponse = await page.request.patch(`/api/app/ads/${encodeURIComponent(completeAdCode)}?locale=cs`, {
-      data: {
-        code: completeAdCode,
-        campaignId,
+    const versionResponse = await page.request.patch(`/api/app/ads/${encodeURIComponent(effectiveAdCode)}?locale=cs`, {
+      data: completeOfflineAdInput({
+        code: effectiveAdCode,
         title: `E2E hotová reklama ${suffix} upravena`,
-        branch: branchName,
-        owner: "E2E tým",
         type: "plakát",
-        channel: "offline",
         publicationDate: "2026-09-12",
-        period: "12. 9. - 30. 9. 2026",
-        distributionArea: "Praha 3",
-        payer: "Demo strana",
-        supplier: "E2E Studio",
-        amount: "9 900 Kč",
-        fundingSource: "volební účet",
-        language: "cs",
-        isTargeted: false,
-        targeting: "nepoužito",
-        targetAudience: "",
-      },
+        amount: "9 900",
+      }),
     });
     expect(versionResponse.ok()).toBeTruthy();
     const versioned = (await versionResponse.json()).ad as { locked: boolean; workflowStatus: string; version: number };

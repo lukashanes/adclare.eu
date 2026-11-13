@@ -61,12 +61,20 @@ enum ApprovalStatus {
   PUBLISHED
 }
 
+enum ComplianceReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  REJECTED
+}
+
 model Tenant {
   id                      String   @id @default(cuid())
   slug                    String   @unique
   nameCs                  String
   nameEn                  String
   contactEmail            String   @default("")
+  complianceEmail         String   @default("")
   defaultLocale           String   @default("cs")
   publicRepositoryEnabled Boolean  @default(true)
   retentionYears          Int      @default(7)
@@ -85,25 +93,34 @@ model Tenant {
   adVersions        AdVersion[]
   approvals         Approval[]
   adAssets          AdAsset[]
+  complianceReports ComplianceReport[]
 
   @@map("tenants")
 }
 
 model Campaign {
-  id            String    @id @default(cuid())
-  tenantId      String
-  slug          String
-  nameCs        String
-  nameEn        String
-  election      String
-  descriptionCs String    @default("")
-  descriptionEn String    @default("")
-  tags          String[]  @default([])
-  startsAt      DateTime
-  endsAt        DateTime
-  archivedAt    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  tenantId               String
+  slug                   String
+  nameCs                 String
+  nameEn                 String
+  election               String
+  electionLevel          String    @default("")
+  electionDate           DateTime?
+  officialInformationUrl String    @default("")
+  aggregatedAmount       String    @default("")
+  benefitsInKind         String    @default("")
+  currency               String    @default("")
+  calculationMethodCs    String    @default("")
+  calculationMethodEn    String    @default("")
+  descriptionCs          String    @default("")
+  descriptionEn          String    @default("")
+  tags                   String[]  @default([])
+  startsAt               DateTime
+  endsAt                 DateTime
+  archivedAt             DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ads    Ad[]
@@ -267,65 +284,113 @@ model Candidate {
 }
 
 model Ad {
-  id                 String           @id @default(cuid())
-  tenantId           String
-  campaignId         String
-  orgUnitId          String
-  candidateId        String?
-  code               String
-  publicToken        String           @unique
-  titleCs            String
-  titleEn            String
-  ownerCs            String
-  ownerEn            String
-  mediaTypeCs        String
-  mediaTypeEn        String
-  channel            String           @default("offline")
-  publicationDate    DateTime
-  periodCs           String
-  periodEn           String
-  distributionAreaCs String           @default("")
-  distributionAreaEn String           @default("")
-  payerCs            String
-  payerEn            String
-  supplierCs         String           @default("")
-  supplierEn         String           @default("")
-  amount             String           @default("")
-  fundingSourceCs    String           @default("")
-  fundingSourceEn    String           @default("")
-  language           String           @default("cs")
-  isTargeted         Boolean          @default(false)
-  targetingCs        String           @default("")
-  targetingEn        String           @default("")
-  targetAudienceCs   String           @default("")
-  targetAudienceEn   String           @default("")
-  missingCs          String[]
-  missingEn          String[]
-  status             AdStatus
-  statusLabelCs      String
-  statusLabelEn      String
-  workflowStatus     AdWorkflowStatus @default(NEEDS_DATA)
-  responsibleName    String           @default("")
-  reviewerName       String           @default("")
-  statusNoteCs       String           @default("")
-  statusNoteEn       String           @default("")
-  version            Int              @default(1)
-  reviewRequestedAt  DateTime?
-  approvedAt         DateTime?
-  publishedAt        DateTime?
-  archivedAt         DateTime?
-  lockedAt           DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                             String           @id @default(cuid())
+  tenantId                       String
+  campaignId                     String
+  orgUnitId                      String
+  candidateId                    String?
+  code                           String
+  publicToken                    String           @unique
+  titleCs                        String
+  titleEn                        String
+  ownerCs                        String
+  ownerEn                        String
+  ownerEmail                     String           @default("")
+  ownerPostalAddress             String           @default("")
+  ownerEstablishmentAddress      String           @default("")
+  ownerRegistrationNumber        String           @default("")
+  ownerEntityType                String           @default("")
+  controllerNameCs               String           @default("")
+  controllerNameEn               String           @default("")
+  controllerEmail                String           @default("")
+  controllerPostalAddress        String           @default("")
+  controllerEstablishmentAddress String           @default("")
+  controllerEntityType           String           @default("")
+  mediaTypeCs                    String
+  mediaTypeEn                    String
+  channel                        String           @default("offline")
+  publicationDate                DateTime
+  disseminationStartsAt          DateTime?
+  disseminationEndsAt            DateTime?
+  periodCs                       String
+  periodEn                       String
+  distributionAreaCs             String           @default("")
+  distributionAreaEn             String           @default("")
+  payerCs                        String
+  payerEn                        String
+  payerEmail                     String           @default("")
+  payerPostalAddress             String           @default("")
+  payerEstablishmentAddress      String           @default("")
+  payerEntityType                String           @default("")
+  supplierCs                     String           @default("")
+  supplierEn                     String           @default("")
+  amount                         String           @default("")
+  benefitsInKind                 String           @default("")
+  currency                       String           @default("")
+  fundingSourceCs                String           @default("")
+  fundingSourceEn                String           @default("")
+  fundingOrigin                  String           @default("")
+  fundingJurisdiction            String           @default("")
+  calculationMethodCs            String           @default("")
+  calculationMethodEn            String           @default("")
+  advertisementUrl               String           @default("")
+  publisherPlatform              String           @default("")
+  europeanRepositoryUrl          String           @default("")
+  republishedAfterInfringement   Boolean          @default(false)
+  infringementDetailsCs          String           @default("")
+  infringementDetailsEn          String           @default("")
+  language                       String           @default("cs")
+  isTargeted                     Boolean          @default(false)
+  usesPersonalData               Boolean          @default(false)
+  targetingCs                    String           @default("")
+  targetingEn                    String           @default("")
+  targetAudienceCs               String           @default("")
+  targetAudienceEn               String           @default("")
+  targetingDataCategoriesCs      String           @default("")
+  targetingDataCategoriesEn      String           @default("")
+  targetingLogicCs               String           @default("")
+  targetingLogicEn               String           @default("")
+  targetingAiUseCs               String           @default("")
+  targetingAiUseEn               String           @default("")
+  targetingPolicyUrl             String           @default("")
+  dataControllerCs               String           @default("")
+  dataControllerEn               String           @default("")
+  consentWithdrawUrl             String           @default("")
+  dataRightsUrl                  String           @default("")
+  privacyInformationUrl          String           @default("")
+  reachViews                     Int?
+  reachEngagements               Int?
+  reachClicks                    Int?
+  reachLikes                     Int?
+  reachComments                  Int?
+  missingCs                      String[]
+  missingEn                      String[]
+  status                         AdStatus
+  statusLabelCs                  String
+  statusLabelEn                  String
+  workflowStatus                 AdWorkflowStatus @default(NEEDS_DATA)
+  responsibleName                String           @default("")
+  reviewerName                   String           @default("")
+  statusNoteCs                   String           @default("")
+  statusNoteEn                   String           @default("")
+  version                        Int              @default(1)
+  reviewRequestedAt              DateTime?
+  approvedAt                     DateTime?
+  publishedAt                    DateTime?
+  archivedAt                     DateTime?
+  lockedAt                       DateTime?
+  createdAt                      DateTime         @default(now())
+  updatedAt                      DateTime         @updatedAt
 
-  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  campaign  Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  orgUnit   OrganizationUnit @relation(fields: [orgUnitId], references: [id], onDelete: Restrict)
-  candidate Candidate?       @relation(fields: [candidateId], references: [id], onDelete: SetNull)
-  auditLogs AuditLog[]
-  versions  AdVersion[]
-  approvals Approval[]
-  assets    AdAsset[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign          Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  orgUnit           OrganizationUnit   @relation(fields: [orgUnitId], references: [id], onDelete: Restrict)
+  candidate         Candidate?         @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  auditLogs         AuditLog[]
+  versions          AdVersion[]
+  approvals         Approval[]
+  assets            AdAsset[]
+  complianceReports ComplianceReport[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -397,34 +462,58 @@ model AdAsset {
   @@map("ad_assets")
 }
 
+model ComplianceReport {
+  id            String                 @id @default(cuid())
+  tenantId      String
+  adId          String
+  reporterName  String
+  reporterEmail String                 @default("")
+  reason        String
+  details       String
+  status        ComplianceReportStatus @default(OPEN)
+  resolution    String                 @default("")
+  ipAddress     String                 @default("")
+  userAgent     String                 @default("")
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  resolvedAt    DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ad     Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, createdAt])
+  @@index([adId, createdAt])
+  @@map("compliance_reports")
+}
+
 model AuditLog {
-  id          String   @id @default(cuid())
-  tenantId    String
-  adId        String?
-  entityType  String   @default("")
-  entityId    String   @default("")
-  entityLabel String   @default("")
-  actor       String
-  actorUserId String?
-  actorRole   String   @default("")
-  actorScope  String   @default("")
-  action      String
-  outcome     String   @default("success")
-  severity    String   @default("info")
-  messageCs   String
-  messageEn   String
-  ipAddress   String   @default("")
-  userAgent   String   @default("")
-  requestId   String   @default("")
-  correlationId String @default("")
-  before      Json?
-  after       Json?
-  diff        Json?
-  metadata    Json?
-  sequence    BigInt   @default(0)
-  previousHash String  @default("")
-  entryHash   String   @default("")
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  tenantId      String
+  adId          String?
+  entityType    String   @default("")
+  entityId      String   @default("")
+  entityLabel   String   @default("")
+  actor         String
+  actorUserId   String?
+  actorRole     String   @default("")
+  actorScope    String   @default("")
+  action        String
+  outcome       String   @default("success")
+  severity      String   @default("info")
+  messageCs     String
+  messageEn     String
+  ipAddress     String   @default("")
+  userAgent     String   @default("")
+  requestId     String   @default("")
+  correlationId String   @default("")
+  before        Json?
+  after         Json?
+  diff          Json?
+  metadata      Json?
+  sequence      BigInt   @default(0)
+  previousHash  String   @default("")
+  entryHash     String   @default("")
+  createdAt     DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ad     Ad?    @relation(fields: [adId], references: [id], onDelete: SetNull)

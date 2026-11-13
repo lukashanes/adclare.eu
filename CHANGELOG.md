@@ -2,6 +2,38 @@
 
 All notable changes for Adclare are summarized here.
 
+## Unreleased
+
+No unreleased changes.
+
+## v0.2.0-beta.5 - 2026-07-25
+
+Complete TTPA records, public discrepancy reporting and release hardening.
+
+### Included
+
+- Updated Next.js and `eslint-config-next` from 16.2.7 to 16.2.11.
+- Updated Prisma tooling to 7.9.0 and pinned patched production dependencies so `npm audit --omit=dev` passes without findings.
+- Defined one security-header ownership model: Adclare emits browser policy headers and the TLS terminator emits HSTS.
+- Replaced fixed audit timestamps in demo seed data with a past timeline calculated from the time the seed starts.
+- Added release checks for duplicate or conflicting security headers at the reverse proxy.
+- Expanded advert and campaign records to cover sponsor, payer, controlling entity, funding, dissemination, election, cost methodology, targeting and reach data required for a complete TTPA notice.
+- Added conditional validation for online adverts, targeting with personal data and republished adverts.
+- Added a public discrepancy form and a scoped workflow for reviewing and resolving reports.
+- Added receipt and resolution emails for public reports, including the reporter identity required for follow-up.
+- Added a visible 48-hour response deadline for reports received during the final month before an election.
+- Added a versioned JSON representation for every published transparency notice without exposing unpublished advert data.
+- Replaced the in-memory audit preview with a server-filtered, paginated audit history.
+- Extended browser E2E through the complete TTPA campaign and advert workflow, public discrepancy reporting, role scopes and audit integrity.
+- Replaced the legacy Next.js ESLint preset with a maintained flat configuration. Both the full and production dependency audits now pass without findings.
+- Pinned `pg` to 8.18.0 until the open Prisma PostgreSQL adapter concurrency warning is resolved upstream.
+
+### Notes
+
+- Reverse proxies must not repeat Adclare browser policy headers. In particular, do not add `X-Frame-Options: SAMEORIGIN`; Adclare uses `DENY`.
+- Set `ADCLARE_HSTS_OWNER=app` only when the Next.js process terminates HTTPS itself. Normal Caddy, Nginx and Cloudflare deployments should leave HSTS to the TLS terminator.
+- Existing incomplete published records are moved back to `NEEDS_DATA` by the TTPA completeness migration. Complete and approve them before publishing again.
+
 ## v0.2.0-beta.4 - 2026-06-25
 
 Release readiness, audit integrity and browser E2E gate for public beta.

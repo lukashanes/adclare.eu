@@ -25,6 +25,7 @@ const workspaceDb = read("src/lib/workspace-db.ts");
 const auditService = read("src/lib/audit.ts");
 const auditHash = read("src/lib/audit-hash.ts");
 const transparencyPage = read("src/app/ad/[code]/page.tsx");
+const transparencyApi = read("src/app/api/public/ads/[code]/route.ts");
 const loginRoute = read("src/app/api/login/request-link/route.ts");
 const inviteRoute = read("src/app/api/invite/[token]/accept/route.ts");
 const workspaceClient = read("src/app/app/AppWorkspaceClient.tsx");
@@ -41,6 +42,7 @@ const appWorkspaceAdminPanels = read("src/app/app/workspace-admin-panels.tsx");
 const appWorkspaceAdList = read("src/app/app/workspace-ad-list.tsx");
 const appWorkspaceEditor = read("src/app/app/workspace-editor.tsx");
 const appWorkspacePeople = read("src/app/app/workspace-people-panel.tsx");
+const appWorkspaceAudit = read("src/app/app/workspace-audit-panel.tsx");
 const xlsxImport = read("src/lib/xlsx-ad-import.ts");
 const publicRepoPage = read("src/app/repo/[tenant]/page.tsx");
 const publicRepoService = read("src/lib/workspace/services/public-repository.ts");
@@ -58,7 +60,7 @@ const turnstile = read("src/lib/turnstile.ts");
 const license = read("LICENSE");
 const changelog = read("CHANGELOG.md");
 const configDocs = read("docs/configuration.md");
-const beta4ReleaseNotes = read("docs/release-notes-v0.2.0-beta.4.md");
+const beta5ReleaseNotes = read("docs/release-notes-v0.2.0-beta.5.md");
 const seed = read("prisma/seed.ts");
 const readme = read("README.md");
 const packageJson = JSON.parse(read("package.json"));
@@ -108,10 +110,10 @@ check(ciWorkflow.includes("node-version: \"22\""), "GitHub Actions should run on
 check(dependabotConfig.includes("package-ecosystem: npm"), "Dependabot should watch npm dependencies.");
 check(dependabotConfig.includes("package-ecosystem: github-actions"), "Dependabot should watch GitHub Actions.");
 check(license.includes("EUROPEAN UNION PUBLIC LICENCE v. 1.2") && license.includes("15. Applicable Law"), "LICENSE should contain the full EUPL-1.2 text.");
-check(packageJson.version === "0.2.0-beta.4" && readme.includes("v0.2.0-beta.4") && changelog.includes("## v0.2.0-beta.4 - 2026-06-25"), "Release version, README and changelog should point to v0.2.0-beta.4.");
-check(beta4ReleaseNotes.includes("Adclare v0.2.0-beta.4") && beta4ReleaseNotes.includes("Playwright E2E") && beta4ReleaseNotes.includes("audit-log.json"), "v0.2.0-beta.4 release notes should cover E2E and audit export changes.");
+check(packageJson.version === "0.2.0-beta.5" && readme.includes("v0.2.0-beta.5") && changelog.includes("## v0.2.0-beta.5 - 2026-07-25"), "Release version, README and changelog should point to v0.2.0-beta.5.");
+check(beta5ReleaseNotes.includes("Adclare v0.2.0-beta.5") && beta5ReleaseNotes.includes("Playwright E2E") && beta5ReleaseNotes.includes("audit-log.json"), "v0.2.0-beta.5 release notes should cover E2E and audit export changes.");
 check(configDocs.includes("Adclare Configuration Reference") && configDocs.includes("CLOUDFLARE_EMAIL_ACCOUNT_ID") && configDocs.includes("ADCLARE_STORAGE_DRIVER") && configDocs.includes("npm run launch:preflight"), "Configuration docs should cover production env, email, storage and launch checks.");
-check(readme.includes("docs/configuration.md") && beta4ReleaseNotes.includes("docs/configuration.md"), "README and release notes should link to the configuration reference.");
+check(readme.includes("docs/configuration.md") && beta5ReleaseNotes.includes("docs/configuration.md"), "README and release notes should link to the configuration reference.");
 check(changelog.includes("## v0.1.0 - 2026-06-01") && !changelog.includes("## v0.0"), "Changelog should contain one current v0.1.0 release baseline.");
 check(existsSync(resolve(root, "docs/release-checklist.md")) && readme.includes("docs/release-checklist.md"), "Release checklist should exist and be linked from README.");
 check(composeProd.includes("/api/health"), "Production Docker healthcheck should use /api/health.");
@@ -151,18 +153,25 @@ check(playwrightConfig.includes("npm run build && npm run start") && playwrightC
 check(e2ePublicWeb.includes("/cs/privacy") && e2ePublicWeb.includes("security headers") && e2ePublicWeb.includes("expectNoHorizontalOverflow"), "Public web E2E should cover legal pages, headers and overflow.");
 check(e2eReleaseWorkflow.includes("admin@demo-strana.cz") && e2eReleaseWorkflow.includes("kandidat@demo-strana.cz") && e2eReleaseWorkflow.includes("download_qr_package"), "Release workflow E2E should cover seeded admin, candidate scope and QR audit event.");
 check(e2eReleaseWorkflow.includes("audit-log.csv") && e2eReleaseWorkflow.includes("audit-log.json") && e2eReleaseWorkflow.includes("createKnownInvitation"), "Release workflow E2E should cover audit exports and invitation acceptance without public test endpoints.");
-check(schema.includes("model AuditChain") && schema.includes("previousHash") && schema.includes("entryHash") && schema.includes("sequence    BigInt"), "Audit schema should include hash chain fields and AuditChain.");
+check(
+  /model\s+AuditChain\s*\{[\s\S]*?lastSequence\s+BigInt[\s\S]*?lastHash\s+String/.test(schema)
+    && /model\s+AuditLog\s*\{[\s\S]*?sequence\s+BigInt[\s\S]*?previousHash\s+String[\s\S]*?entryHash\s+String/.test(schema),
+  "Audit schema should include hash chain fields and AuditChain.",
+);
 check(auditService.includes("AsyncLocalStorage") && auditService.includes("FOR UPDATE") && auditService.includes("writeAuditEvent") && auditService.includes("verifyAuditEntries"), "Audit service should capture request context, lock the hash chain and verify integrity.");
 check(auditHash.includes("computeAuditEntryHash") && auditHash.includes("createHash(\"sha256\")") && auditHash.includes("previousHash") && auditHash.includes("sequence: input.sequence.toString()"), "Audit hash helper should compute stable SHA-256 entries from sequence and previous hash.");
 check(workspaceDb.includes("writeWorkspaceAudit") && workspaceDb.includes("download_audit_package") && workspaceDb.includes("export_workspace_archive") && qrPackageRoute.includes("download_qr_package"), "Workspace services and QR route should audit sensitive downloads and archive exports.");
 check(adAuditExportRoute.includes("audit-log.csv") && adAuditExportRoute.includes("audit-log.json") && adAuditExportRoute.includes("auditIntegrityVerified"), "Ad audit export should include CSV, JSON and integrity data in the manifest.");
 check(workspaceArchiveRoute.includes("audit-log.csv") && workspaceArchiveRoute.includes("audit-log.json") && workspaceArchiveRoute.includes("auditIntegrityVerified"), "Workspace archive should include audit CSV, JSON and integrity data in the manifest.");
-check(appWorkspace.includes("Detail auditního záznamu") && appWorkspace.includes("Request ID") && appWorkspace.includes("Ověřitelné hashem") && appWorkspace.includes("filters.outcome"), "Workspace audit UI should expose filters, request IDs and hash verification details.");
+check(appWorkspaceAudit.includes("Detail záznamu") && appWorkspaceAudit.includes("Request ID") && appWorkspaceAudit.includes("dateFrom") && appWorkspaceAudit.includes("filters.outcome"), "Workspace audit UI should expose server-side filters, request IDs and pagination.");
 check(workflowSmoke.includes("verifyAuditEntries") && workflowSmoke.includes("download_qr_package") && workflowSmoke.includes("audit-log.json") && workflowSmoke.includes("audit-log.csv"), "Workflow smoke test should verify audit actions, integrity and export files.");
 check(publicRepoService.includes('status: "pending" as const'), "Transparency notice should return a pending state for unpublished QR links.");
 check(transparencyPage.includes('notice.status === "pending"'), "Transparency page should handle unpublished QR links without exposing ad details.");
+check(transparencyApi.includes("adclare-ttpa-transparency-notice") && transparencyApi.includes("EU-2026-818"), "Published ads should expose a versioned machine-readable TTPA notice.");
+check(transparencyApi.includes('notice.status !== "published"') && transparencyApi.includes("status: 404"), "Machine-readable notice must not expose unpublished ads.");
+check(transparencyPage.includes("Data JSON"), "Transparency page should link to its machine-readable notice.");
 check(transparencyPage.includes("Veřejné oznámení podle TTPA") && transparencyPage.includes("Veřejný záznam"), "Transparency page should present public TTPA notice structure.");
-check(transparencyPage.includes("Identifikace reklamy") && transparencyPage.includes("Financování") && transparencyPage.includes("Cílení"), "Transparency page should group public notice data for readers.");
+check(transparencyPage.includes("1. Zadavatel") && transparencyPage.includes("4. Šíření a financování") && transparencyPage.includes("6. Cílení a dosah"), "Transparency page should group public notice data in the required reading order.");
 check(loginRoute.includes("verifyTurnstileToken"), "Login link route should verify Turnstile when configured.");
 check(inviteRoute.includes("verifyTurnstileToken") && inviteRoute.includes("isSameOriginRequest"), "Invite acceptance route should verify Turnstile and same-origin requests when configured.");
 check(signupRoute.includes("createSignupWorkspace") && signupRoute.includes("verifyTurnstileToken"), "Signup route should create a workspace and verify Turnstile when configured.");
@@ -184,10 +193,10 @@ check(existsSync(resolve(root, "src/app/api/app/settings/route.ts")), "App tenan
 check(appWorkspaceAdminPanels.includes("Nastavení strany") && appWorkspaceAdminPanels.includes("Pobočky a oblasti") && appWorkspaceAdminPanels.includes('name="kind"'), "Workspace should expose tenant and branch management.");
 check(existsSync(resolve(root, "src/app/api/app/campaigns/route.ts")), "App campaign management route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/campaigns/[id]/route.ts")), "App campaign update route is missing.");
-check(schema.includes("tags          String[]") && schema.includes("archivedAt    DateTime?"), "Campaign schema should include tags and archival state.");
+check(/model\s+Campaign\s*\{[\s\S]*?tags\s+String\[\][\s\S]*?archivedAt\s+DateTime\?/.test(schema), "Campaign schema should include tags and archival state.");
 check(appWorkspaceAdminPanels.includes("Kampaně a tagy") && appWorkspaceAdminPanels.includes('name="tags"') && workspaceDb.includes("createAppCampaign") && workspaceDb.includes("update_campaign"), "Workspace should expose campaign and tag management.");
 check(appWorkspace.includes("Kampaň pro import") && read("src/app/api/app/ads/import/route.ts").includes("campaignId"), "Excel import should let users choose the campaign.");
-check(schema.includes("model Candidate") && schema.includes("candidateId        String?"), "Candidate schema and ad relation are missing.");
+check(/model\s+Candidate\s*\{/.test(schema) && /model\s+Ad\s*\{[\s\S]*?candidateId\s+String\?/.test(schema), "Candidate schema and ad relation are missing.");
 check(existsSync(resolve(root, "src/app/api/app/candidates/route.ts")), "App candidate management route is missing.");
 check(existsSync(resolve(root, "src/app/api/app/candidates/[id]/route.ts")), "App candidate update route is missing.");
 check(workspaceDb.includes("createAppCandidate") && workspaceDb.includes("update_candidate") && workspaceDb.includes("canManageAppCandidates"), "App candidate management handlers are missing.");
@@ -212,7 +221,14 @@ check(existsSync(resolve(root, "src/app/api/app/users/[id]/revoke-invitation/rou
 check(appWorkspacePeople.includes("Správa lidí") && appWorkspace.includes("Uložit profil") && appWorkspacePeople.includes("Poslat pozvánku") && appWorkspacePeople.includes("Zrušit pozvánku"), "Workspace should expose profile, people and invitation management.");
 check(appWorkspacePeople.includes("Přístupy a pozvánky") && appWorkspacePeople.includes("Čeká na přijetí") && appWorkspacePeople.includes("Role v týmu") && appWorkspacePeople.includes("Pozvánky k dořešení"), "People management should expose access and invitation overview.");
 check(appWorkspace.includes("Audit") && workspaceDb.includes("update_tenant_settings") && workspaceDb.includes("update_branch"), "Workspace should expose audit and log admin changes.");
-check(appWorkspace.includes("Co archiv obsahuje") && appWorkspace.includes("Nejčastější změny") && appWorkspace.includes("Archivní období") && appWorkspace.includes("Přihlášení e-mailem"), "Archive and audit should expose clear control package overview.");
+check(
+  appWorkspace.includes("Co archiv obsahuje") &&
+    appWorkspace.includes("Archivní období") &&
+    appWorkspaceAudit.includes("Kdo, kdy a co změnil") &&
+    appWorkspaceAudit.includes("Request ID") &&
+    appWorkspaceAudit.includes("login_magic_link"),
+  "Archive and audit should expose a clear, searchable control package overview.",
+);
 check(appWorkspace.includes("manifest.json") && appWorkspace.includes("SHA-256"), "Archive overview should show the verifiable export manifest.");
 check(workspaceDb.includes("getAppSuperAdminPayload") && workspaceDb.includes("canManageAllTenants"), "Super admin payload and permission are missing.");
 check(appWorkspace.includes("Správa instalace") && appWorkspace.includes("workspace.permissions.canManageAllTenants"), "Workspace should expose the super admin installation overview.");

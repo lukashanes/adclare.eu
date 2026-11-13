@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const isProduction = process.env.NODE_ENV === "production";
+const appOwnsHsts = process.env.ADCLARE_HSTS_OWNER === "app";
 const scriptSrc = ["script-src 'self'", "'unsafe-inline'", "https://challenges.cloudflare.com", ...(isProduction ? [] : ["'unsafe-eval'"])];
 const connectSrc = ["connect-src 'self'", "https://challenges.cloudflare.com", ...(isProduction ? [] : ["ws://127.0.0.1:*", "ws://localhost:*"])];
 const contentSecurityPolicy = [
@@ -19,50 +20,55 @@ const contentSecurityPolicy = [
   ...(isProduction ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
+// Browser policy headers are owned by the application. The TLS terminator owns HSTS.
+const securityHeaders = [
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=()",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+  {
+    key: "X-DNS-Prefetch-Control",
+    value: "off",
+  },
+  {
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin",
+  },
+  {
+    key: "Cross-Origin-Resource-Policy",
+    value: "same-origin",
+  },
+  ...(appOwnsHsts
+    ? [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=31536000; includeSubDomains",
+        },
+      ]
+    : []),
+  {
+    key: "Content-Security-Policy",
+    value: contentSecurityPolicy,
+  },
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   allowedDevOrigins: ["127.0.0.1"],
   async headers() {
-    const securityHeaders = [
-      {
-        key: "X-Content-Type-Options",
-        value: "nosniff",
-      },
-      {
-        key: "Referrer-Policy",
-        value: "strict-origin-when-cross-origin",
-      },
-      {
-        key: "Permissions-Policy",
-        value: "camera=(), microphone=(), geolocation=()",
-      },
-      {
-        key: "X-Frame-Options",
-        value: "DENY",
-      },
-      {
-        key: "X-DNS-Prefetch-Control",
-        value: "off",
-      },
-      {
-        key: "Cross-Origin-Opener-Policy",
-        value: "same-origin",
-      },
-      {
-        key: "Cross-Origin-Resource-Policy",
-        value: "same-origin",
-      },
-      {
-        key: "Strict-Transport-Security",
-        value: "max-age=31536000",
-      },
-      {
-        key: "Content-Security-Policy",
-        value: contentSecurityPolicy,
-      },
-    ];
-
     return [
       {
         source: "/:path*",

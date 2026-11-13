@@ -16,7 +16,7 @@ const userEmail = `workflow-smoke-${suffix}@example.test`;
 let userId = "";
 
 const { prisma } = await import("../src/lib/prisma");
-const { MembershipStatus, UserRole } = await import("../src/generated/prisma/client");
+const { ComplianceReportStatus, MembershipStatus, UserRole } = await import("../src/generated/prisma/client");
 const { serializeAppSessionCookie } = await import("../src/lib/app-auth");
 const {
   approveAppAd,
@@ -29,6 +29,8 @@ const { getAppAuditPackage, prepareAppAuditExport } = await import("../src/lib/w
 const { getAppWorkspacePayload } = await import("../src/lib/workspace/services/shared");
 const { getPublicRepositoryPayload, getTransparencyNotice } = await import("../src/lib/workspace/services/public-repository");
 const { verifyAuditEntries } = await import("../src/lib/audit");
+const { createComplianceReport } = await import("../src/lib/compliance-reports");
+const { listComplianceReports, resolveComplianceReport } = await import("../src/lib/workspace/services/compliance-reports");
 const { GET: getQrPackage } = await import("../src/app/api/app/ads/[code]/qr-package/route");
 const { GET: getAuditPackageRoute, POST: prepareAuditPackageRoute } = await import("../src/app/api/app/ads/[code]/audit-export/route");
 const { GET: getArchivePackageRoute } = await import("../src/app/api/app/exports/archive/route");
@@ -88,6 +90,14 @@ try {
         nameCs: "Komunální kampaň 2026",
         nameEn: "Municipal campaign 2026",
         election: "Komunální volby 2026",
+        electionLevel: "místní",
+        electionDate: future,
+        officialInformationUrl: "https://www.example.test/volby-2026",
+        aggregatedAmount: "125000",
+        benefitsInKind: "0",
+        currency: "CZK",
+        calculationMethodCs: "Součet rozpočtovaných služeb kampaně.",
+        calculationMethodEn: "Sum of budgeted campaign services.",
         tags: ["workflow-smoke", "ttpa"],
         startsAt: now,
         endsAt: future,
@@ -132,19 +142,59 @@ try {
       title: "Transparentní plakát pro workflow test",
       branch: created.branch.nameCs,
       owner: created.tenant.nameCs,
+      ownerEmail: userEmail,
+      ownerPostalAddress: "Testovací 1, 110 00 Praha, Česko",
+      ownerEstablishmentAddress: "Testovací 1, 110 00 Praha, Česko",
+      ownerRegistrationNumber: "WF-2026",
+      ownerEntityType: "legal",
+      controllerName: "",
+      controllerEmail: "",
+      controllerPostalAddress: "",
+      controllerEstablishmentAddress: "",
+      controllerEntityType: "",
       type: "plakát",
       channel: "offline",
       publicationDate: future.toISOString().slice(0, 10),
+      disseminationStartsAt: future.toISOString().slice(0, 10),
+      disseminationEndsAt: future.toISOString().slice(0, 10),
       period: "červenec až srpen 2026",
       distributionArea: "Praha 1",
       payer: created.tenant.nameCs,
+      payerEmail: userEmail,
+      payerPostalAddress: "Testovací 1, 110 00 Praha, Česko",
+      payerEstablishmentAddress: "Testovací 1, 110 00 Praha, Česko",
+      payerEntityType: "legal",
       supplier: "Studio Workflow",
-      amount: "12 500 Kč",
+      amount: "12500",
+      benefitsInKind: "0",
+      currency: "CZK",
       fundingSource: "volební účet",
+      fundingOrigin: "private",
+      fundingJurisdiction: "eu",
+      calculationMethod: "Součet rozpočtovaných služeb pro tento plakát.",
+      advertisementUrl: "",
+      publisherPlatform: "",
+      europeanRepositoryUrl: "",
+      republishedAfterInfringement: false,
+      infringementDetails: "",
       language: "cs",
       isTargeted: false,
+      usesPersonalData: false,
       targeting: "nepoužito",
       targetAudience: "",
+      targetingDataCategories: "",
+      targetingLogic: "",
+      targetingAiUse: "",
+      targetingPolicyUrl: "",
+      dataController: "",
+      consentWithdrawUrl: "",
+      dataRightsUrl: "",
+      privacyInformationUrl: "",
+      reachViews: null,
+      reachEngagements: null,
+      reachClicks: null,
+      reachLikes: null,
+      reachComments: null,
     },
     "cs",
   );
@@ -193,6 +243,43 @@ try {
   const notice = await getTransparencyNotice(publicToken, "cs");
   assert.ok(notice);
   assert.equal(notice.status, "published");
+  assert.match(notice.reportUrl, new RegExp(`/ad/${publicToken}/report$`));
+
+  await prisma.tenant.update({
+    where: { id: created.tenant.id },
+    data: {
+      contactEmail: "",
+      complianceEmail: "",
+    },
+  });
+  const complianceReport = await createComplianceReport(
+    publicToken,
+    {
+      reporterName: "Test Reporter",
+      reporterEmail: "reporter@example.test",
+      reason: "missing-information",
+      details: "Kontrolní hlášení pro integrační test veřejného formuláře.",
+    },
+    {
+      ipAddress: "127.0.0.1",
+      userAgent: "workflow-smoke",
+      requestId: `report-${suffix}`,
+      correlationId: `report-${suffix}`,
+    },
+  );
+  assert.ok(complianceReport);
+  const reportList = await listComplianceReports(userId);
+  assert.ok(reportList);
+  assert.equal(reportList.total, 1);
+  assert.equal(reportList.reports[0]?.id, complianceReport.id);
+  const resolvedReport = await resolveComplianceReport(
+    userId,
+    complianceReport.id,
+    ComplianceReportStatus.RESOLVED,
+    "Údaje byly ověřeny a hlášení uzavřeno.",
+  );
+  assert.ok(resolvedReport);
+  assert.equal(resolvedReport.status, ComplianceReportStatus.RESOLVED);
 
   const repoPayload = await getPublicRepositoryPayload(tenantSlug, "cs", { q: published.id }, { limit: 25 });
   assert.ok(repoPayload);
@@ -277,6 +364,9 @@ try {
     "upload_ad_asset",
     "approve_ad",
     "publish_ad",
+    "create_compliance_report",
+    "notify_compliance_report",
+    "resolve_compliance_report",
     "download_qr_package",
     "prepare_audit_export",
     "download_audit_package",
@@ -289,8 +379,6 @@ try {
     assert.ok(log.sequence > 0n);
     assert.match(log.entryHash, /^[a-f0-9]{64}$/);
     assert.ok(log.entityType);
-    assert.equal(log.outcome, "success");
-    assert.equal(log.actorUserId, userId);
   }
 
   const routeAuditLog = auditLogs.find((log) => log.action === "download_qr_package");

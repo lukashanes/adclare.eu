@@ -80,6 +80,23 @@ Recommended Cloudflare settings:
 
 `Full strict` requires a valid certificate on the origin server. Use a Cloudflare Origin Certificate or a publicly trusted certificate.
 
+## Response Headers
+
+Do not create Cloudflare response-header transform rules for CSP,
+`X-Frame-Options`, `X-Content-Type-Options`, referrer policy, permissions
+policy, COOP or CORP. Adclare already emits these headers.
+
+HSTS belongs to the HTTPS terminator. Configure it in one place only, either at
+the origin proxy or at Cloudflare. After changing edge rules, inspect the final
+response with:
+
+```bash
+curl -sSI https://adclare.example.org/cs
+```
+
+Remove any rule that creates a duplicate header or changes
+`X-Frame-Options: DENY` to `SAMEORIGIN`.
+
 ## Turnstile
 
 Create a Turnstile widget for:

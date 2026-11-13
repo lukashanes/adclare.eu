@@ -28,6 +28,41 @@ const prisma = new PrismaClient({
 const tenantSlug = "demo-party";
 const campaignSlug = "municipal-2026";
 const regionalCampaignSlug = "regional-2026";
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+const municipalCampaignTtpa = {
+  electionLevel: "komunální",
+  electionDate: new Date("2026-10-09T00:00:00.000Z"),
+  officialInformationUrl: "https://www.mvcr.cz/volby/",
+  aggregatedAmount: "2 480 000",
+  benefitsInKind: "0",
+  currency: "CZK",
+  calculationMethodCs: "Součet objednávek médií, výroby a distribuce evidovaných v kampani.",
+  calculationMethodEn: "Sum of media, production and distribution orders recorded for the campaign.",
+};
+
+const regionalCampaignTtpa = {
+  electionLevel: "krajská",
+  electionDate: new Date("2026-10-09T00:00:00.000Z"),
+  officialInformationUrl: "https://www.mvcr.cz/volby/",
+  aggregatedAmount: "3 160 000",
+  benefitsInKind: "0",
+  currency: "CZK",
+  calculationMethodCs: "Součet objednávek médií, výroby a distribuce evidovaných v kampani.",
+  calculationMethodEn: "Sum of media, production and distribution orders recorded for the campaign.",
+};
+
+function seedAdTimeline(seedStartedAt: Date, adIndex: number) {
+  const createdAt = new Date(seedStartedAt.getTime() - 14 * DAY_MS + adIndex * 6 * HOUR_MS);
+
+  return {
+    createdAt,
+    reviewRequestedAt: new Date(createdAt.getTime() + DAY_MS),
+    approvedAt: new Date(createdAt.getTime() + 2 * DAY_MS),
+    publishedAt: new Date(createdAt.getTime() + 3 * DAY_MS),
+  };
+}
 
 const units = [
   ["central", "centrala", "Centrála", "Headquarters"],
@@ -668,16 +703,23 @@ async function createSeedAuditIfMissing(input: SeedAuditInput) {
 }
 
 async function main() {
+  const seedStartedAt = new Date();
   const tenant = await prisma.tenant.upsert({
     where: { slug: tenantSlug },
     update: {
       nameCs: "Demo strana",
       nameEn: "Demo party",
+      contactEmail: "kontakt@example.org",
+      complianceEmail: "ttpa@example.org",
+      retentionYears: 7,
     },
     create: {
       slug: tenantSlug,
       nameCs: "Demo strana",
       nameEn: "Demo party",
+      contactEmail: "kontakt@example.org",
+      complianceEmail: "ttpa@example.org",
+      retentionYears: 7,
     },
   });
 
@@ -687,6 +729,7 @@ async function main() {
       nameCs: "Komunální volby 2026",
       nameEn: "Municipal election 2026",
       election: "municipal-2026",
+      ...municipalCampaignTtpa,
       descriptionCs: "Demo kampaň pro lokální a krajské reklamní materiály.",
       descriptionEn: "Demo campaign for local and regional advertising material.",
       tags: ["komunální volby", "lokální týmy", "TTPA"],
@@ -700,6 +743,7 @@ async function main() {
       nameCs: "Komunální volby 2026",
       nameEn: "Municipal election 2026",
       election: "municipal-2026",
+      ...municipalCampaignTtpa,
       descriptionCs: "Demo kampaň pro lokální a krajské reklamní materiály.",
       descriptionEn: "Demo campaign for local and regional advertising material.",
       tags: ["komunální volby", "lokální týmy", "TTPA"],
@@ -713,6 +757,7 @@ async function main() {
       nameCs: "Krajská kampaň 2026",
       nameEn: "Regional campaign 2026",
       election: "regional-2026",
+      ...regionalCampaignTtpa,
       descriptionCs: "Demo kampaň pro krajské a online reklamní formáty.",
       descriptionEn: "Demo campaign for regional and online ad formats.",
       tags: ["krajská kampaň", "online", "TTPA"],
@@ -726,6 +771,7 @@ async function main() {
       nameCs: "Krajská kampaň 2026",
       nameEn: "Regional campaign 2026",
       election: "regional-2026",
+      ...regionalCampaignTtpa,
       descriptionCs: "Demo kampaň pro krajské a online reklamní formáty.",
       descriptionEn: "Demo campaign for regional and online ad formats.",
       tags: ["krajská kampaň", "online", "TTPA"],
@@ -912,10 +958,61 @@ async function main() {
     });
   }
 
-  for (const ad of ads) {
+  for (const [adIndex, ad] of ads.entries()) {
     const unit = unitBySlug.get(ad.unitSlug);
     const candidate = ad.candidateSlug ? candidateBySlug.get(ad.candidateSlug) : null;
     const adCampaign = campaignBySlug.get(ad.campaignSlug) ?? campaign;
+    const timeline = seedAdTimeline(seedStartedAt, adIndex);
+    const disseminationEndsAt = new Date(ad.publicationDate.getTime() + 21 * DAY_MS);
+    const adTtpaData = {
+      ownerEmail: "kampan@example.org",
+      ownerPostalAddress: "Volební 12, 110 00 Praha 1, Česko",
+      ownerEstablishmentAddress: "Volební 12, 110 00 Praha 1, Česko",
+      ownerRegistrationNumber: "01234567",
+      ownerEntityType: "legal",
+      controllerNameCs: "",
+      controllerNameEn: "",
+      controllerEmail: "",
+      controllerPostalAddress: "",
+      controllerEstablishmentAddress: "",
+      controllerEntityType: "",
+      disseminationStartsAt: ad.publicationDate,
+      disseminationEndsAt,
+      payerEmail: "finance@example.org",
+      payerPostalAddress: "Volební 12, 110 00 Praha 1, Česko",
+      payerEstablishmentAddress: "Volební 12, 110 00 Praha 1, Česko",
+      payerEntityType: "legal",
+      benefitsInKind: "0",
+      currency: "CZK",
+      fundingOrigin: "private",
+      fundingJurisdiction: "eu",
+      calculationMethodCs: "Cena podle objednávky dodavatele včetně výroby a distribuce.",
+      calculationMethodEn: "Price based on the supplier order, including production and distribution.",
+      advertisementUrl: ad.channel === "online" ? `https://social.example.org/demo-party/posts/${ad.code.toLowerCase()}` : "",
+      publisherPlatform: ad.channel === "online" ? "Social Example" : "",
+      europeanRepositoryUrl: "",
+      republishedAfterInfringement: false,
+      infringementDetailsCs: "",
+      infringementDetailsEn: "",
+      usesPersonalData: ad.isTargeted,
+      targetingDataCategoriesCs: ad.isTargeted ? "Přibližná poloha, věková skupina a deklarované zájmy." : "",
+      targetingDataCategoriesEn: ad.isTargeted ? "Approximate location, age group and declared interests." : "",
+      targetingLogicCs: ad.isTargeted ? "Výběr publika podle lokality a zájmu o komunální témata." : "",
+      targetingLogicEn: ad.isTargeted ? "Audience selection by location and interest in municipal topics." : "",
+      targetingAiUseCs: ad.isTargeted ? "AI se pro výběr publika nepoužívá." : "",
+      targetingAiUseEn: ad.isTargeted ? "AI is not used for audience selection." : "",
+      targetingPolicyUrl: ad.isTargeted ? "https://example.org/cileni" : "",
+      dataControllerCs: ad.isTargeted ? "Demo strana" : "",
+      dataControllerEn: ad.isTargeted ? "Demo party" : "",
+      consentWithdrawUrl: ad.isTargeted ? "https://example.org/souhlas" : "",
+      dataRightsUrl: ad.isTargeted ? "https://example.org/prava" : "",
+      privacyInformationUrl: ad.isTargeted ? "https://example.org/soukromi" : "",
+      reachViews: ad.channel === "online" ? 148200 + adIndex * 9300 : null,
+      reachEngagements: ad.channel === "online" ? 4400 + adIndex * 320 : null,
+      reachClicks: ad.channel === "online" ? 2100 + adIndex * 180 : null,
+      reachLikes: ad.channel === "online" ? 780 + adIndex * 70 : null,
+      reachComments: ad.channel === "online" ? 92 + adIndex * 8 : null,
+    };
     const savedAd = await prisma.ad.upsert({
       where: { tenantId_code: { tenantId: tenant.id, code: ad.code } },
       update: {
@@ -926,6 +1023,7 @@ async function main() {
         titleEn: ad.titleEn,
         ownerCs: ad.ownerCs,
         ownerEn: ad.ownerEn,
+        ...adTtpaData,
         mediaTypeCs: ad.mediaTypeCs,
         mediaTypeEn: ad.mediaTypeEn,
         channel: ad.channel,
@@ -954,13 +1052,13 @@ async function main() {
         statusLabelEn: ad.statusLabelEn,
         workflowStatus: ad.workflowStatus,
         responsibleName: ad.ownerCs,
-        reviewRequestedAt: ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW ? new Date("2026-08-20T00:00:00.000Z") : null,
+        reviewRequestedAt: ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW ? timeline.reviewRequestedAt : null,
         approvedAt:
           ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED
-            ? new Date("2026-08-24T00:00:00.000Z")
+            ? timeline.approvedAt
             : null,
-        publishedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
-        lockedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
+        publishedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? timeline.publishedAt : null,
+        lockedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? timeline.publishedAt : null,
         reviewerName:
           ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? "Centrální kontrola" : "",
         statusNoteCs:
@@ -991,6 +1089,7 @@ async function main() {
         titleEn: ad.titleEn,
         ownerCs: ad.ownerCs,
         ownerEn: ad.ownerEn,
+        ...adTtpaData,
         mediaTypeCs: ad.mediaTypeCs,
         mediaTypeEn: ad.mediaTypeEn,
         channel: ad.channel,
@@ -1019,13 +1118,13 @@ async function main() {
         statusLabelEn: ad.statusLabelEn,
         workflowStatus: ad.workflowStatus,
         responsibleName: ad.ownerCs,
-        reviewRequestedAt: ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW ? new Date("2026-08-20T00:00:00.000Z") : null,
+        reviewRequestedAt: ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW ? timeline.reviewRequestedAt : null,
         approvedAt:
           ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED
-            ? new Date("2026-08-24T00:00:00.000Z")
+            ? timeline.approvedAt
             : null,
-        publishedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
-        lockedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? new Date("2026-08-25T00:00:00.000Z") : null,
+        publishedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? timeline.publishedAt : null,
+        lockedAt: ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? timeline.publishedAt : null,
         reviewerName:
           ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED ? "Centrální kontrola" : "",
         statusNoteCs:
@@ -1069,7 +1168,7 @@ async function main() {
         workflowStatus: ad.workflowStatus,
         channel: ad.channel,
       },
-      createdAt: new Date("2026-08-15T09:00:00.000Z"),
+      createdAt: timeline.createdAt,
     });
 
     if (ad.workflowStatus === AdWorkflowStatus.READY_FOR_REVIEW || ad.workflowStatus === AdWorkflowStatus.APPROVED || ad.workflowStatus === AdWorkflowStatus.PUBLISHED) {
@@ -1109,7 +1208,7 @@ async function main() {
         metadata: {
           workflowStatus: ad.workflowStatus,
         },
-        createdAt: new Date("2026-08-20T09:30:00.000Z"),
+        createdAt: timeline.reviewRequestedAt,
       });
     }
 
@@ -1149,7 +1248,7 @@ async function main() {
         metadata: {
           reviewer: "Centrální kontrola",
         },
-        createdAt: new Date("2026-08-24T11:00:00.000Z"),
+        createdAt: timeline.approvedAt,
       });
     }
 
@@ -1189,7 +1288,7 @@ async function main() {
         metadata: {
           publicToken: savedAd.publicToken,
         },
-        createdAt: new Date("2026-08-25T12:00:00.000Z"),
+        createdAt: timeline.publishedAt,
       });
     }
   }

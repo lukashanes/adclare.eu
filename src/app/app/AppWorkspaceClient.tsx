@@ -8,6 +8,8 @@ import { noticeHref, workflowClass } from "./workspace-ad-ui";
 import { BranchesPanel, CampaignsPanel, CandidatesPanel, SettingsPanel } from "./workspace-admin-panels";
 import { apiError, fetchApiJson, jsonRequest } from "./workspace-api";
 import { Editor } from "./workspace-editor";
+import { AuditPanel as PaginatedAuditPanel } from "./workspace-audit-panel";
+import { ComplianceReportsPanel } from "./workspace-compliance-reports";
 import { PeoplePanel } from "./workspace-people-panel";
 
 type EditorMode = "create" | "edit";
@@ -142,7 +144,10 @@ function defaultCampaign(workspace: AppWorkspacePayload) {
 }
 
 function blankInviteForm(workspace: AppWorkspacePayload): InviteInput {
-  const role = (workspace.users.assignableRoles[0]?.value as InviteInput["role"] | undefined) ?? "CAMPAIGN_MANAGER";
+  const role =
+    (workspace.users.assignableRoles.find((item) => item.value === "CAMPAIGN_MANAGER")?.value as InviteInput["role"] | undefined) ??
+    (workspace.users.assignableRoles.find((item) => item.value !== "SUPER_ADMIN")?.value as InviteInput["role"] | undefined) ??
+    "CAMPAIGN_MANAGER";
   const branch = workspace.users.branches.find((item) => !item.archived) ?? workspace.users.branches[0] ?? workspace.branches.find((item) => !item.archived);
   const candidate = workspace.users.candidates.find((item) => !item.archived) ?? workspace.users.candidates[0] ?? workspace.candidates.find((item) => !item.archived);
 
@@ -175,19 +180,59 @@ function blankForm(workspace: AppWorkspacePayload): EditableAdInput {
     title: "",
     branch: defaultBranch,
     owner: workspace.tenant.name,
+    ownerEmail: workspace.tenant.contactEmail,
+    ownerPostalAddress: "",
+    ownerEstablishmentAddress: "",
+    ownerRegistrationNumber: "",
+    ownerEntityType: "",
+    controllerName: "",
+    controllerEmail: "",
+    controllerPostalAddress: "",
+    controllerEstablishmentAddress: "",
+    controllerEntityType: "",
     type: "plakát",
     channel: "offline",
     publicationDate: new Date().toISOString().slice(0, 10),
+    disseminationStartsAt: new Date().toISOString().slice(0, 10),
+    disseminationEndsAt: "",
     period: "",
     distributionArea: "",
     payer: workspace.tenant.name,
+    payerEmail: workspace.tenant.contactEmail,
+    payerPostalAddress: "",
+    payerEstablishmentAddress: "",
+    payerEntityType: "",
     supplier: "",
     amount: "",
+    benefitsInKind: "",
+    currency: "",
     fundingSource: "",
+    fundingOrigin: "",
+    fundingJurisdiction: "",
+    calculationMethod: "",
+    advertisementUrl: "",
+    publisherPlatform: "",
+    europeanRepositoryUrl: "",
+    republishedAfterInfringement: false,
+    infringementDetails: "",
     language: "cs",
     isTargeted: false,
+    usesPersonalData: false,
     targeting: "nepoužito",
     targetAudience: "",
+    targetingDataCategories: "",
+    targetingLogic: "",
+    targetingAiUse: "",
+    targetingPolicyUrl: "",
+    dataController: "",
+    consentWithdrawUrl: "",
+    dataRightsUrl: "",
+    privacyInformationUrl: "",
+    reachViews: null,
+    reachEngagements: null,
+    reachClicks: null,
+    reachLikes: null,
+    reachComments: null,
   };
 }
 
@@ -199,19 +244,59 @@ function formFromAd(ad: AdRecord): EditableAdInput {
     title: ad.title,
     branch: ad.branch,
     owner: ad.owner,
+    ownerEmail: ad.ownerEmail,
+    ownerPostalAddress: ad.ownerPostalAddress,
+    ownerEstablishmentAddress: ad.ownerEstablishmentAddress,
+    ownerRegistrationNumber: ad.ownerRegistrationNumber,
+    ownerEntityType: ad.ownerEntityType,
+    controllerName: ad.controllerName,
+    controllerEmail: ad.controllerEmail,
+    controllerPostalAddress: ad.controllerPostalAddress,
+    controllerEstablishmentAddress: ad.controllerEstablishmentAddress,
+    controllerEntityType: ad.controllerEntityType,
     type: ad.type,
     channel: ad.channel,
     publicationDate: ad.publicationDateIso || toInputDate(ad.publicationDate),
+    disseminationStartsAt: ad.disseminationStartsAt,
+    disseminationEndsAt: ad.disseminationEndsAt,
     period: ad.period,
     distributionArea: ad.distributionArea,
     payer: ad.payer,
+    payerEmail: ad.payerEmail,
+    payerPostalAddress: ad.payerPostalAddress,
+    payerEstablishmentAddress: ad.payerEstablishmentAddress,
+    payerEntityType: ad.payerEntityType,
     supplier: ad.supplier,
     amount: ad.amount,
+    benefitsInKind: ad.benefitsInKind,
+    currency: ad.currency,
     fundingSource: ad.fundingSource,
+    fundingOrigin: ad.fundingOrigin,
+    fundingJurisdiction: ad.fundingJurisdiction,
+    calculationMethod: ad.calculationMethod,
+    advertisementUrl: ad.advertisementUrl,
+    publisherPlatform: ad.publisherPlatform,
+    europeanRepositoryUrl: ad.europeanRepositoryUrl,
+    republishedAfterInfringement: ad.republishedAfterInfringement,
+    infringementDetails: ad.infringementDetails,
     language: ad.language,
     isTargeted: ad.isTargeted,
+    usesPersonalData: ad.usesPersonalData,
     targeting: ad.targeting,
     targetAudience: ad.targetAudience,
+    targetingDataCategories: ad.targetingDataCategories,
+    targetingLogic: ad.targetingLogic,
+    targetingAiUse: ad.targetingAiUse,
+    targetingPolicyUrl: ad.targetingPolicyUrl,
+    dataController: ad.dataController,
+    consentWithdrawUrl: ad.consentWithdrawUrl,
+    dataRightsUrl: ad.dataRightsUrl,
+    privacyInformationUrl: ad.privacyInformationUrl,
+    reachViews: ad.reachViews,
+    reachEngagements: ad.reachEngagements,
+    reachClicks: ad.reachClicks,
+    reachLikes: ad.reachLikes,
+    reachComments: ad.reachComments,
   };
 }
 
@@ -238,10 +323,52 @@ type AdProcessStep = {
 function adProcessSteps(ad: AdRecord): AdProcessStep[] {
   const coreReady = hasValue(ad.title) && hasValue(ad.branch) && hasValue(ad.campaign);
   const assetReady = ad.assetCount > 0;
-  const identityReady = hasValue(ad.owner) && hasValue(ad.payer);
-  const moneyReady = hasValue(ad.amount) && hasValue(ad.fundingSource);
-  const publicationReady = hasValue(ad.type) && hasValue(ad.publicationDateIso) && hasValue(ad.period) && hasValue(ad.distributionArea);
-  const targetingReady = ad.isTargeted ? hasValue(ad.targeting) && hasValue(ad.targetAudience) : true;
+  const identityReady = [
+    ad.owner,
+    ad.ownerEmail,
+    ad.ownerPostalAddress,
+    ad.ownerEntityType,
+    ad.payer,
+    ad.payerEmail,
+    ad.payerPostalAddress,
+    ad.payerEntityType,
+  ].every(hasValue);
+  const moneyReady = [
+    ad.amount,
+    ad.benefitsInKind,
+    ad.currency,
+    ad.fundingSource,
+    ad.fundingOrigin,
+    ad.fundingJurisdiction,
+    ad.calculationMethod,
+    ad.campaignAggregatedAmount,
+    ad.campaignBenefitsInKind,
+    ad.campaignCurrency,
+    ad.campaignCalculationMethod,
+  ].every(hasValue);
+  const publicationReady = [
+    ad.type,
+    ad.publicationDateIso,
+    ad.disseminationStartsAt,
+    ad.disseminationEndsAt,
+    ad.distributionArea,
+    ad.campaignElection,
+    ad.campaignElectionLevel,
+    ad.campaignElectionDate,
+    ad.campaignOfficialInformationUrl,
+  ].every(hasValue);
+  const targetingReady =
+    (!ad.isTargeted || [ad.targeting, ad.targetAudience].every(hasValue))
+    && (!ad.usesPersonalData || [
+      ad.targetingDataCategories,
+      ad.targetingLogic,
+      ad.targetingAiUse,
+      ad.targetingPolicyUrl,
+      ad.dataController,
+      ad.consentWithdrawUrl,
+      ad.dataRightsUrl,
+      ad.privacyInformationUrl,
+    ].every(hasValue));
   const approved = ad.workflowStatus === "APPROVED" || ad.workflowStatus === "PUBLISHED";
   const published = ad.workflowStatus === "PUBLISHED";
 
@@ -303,7 +430,7 @@ function adProcessSteps(ad: AdRecord): AdProcessStep[] {
       key: "ttpa",
       title: "8. Hotovo pro TTPA",
       text: published
-        ? "Reklama má označení, QR kód, veřejné oznámení a balíček pro kontrolu."
+        ? "Reklama má úplné oznámení, označení, QR kód a auditní balíček podle TTPA."
         : "Cíl: mít hotové údaje a výstupy, které TTPA u politické reklamy vyžaduje.",
       nextAction: approved ? "Publikujte reklamu a stáhněte balíček pro kontrolu." : "Dokončete kontrolu, QR kód a veřejné oznámení.",
       done: published,
@@ -425,11 +552,6 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [branchKind, setBranchKind] = useState("oblast");
   const [branchSaving, setBranchSaving] = useState(false);
   const [branchSavingId, setBranchSavingId] = useState("");
-  const [campaignName, setCampaignName] = useState("");
-  const [campaignElection, setCampaignElection] = useState("Volby 2026");
-  const [campaignStartsAt, setCampaignStartsAt] = useState("2026-01-01");
-  const [campaignEndsAt, setCampaignEndsAt] = useState("2026-12-31");
-  const [campaignTags, setCampaignTags] = useState("");
   const [campaignSaving, setCampaignSaving] = useState(false);
   const [campaignSavingId, setCampaignSavingId] = useState("");
   const [candidateName, setCandidateName] = useState("");
@@ -442,6 +564,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const profileInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [inviteForm, setInviteForm] = useState<InviteInput>(() => blankInviteForm(initialWorkspace));
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteMessage, setInviteMessage] = useState("");
@@ -510,7 +633,6 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
         id: "archive" as const,
         label: "Kontrola",
         description: "Balíčky pro kontrolu a historie změn.",
-        count: workspace.permissions.canViewAudit ? workspace.auditLogs.length : undefined,
         visible: workspace.permissions.canExportArchive || workspace.permissions.canViewAudit,
       },
       {
@@ -700,9 +822,9 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     }
   }
 
-  async function createCampaign() {
-    if (!workspace.permissions.canManageCampaigns || !campaignName.trim() || campaignSaving) {
-      return;
+  async function createCampaign(input: AppCampaignInput) {
+    if (!workspace.permissions.canManageCampaigns || !input.name.trim() || campaignSaving) {
+      return false;
     }
 
     setCampaignSaving(true);
@@ -712,12 +834,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       const { response, payload } = await fetchApiJson<{ campaign?: AppWorkspacePayload["campaigns"][number]; error?: string }>(
         "/api/app/campaigns?locale=cs",
         jsonRequest("POST", {
-          name: campaignName,
-          election: campaignElection,
-          startsAt: campaignStartsAt,
-          endsAt: campaignEndsAt,
-          tags: campaignTags.split(",").map((tag) => tag.trim()).filter(Boolean),
-        } satisfies AppCampaignInput),
+          ...input,
+        }),
       );
 
       if (!response.ok || !payload.campaign) {
@@ -725,11 +843,11 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       }
 
       setWorkspace((current) => workspaceWithCampaign(current, payload.campaign as AppWorkspacePayload["campaigns"][number]));
-      setCampaignName("");
-      setCampaignTags("");
       setImportCampaignId((current) => current || payload.campaign?.id || "");
+      return true;
     } catch (campaignError) {
       setError(campaignError instanceof Error ? campaignError.message : "Kampaň se nepodařilo založit.");
+      return false;
     } finally {
       setCampaignSaving(false);
     }
@@ -1032,6 +1150,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setForm(blankForm(workspace));
     setMode("create");
     setError("");
+    window.setTimeout(() => editorRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
   }
 
   function openEdit(ad: AdRecord) {
@@ -1040,6 +1159,7 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
     setForm(formFromAd(ad));
     setMode("edit");
     setError("");
+    window.setTimeout(() => editorRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
   }
 
   async function saveAd() {
@@ -1312,19 +1432,21 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
       ) : null}
 
       {activeSection === "ads" && mode ? (
-        <Editor
-          mode={mode}
-          ad={mode === "edit" ? (workspace.ads.find((ad) => ad.id === form.code) ?? null) : null}
-          form={form}
-          branches={workspace.branches}
-          campaigns={workspace.campaigns}
-          candidates={workspace.candidates}
-          saving={saving}
-          writable={writable}
-          onCancel={() => setMode(null)}
-          onChange={setForm}
-          onSave={saveAd}
-        />
+        <div ref={editorRef} id="ad-editor" className="scroll-mt-4">
+          <Editor
+            mode={mode}
+            ad={mode === "edit" ? (workspace.ads.find((ad) => ad.id === form.code) ?? null) : null}
+            form={form}
+            branches={workspace.branches}
+            campaigns={workspace.campaigns}
+            candidates={workspace.candidates}
+            saving={saving}
+            writable={writable}
+            onCancel={() => setMode(null)}
+            onChange={setForm}
+            onSave={saveAd}
+          />
+        </div>
       ) : null}
 
       {activeSection === "settings" ? (
@@ -1371,18 +1493,8 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
           campaigns={workspace.campaigns}
           ads={workspace.ads}
           candidates={workspace.candidates}
-          campaignName={campaignName}
-          campaignElection={campaignElection}
-          campaignStartsAt={campaignStartsAt}
-          campaignEndsAt={campaignEndsAt}
-          campaignTags={campaignTags}
           campaignSaving={campaignSaving}
           campaignSavingId={campaignSavingId}
-          onCampaignNameChange={setCampaignName}
-          onCampaignElectionChange={setCampaignElection}
-          onCampaignStartsAtChange={setCampaignStartsAt}
-          onCampaignEndsAtChange={setCampaignEndsAt}
-          onCampaignTagsChange={setCampaignTags}
           onCreate={createCampaign}
           onUpdate={updateCampaign}
         />
@@ -1425,11 +1537,12 @@ export function AppWorkspaceClient({ initialWorkspace }: { initialWorkspace: App
 
       {activeSection === "archive" && workspace.permissions.canExportArchive ? <ArchiveExportPanel workspace={workspace} /> : null}
 
-      {activeSection === "archive" && workspace.permissions.canViewAudit ? <AuditPanel logs={workspace.auditLogs} /> : null}
+      {activeSection === "archive" && workspace.permissions.canViewAudit ? <PaginatedAuditPanel /> : null}
 
       {activeSection === "ads" ? <MissingDataQueue ads={workspace.ads} selectedId={selectedAd?.id ?? ""} writable={writable} onSelect={selectAd} onEdit={openEdit} /> : null}
 
       {activeSection === "review" && reviewable ? <ReviewInbox ads={workspace.ads} selectedId={selectedAd?.id ?? ""} onSelect={selectAd} /> : null}
+      {activeSection === "review" && workspace.membership.role !== "DESIGNER" ? <ComplianceReportsPanel /> : null}
 
       {activeSection === "review" ? (
         <section className="grid scroll-mt-6 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -1917,8 +2030,6 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
     ["assets.csv, approvals.csv, audit-log.csv", "podklady, schválení a historie změn"],
     ["access-members.csv, access-invitations.csv", "přístupy, pokud je máte ve svém oprávnění"],
   ];
-  const lastAuditLog = [...workspace.auditLogs].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0] ?? null;
-
   return (
     <section id="archive" className="grid min-w-0 scroll-mt-6 gap-4 rounded-md border border-black/10 bg-white p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0">
@@ -1989,9 +2100,9 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
           <div className="inline-flex rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-white/70">
             historie
           </div>
-          <h3 className="mt-3 text-lg font-semibold">Poslední změna</h3>
+          <h3 className="mt-3 text-lg font-semibold">Ověřitelná historie</h3>
           <p className="mt-2 text-sm leading-6 text-white/72">
-            {lastAuditLog ? `${lastAuditLog.actor}: ${lastAuditLog.message}` : "Zatím tu není žádná změna."}
+            Každá změna, schválení i citlivé stažení má svůj dohledatelný záznam.
           </p>
         </div>
         <div className="rounded-md border border-white/12 bg-white/8 p-3">
@@ -2000,286 +2111,10 @@ function ArchiveExportPanel({ workspace }: { workspace: AppWorkspacePayload }) {
             Data se drží {workspace.tenant.retentionYears} let.
           </p>
         </div>
-        <div className="rounded-md border border-white/12 bg-white/8 p-3">
-          <div className="text-sm font-semibold">Záznamů změn</div>
-          <p className="mt-1 text-2xl font-semibold">{workspace.auditLogs.length}</p>
-        </div>
+        <a href="#audit" className="inline-flex items-center justify-center rounded-md border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white">
+          Otevřít historii změn
+        </a>
       </aside>
-    </section>
-  );
-}
-
-function AuditPanel({ logs }: { logs: AppWorkspacePayload["auditLogs"] }) {
-  function auditActionLabel(action: string) {
-    const labels: Record<string, string> = {
-      approve_ad: "Schválení reklamy",
-      create_new_version: "Nová verze reklamy",
-      create_ad: "Nová reklama",
-      create_branch: "Nová pobočka",
-      create_campaign: "Nová kampaň",
-      create_candidate: "Nový kandidát",
-      create_invitation: "Pozvánka",
-      download_ad_asset: "Stažení souboru",
-      download_audit_package: "Stažení auditního balíčku",
-      download_qr_package: "Stažení QR balíčku",
-      export_workspace_archive: "Stažení balíčku pro kontrolu",
-      import_ad: "Import reklamy",
-      import_ads_batch: "Import agendy",
-      login_magic_link: "Přihlášení e-mailem",
-      logout: "Odhlášení",
-      prepare_audit_export: "Příprava auditního balíčku",
-      publish_ad: "Publikace reklamy",
-      request_ad_changes: "Vrácení k doplnění",
-      retry_invitation_email: "Opětovné odeslání pozvánky",
-      revoke_invitation: "Zrušení pozvánky",
-      update_ad: "Úprava reklamy",
-      update_branch: "Úprava pobočky",
-      update_campaign: "Úprava kampaně",
-      update_candidate: "Úprava kandidáta",
-      update_member: "Úprava přístupu",
-      update_profile: "Úprava profilu",
-      update_tenant_settings: "Nastavení pracovního prostoru",
-      upload_ad_asset: "Nahrání podkladu",
-    };
-    const key = action.toLowerCase();
-
-    return labels[key] ?? key.split("_").filter(Boolean).join(" ");
-  }
-
-  function formatAuditJson(value: unknown) {
-    if (!value || (typeof value === "object" && Object.keys(value as Record<string, unknown>).length === 0)) {
-      return "";
-    }
-
-    return JSON.stringify(value, null, 2);
-  }
-
-  const [filters, setFilters] = useState({
-    q: "",
-    actor: "all",
-    action: "all",
-    entityType: "all",
-    outcome: "all",
-  });
-  const [selectedAuditId, setSelectedAuditId] = useState("");
-  const sortedLogs = [...logs].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
-  const actorOptions = [...new Set(sortedLogs.map((log) => log.actor).filter(Boolean))].sort((a, b) => a.localeCompare(b, "cs"));
-  const actionOptions = [...new Set(sortedLogs.map((log) => log.action).filter(Boolean))].sort((a, b) => auditActionLabel(a).localeCompare(auditActionLabel(b), "cs"));
-  const entityOptions = [...new Set(sortedLogs.map((log) => log.entityType).filter(Boolean))].sort((a, b) => a.localeCompare(b, "cs"));
-  const filteredLogs = sortedLogs.filter((log) => {
-    const query = filters.q.trim().toLowerCase();
-    const haystack = [log.actor, log.action, log.message, log.entityType, log.entityId, log.entityLabel, log.requestId, log.entryHash].join(" ").toLowerCase();
-
-    return (
-      (!query || haystack.includes(query)) &&
-      (filters.actor === "all" || log.actor === filters.actor) &&
-      (filters.action === "all" || log.action === filters.action) &&
-      (filters.entityType === "all" || log.entityType === filters.entityType) &&
-      (filters.outcome === "all" || log.outcome === filters.outcome)
-    );
-  });
-  const selectedLog = filteredLogs.find((log) => log.id === selectedAuditId) ?? filteredLogs[0] ?? null;
-  const actorCount = new Set(logs.map((log) => log.actor)).size;
-  const actionCounts = Array.from(logs.reduce((counts, log) => {
-    const label = auditActionLabel(log.action);
-
-    return counts.set(label, (counts.get(label) ?? 0) + 1);
-  }, new Map<string, number>())).sort(
-    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"),
-  );
-  const latestLog = sortedLogs[0] ?? null;
-  const verifiedCount = logs.filter((log) => log.entryHash && log.sequence !== "0").length;
-
-  return (
-    <section id="audit" className="scroll-mt-6 rounded-md border border-black/10 bg-white p-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-black">Historie změn</h2>
-          <p className="mt-1 text-sm text-[#59616b]">Rychlý přehled, kdo co upravil, schválil, zveřejnil nebo stáhl.</p>
-        </div>
-        <span className="inline-flex w-fit rounded-md border border-black/10 bg-[#fbfbfc] px-3 py-1.5 text-sm font-semibold text-[#25282d]">
-          {filteredLogs.length}/{logs.length} záznamů
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-4">
-        {[
-          ["Záznamy", logs.length],
-          ["Lidé v historii", actorCount],
-          ["Typy změn", actionCounts.length],
-          ["Ověřitelné hashem", verifiedCount],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">{label}</div>
-            <div className="mt-2 text-lg font-semibold text-black">{value}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Nejčastější změny</div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {actionCounts.length ? actionCounts.slice(0, 8).map(([action, count]) => (
-              <span key={action} className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-[#59616b]">
-                {action}: {count}
-              </span>
-            )) : <span className="text-sm text-[#59616b]">Zatím bez změn.</span>}
-          </div>
-        </div>
-        <div className="rounded-md border border-black/10 bg-[#fbfbfc] p-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#68707a]">Poslední aktivita</div>
-          <p className="mt-2 text-sm leading-6 text-[#59616b]">
-            {latestLog ? `${latestLog.actor} upravil záznam ${new Date(latestLog.createdAt).toLocaleString("cs-CZ")}.` : "Zatím tu není žádná aktivita."}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-2 rounded-md border border-black/10 bg-[#fbfbfc] p-3 lg:grid-cols-6">
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a] lg:col-span-2">
-          Hledat
-          <input
-            value={filters.q}
-            onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))}
-            placeholder="aktér, akce, objekt, request id"
-            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
-          />
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Aktér
-          <select
-            value={filters.actor}
-            onChange={(event) => setFilters((current) => ({ ...current, actor: event.target.value }))}
-            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
-          >
-            <option value="all">Všichni</option>
-            {actorOptions.map((actor) => (
-              <option key={actor} value={actor}>
-                {actor}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Akce
-          <select
-            value={filters.action}
-            onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))}
-            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
-          >
-            <option value="all">Všechny</option>
-            {actionOptions.map((action) => (
-              <option key={action} value={action}>
-                {auditActionLabel(action)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Objekt
-          <select
-            value={filters.entityType}
-            onChange={(event) => setFilters((current) => ({ ...current, entityType: event.target.value }))}
-            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
-          >
-            <option value="all">Všechny</option>
-            {entityOptions.map((entityType) => (
-              <option key={entityType} value={entityType}>
-                {entityType}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-[#68707a]">
-          Výsledek
-          <select
-            value={filters.outcome}
-            onChange={(event) => setFilters((current) => ({ ...current, outcome: event.target.value }))}
-            className="h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-medium text-black outline-none focus:border-[#f45d1f]"
-          >
-            <option value="all">Všechny</option>
-            <option value="success">Úspěch</option>
-            <option value="failure">Chyba</option>
-            <option value="denied">Zamítnuto</option>
-          </select>
-        </label>
-      </div>
-
-      <div className="mt-4 grid gap-2">
-        {filteredLogs.slice(0, 30).map((log) => (
-          <button
-            key={log.id}
-            type="button"
-            onClick={() => setSelectedAuditId(log.id)}
-            className={`grid gap-2 rounded-md border p-3 text-left lg:grid-cols-[180px_190px_150px_minmax(0,1fr)] ${
-              selectedLog?.id === log.id ? "border-[#f45d1f] bg-orange-50/55" : "border-black/10 bg-[#fbfbfc]"
-            }`}
-          >
-            <div className="text-xs font-semibold text-[#68707a]">{new Date(log.createdAt).toLocaleString("cs-CZ")}</div>
-            <div className="break-all text-sm font-semibold text-[#20242a]">{log.actor}</div>
-            <div className="text-xs font-semibold text-[#68707a]">
-              {log.entityType || "event"}
-              {log.sequence && log.sequence !== "0" ? ` #${log.sequence}` : ""}
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#d94410]">{auditActionLabel(log.action)}</div>
-              <p className="mt-1 text-sm leading-6 text-[#59616b]">{log.message}</p>
-            </div>
-          </button>
-        ))}
-        {logs.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Zatím tu nejsou žádné změny.</div> : null}
-        {logs.length > 0 && filteredLogs.length === 0 ? <div className="rounded-md border border-black/10 p-3 text-sm text-[#59616b]">Filtr neodpovídá žádnému záznamu.</div> : null}
-      </div>
-
-      {selectedLog ? (
-        <div className="mt-4 rounded-md border border-black/10 bg-[#11161c] p-4 text-white">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-white/64">Detail auditního záznamu</div>
-              <h3 className="mt-2 text-lg font-semibold">{auditActionLabel(selectedLog.action)}</h3>
-              <p className="mt-1 text-sm leading-6 text-white/72">{selectedLog.message}</p>
-            </div>
-            <span className={`w-fit rounded-md px-2.5 py-1 text-xs font-semibold ${selectedLog.outcome === "success" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"}`}>
-              {selectedLog.outcome || "success"}
-            </span>
-          </div>
-
-          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              ["Aktér", selectedLog.actor],
-              ["Role", selectedLog.actorRole || "-"],
-              ["Oblast", selectedLog.actorScope || "-"],
-              ["Objekt", [selectedLog.entityType, selectedLog.entityLabel || selectedLog.entityId].filter(Boolean).join(": ") || "-"],
-              ["Request ID", selectedLog.requestId || "-"],
-              ["Correlation ID", selectedLog.correlationId || "-"],
-              ["Sequence", selectedLog.sequence || "-"],
-              ["Hash", selectedLog.entryHash ? `${selectedLog.entryHash.slice(0, 16)}...` : "-"],
-            ].map(([label, value]) => (
-              <div key={label} className="min-w-0 rounded-md border border-white/12 bg-white/8 p-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-white/56">{label}</div>
-                <div className="mt-1 break-all text-sm font-semibold text-white">{value}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 grid gap-3 xl:grid-cols-3">
-            {[
-              ["Před změnou", selectedLog.before],
-              ["Po změně", selectedLog.after],
-              ["Metadata", selectedLog.metadata],
-            ].map(([label, value]) => {
-              const text = formatAuditJson(value);
-
-              return (
-                <div key={String(label)} className="min-w-0 rounded-md border border-white/12 bg-white/8 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-white/56">{String(label)}</div>
-                  {text ? <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-white/78">{text}</pre> : <p className="mt-2 text-sm text-white/56">Bez dat.</p>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

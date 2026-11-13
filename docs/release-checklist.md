@@ -38,20 +38,37 @@ After deployment, run a live smoke check against the public URL:
 npm run launch:smoke
 ```
 
+Confirm the production dependency audit is clean:
+
+```bash
+npm audit --omit=dev
+```
+
+Inspect final headers after every proxy and CDN rule has been applied:
+
+```bash
+curl -sSI https://adclare.example.org/cs
+```
+
+Verify that CSP, `X-Frame-Options`, `X-Content-Type-Options`,
+`Referrer-Policy`, `Permissions-Policy` and HSTS each appear once. Adclare owns
+the browser policy headers; the HTTPS terminator owns HSTS.
+
 ## Fresh Self-Hosted Install
 
 Verify a clean Docker installation before tagging a release:
 
 1. Start an empty PostgreSQL database.
 2. Run `prisma migrate deploy` through the migrator image.
-3. Start the production web image.
-4. Check `/api/health`.
-5. Run `npm run launch:smoke` against the public URL.
-6. Create the first workspace through `/signup`.
-7. Confirm the database contains one tenant, one user, one login token and one email message.
-8. Confirm `/data/uploads` is writable when local storage is used.
-9. Run the production preflight with the same environment values.
-10. Shut the test stack down with volumes removed.
+3. Run the demo seed and confirm no `audit_logs.createdAt` value is later than the seed completion time.
+4. Start the production web image.
+5. Check `/api/health`.
+6. Run `npm run launch:smoke` against the public URL.
+7. Create the first workspace through `/signup`.
+8. Confirm the database contains one tenant, one user, one login token and one email message.
+9. Confirm `/data/uploads` is writable when local storage is used.
+10. Run the production preflight with the same environment values.
+11. Shut the test stack down with volumes removed.
 
 ## Core Product Workflow
 

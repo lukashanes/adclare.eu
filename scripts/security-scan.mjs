@@ -76,7 +76,7 @@ for (const file of scannedFiles()) {
     continue;
   }
 
-  let content = "";
+  let content;
 
   try {
     content = readFileSync(file, "utf8");

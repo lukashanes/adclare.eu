@@ -1,6 +1,6 @@
 # Adclare Configuration Reference
 
-This page describes the environment variables and setup choices for Adclare `v0.2.0-beta.4`.
+This page describes the environment variables and setup choices for Adclare `v0.2.0-beta.5`.
 
 Use this together with:
 
@@ -79,6 +79,27 @@ The preflight must be green before the instance is used for real campaign data.
 | `SUPPORT_EMAIL` | Optional | Public support contact shown by the website. Defaults to `support@adclare.eu` where used. |
 
 Production URLs must use HTTPS and the real domain.
+
+## Security Header Ownership
+
+Adclare emits the browser policy headers, including CSP, `X-Frame-Options`,
+`X-Content-Type-Options`, referrer policy, permissions policy, COOP and CORP.
+The HTTPS terminator emits HSTS.
+
+Do not configure Caddy, Nginx or Cloudflare to add the Adclare browser policy
+headers again. Duplicate values add noise, and conflicting values such as
+`X-Frame-Options: DENY` and `X-Frame-Options: SAMEORIGIN` can be interpreted
+differently by clients.
+
+If the Next.js process terminates HTTPS directly, set:
+
+```bash
+ADCLARE_HSTS_OWNER=app
+```
+
+Leave this variable unset when Caddy, Nginx, Traefik or Cloudflare terminates
+HTTPS. In that setup the proxy should emit one HSTS value and pass through the
+browser policy headers from Adclare unchanged.
 
 ## Database
 
@@ -202,10 +223,10 @@ Keep Cloudflare tokens out of GitHub issues, commits, logs and screenshots.
 | Command | What it checks |
 | --- | --- |
 | `npm run ci` | Smoke tests, audit chain test, workflow smoke, Playwright E2E, security scan, Prisma validate, lint, typecheck, audit and production build. |
-| `npm run test` | Launch smoke, audit hash chain smoke and logged-in workflow smoke. |
+| `npm run test` | Launch smoke, audit hash chain, audit query and logged-in workflow smoke. |
 | `npm run test:e2e` | Browser E2E against the production build. |
 | `npm run security:scan` | Common secret patterns in tracked and untracked source files. |
-| `npm audit` | Full dependency audit. |
+| `npm audit` | Full dependency audit. It should pass without findings. |
 | `npm audit --omit=dev` | Production dependency audit used by CI. |
 | `npm run docker:check` | Docker builds for migrator, storage check, preflight and web image. |
 | `npm run launch:preflight` | Production configuration readiness. |

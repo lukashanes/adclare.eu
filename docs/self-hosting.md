@@ -76,6 +76,25 @@ docker compose -f docker-compose.prod.yml up -d --build web
 
 The production Compose file binds the app to `127.0.0.1:13310`. Put Nginx, Caddy, Traefik or another reverse proxy in front of it and serve HTTPS.
 
+### Security headers
+
+Adclare sends CSP and the other browser policy headers. The proxy should send
+only the transport header HSTS and pass Adclare headers through unchanged.
+Remove duplicate `X-Content-Type-Options`, `Referrer-Policy`,
+`Permissions-Policy` and `X-Frame-Options` directives from custom proxy
+configuration. Never combine Adclare's `X-Frame-Options: DENY` with
+`SAMEORIGIN`.
+
+After deployment, inspect the final response rather than only the application
+or proxy configuration:
+
+```bash
+curl -sSI https://adclare.example.org/cs
+```
+
+Each security header should appear once. `Strict-Transport-Security` must be
+present on HTTPS responses.
+
 ## First Workspace
 
 By default, `SIGNUP_MODE=first-run`.

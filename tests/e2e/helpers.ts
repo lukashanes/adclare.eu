@@ -24,6 +24,7 @@ export type WorkspacePayload = {
   ads: Array<{
     id: string;
     title: string;
+    campaignId: string;
     candidate: string;
     branch: string;
     publicUrl: string;

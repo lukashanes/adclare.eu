@@ -1,0 +1,3 @@
+ALTER TABLE "ads"
+ADD COLUMN "advertisementUrl" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "publisherPlatform" TEXT NOT NULL DEFAULT '';

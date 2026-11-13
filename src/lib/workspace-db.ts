@@ -49,9 +49,16 @@ import type {
   Status,
 } from "@/lib/workspace-types";
 import { writeAuditEvent, verifyAuditEntries, type AuditEventInput } from "@/lib/audit";
-import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
+import {
+  cloudflareEmailMissingConfigError,
+  deliverEmailMessage,
+  escapeEmailHtml,
+  isCloudflareEmailConfigured,
+} from "@/lib/cloudflare-email";
+import { logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
+import { ttpaMissingItems, type TtpaCampaignData } from "@/lib/ttpa-completeness";
 
 type AdWithUnit = Ad & {
   orgUnit: OrganizationUnit;
@@ -263,6 +270,7 @@ function mapAuditLog(log: AuditLog, locale: Locale): AppAuditRecord {
   return {
     id: log.id,
     actor: log.actor,
+    actorUserId: log.actorUserId ?? "",
     actorRole: log.actorRole,
     actorScope: log.actorScope,
     action: log.action,
@@ -271,6 +279,8 @@ function mapAuditLog(log: AuditLog, locale: Locale): AppAuditRecord {
     entityType: log.entityType,
     entityId: log.entityId,
     entityLabel: log.entityLabel,
+    ipAddress: log.ipAddress,
+    userAgent: log.userAgent,
     requestId: log.requestId,
     correlationId: log.correlationId,
     sequence: log.sequence.toString(),
@@ -303,24 +313,72 @@ function mapAd(ad: AdWithUnit, locale: Locale): AdRecord {
     campaign: isCs ? ad.campaign.nameCs : ad.campaign.nameEn,
     campaignSlug: ad.campaign.slug,
     campaignTags: ad.campaign.tags,
+    campaignElection: ad.campaign.election,
+    campaignElectionLevel: ad.campaign.electionLevel,
+    campaignElectionDate: ad.campaign.electionDate?.toISOString().slice(0, 10) ?? "",
+    campaignOfficialInformationUrl: ad.campaign.officialInformationUrl,
+    campaignAggregatedAmount: ad.campaign.aggregatedAmount,
+    campaignBenefitsInKind: ad.campaign.benefitsInKind,
+    campaignCurrency: ad.campaign.currency,
+    campaignCalculationMethod: isCs ? ad.campaign.calculationMethodCs : ad.campaign.calculationMethodEn,
     candidateId: ad.candidateId ?? "",
     candidate: ad.candidate ? (isCs ? ad.candidate.nameCs : ad.candidate.nameEn) : "",
     branch: isCs ? ad.orgUnit.nameCs : ad.orgUnit.nameEn,
     owner: isCs ? ad.ownerCs : ad.ownerEn,
+    ownerEmail: ad.ownerEmail,
+    ownerPostalAddress: ad.ownerPostalAddress,
+    ownerEstablishmentAddress: ad.ownerEstablishmentAddress,
+    ownerRegistrationNumber: ad.ownerRegistrationNumber,
+    ownerEntityType: ad.ownerEntityType,
+    controllerName: isCs ? ad.controllerNameCs : ad.controllerNameEn,
+    controllerEmail: ad.controllerEmail,
+    controllerPostalAddress: ad.controllerPostalAddress,
+    controllerEstablishmentAddress: ad.controllerEstablishmentAddress,
+    controllerEntityType: ad.controllerEntityType,
     type: isCs ? ad.mediaTypeCs : ad.mediaTypeEn,
     channel: normalizeChannel(ad.channel),
     publicationDate: formatDate(ad.publicationDate, locale),
     publicationDateIso: ad.publicationDate.toISOString().slice(0, 10),
+    disseminationStartsAt: ad.disseminationStartsAt?.toISOString().slice(0, 10) ?? "",
+    disseminationEndsAt: ad.disseminationEndsAt?.toISOString().slice(0, 10) ?? "",
     period: isCs ? ad.periodCs : ad.periodEn,
     distributionArea: isCs ? ad.distributionAreaCs : ad.distributionAreaEn,
     payer: isCs ? ad.payerCs : ad.payerEn,
+    payerEmail: ad.payerEmail,
+    payerPostalAddress: ad.payerPostalAddress,
+    payerEstablishmentAddress: ad.payerEstablishmentAddress,
+    payerEntityType: ad.payerEntityType,
     supplier: isCs ? ad.supplierCs : ad.supplierEn,
     amount: ad.amount,
+    benefitsInKind: ad.benefitsInKind,
+    currency: ad.currency,
     fundingSource: isCs ? ad.fundingSourceCs : ad.fundingSourceEn,
+    fundingOrigin: ad.fundingOrigin,
+    fundingJurisdiction: ad.fundingJurisdiction,
+    calculationMethod: isCs ? ad.calculationMethodCs : ad.calculationMethodEn,
+    advertisementUrl: ad.advertisementUrl,
+    publisherPlatform: ad.publisherPlatform,
+    europeanRepositoryUrl: ad.europeanRepositoryUrl,
+    republishedAfterInfringement: ad.republishedAfterInfringement,
+    infringementDetails: isCs ? ad.infringementDetailsCs : ad.infringementDetailsEn,
     language: ad.language,
     isTargeted: ad.isTargeted,
+    usesPersonalData: ad.usesPersonalData,
     targeting: isCs ? ad.targetingCs : ad.targetingEn,
     targetAudience: isCs ? ad.targetAudienceCs : ad.targetAudienceEn,
+    targetingDataCategories: isCs ? ad.targetingDataCategoriesCs : ad.targetingDataCategoriesEn,
+    targetingLogic: isCs ? ad.targetingLogicCs : ad.targetingLogicEn,
+    targetingAiUse: isCs ? ad.targetingAiUseCs : ad.targetingAiUseEn,
+    targetingPolicyUrl: ad.targetingPolicyUrl,
+    dataController: isCs ? ad.dataControllerCs : ad.dataControllerEn,
+    consentWithdrawUrl: ad.consentWithdrawUrl,
+    dataRightsUrl: ad.dataRightsUrl,
+    privacyInformationUrl: ad.privacyInformationUrl,
+    reachViews: ad.reachViews,
+    reachEngagements: ad.reachEngagements,
+    reachClicks: ad.reachClicks,
+    reachLikes: ad.reachLikes,
+    reachComments: ad.reachComments,
     missing,
     status: statusMap[status],
     statusLabel: statusLabel(status, locale),
@@ -371,29 +429,6 @@ function hashToken(value: string) {
   return createHash("sha256").update(value).digest("base64url");
 }
 
-function cloudflareEmailAccountId() {
-  return (process.env.CLOUDFLARE_EMAIL_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
-}
-
-function cloudflareEmailApiToken() {
-  return (process.env.CLOUDFLARE_EMAIL_API_TOKEN || "").trim();
-}
-
-function isCloudflareEmailConfigured() {
-  return Boolean(cloudflareEmailAccountId() && cloudflareEmailApiToken());
-}
-
-const cloudflareEmailMissingConfigError = "CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are not configured.";
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
 function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }, token: string) {
   const inviteUrl = `${publicAppUrl()}/invite/${token}`;
   const tenantName = invitation.tenant.nameCs;
@@ -414,97 +449,19 @@ function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit:
   ].join("\n");
   const bodyHtml = `
     <p>Dobrý den,</p>
-    <p>Byl vám vytvořen přístup do <strong>Adclare</strong> pro ${escapeHtml(tenantName)}.</p>
-    <p><strong>Role:</strong> ${escapeHtml(role)}<br><strong>Oblast:</strong> ${escapeHtml(scope)}</p>
-    <p><a href="${escapeHtml(inviteUrl)}">Přijmout pozvánku</a></p>
-    <p>Odkaz je platný do ${escapeHtml(formatDate(invitation.expiresAt, "cs"))}.</p>
+    <p>Byl vám vytvořen přístup do <strong>Adclare</strong> pro ${escapeEmailHtml(tenantName)}.</p>
+    <p><strong>Role:</strong> ${escapeEmailHtml(role)}<br><strong>Oblast:</strong> ${escapeEmailHtml(scope)}</p>
+    <p><a href="${escapeEmailHtml(inviteUrl)}">Přijmout pozvánku</a></p>
+    <p>Odkaz je platný do ${escapeEmailHtml(formatDate(invitation.expiresAt, "cs"))}.</p>
   `;
 
   return { subject, bodyText, bodyHtml, inviteUrl };
 }
 
-async function deliverEmailMessage(email: EmailMessage, content?: { bodyText: string; bodyHtml: string }) {
-  if (!isCloudflareEmailConfigured()) {
-    return prisma.emailMessage.update({
-      where: {
-        id: email.id,
-      },
-      data: {
-        provider: "cloudflare_email_service",
-        status: EmailStatus.PENDING_PROVIDER,
-        error: cloudflareEmailMissingConfigError,
-      },
-    });
-  }
-
-  try {
-    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cloudflareEmailAccountId()}/email/sending/send`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${cloudflareEmailApiToken()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: defaultEmailFrom(),
-        to: email.toEmail,
-        subject: email.subject,
-        html: content?.bodyHtml ?? email.bodyHtml,
-        text: content?.bodyText ?? email.bodyText,
-      }),
-    });
-
-    const result = (await response.json().catch(() => ({}))) as {
-      success?: boolean;
-      errors?: { code?: number; message?: string }[];
-      result?: {
-        delivered?: string[];
-        permanent_bounces?: string[];
-        queued?: string[];
-      };
-    };
-
-    if (!response.ok || !result.success) {
-      const message = result.errors?.map((errorItem) => errorItem.message || errorItem.code).filter(Boolean).join(", ");
-      throw new Error(message || `Cloudflare Email Service responded with ${response.status}.`);
-    }
-
-    if (result.result?.permanent_bounces?.includes(email.toEmail)) {
-      throw new Error("Cloudflare Email Service reported a permanent bounce.");
-    }
-
-    const delivered = result.result?.delivered ?? [];
-    const queued = result.result?.queued ?? [];
-
-    return prisma.emailMessage.update({
-      where: {
-        id: email.id,
-      },
-      data: {
-        status: EmailStatus.SENT,
-        provider: "cloudflare_email_service",
-        providerMessageId: [...delivered.map((item) => `delivered:${item}`), ...queued.map((item) => `queued:${item}`)].join(","),
-        error: "",
-        sentAt: new Date(),
-      },
-    });
-  } catch (error) {
-    return prisma.emailMessage.update({
-      where: {
-        id: email.id,
-      },
-      data: {
-        status: EmailStatus.FAILED,
-        provider: "cloudflare_email_service",
-        error: error instanceof Error ? error.message : "Unknown email send error.",
-      },
-    });
-  }
-}
-
 async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null }, token: string) {
   const { subject, bodyText, bodyHtml, inviteUrl } = invitationEmailCopy(invitation, token);
   const storedBodyText = bodyText.replaceAll(inviteUrl, "[invitation link redacted]");
-  const storedBodyHtml = bodyHtml.replaceAll(escapeHtml(inviteUrl), "#").replaceAll(inviteUrl, "#");
+  const storedBodyHtml = bodyHtml.replaceAll(escapeEmailHtml(inviteUrl), "#").replaceAll(inviteUrl, "#");
   const email = await prisma.emailMessage.create({
     data: {
       tenantId: invitation.tenantId,
@@ -624,6 +581,14 @@ function mapCampaign(campaign: CampaignWithCount, locale: Locale) {
     name: locale === "cs" ? campaign.nameCs : campaign.nameEn,
     slug: campaign.slug,
     election: campaign.election,
+    electionLevel: campaign.electionLevel,
+    electionDate: campaign.electionDate ? formatDate(campaign.electionDate, locale) : "",
+    electionDateIso: campaign.electionDate?.toISOString().slice(0, 10) ?? "",
+    officialInformationUrl: campaign.officialInformationUrl,
+    aggregatedAmount: campaign.aggregatedAmount,
+    benefitsInKind: campaign.benefitsInKind,
+    currency: campaign.currency,
+    calculationMethod: locale === "cs" ? campaign.calculationMethodCs : campaign.calculationMethodEn,
     description: locale === "cs" ? campaign.descriptionCs : campaign.descriptionEn,
     tags: campaign.tags,
     startsAt: formatDate(campaign.startsAt, locale),
@@ -880,135 +845,85 @@ function normalizeChannel(value: string): AdChannel {
   return value === "online" ? "online" : "offline";
 }
 
-function isBlank(value: string | null | undefined) {
-  return !value?.trim();
+function campaignTtpaData(campaign: Campaign, locale: Locale): TtpaCampaignData {
+  return {
+    election: campaign.election,
+    electionLevel: campaign.electionLevel,
+    electionDate: campaign.electionDate?.toISOString().slice(0, 10) ?? "",
+    officialInformationUrl: campaign.officialInformationUrl,
+    aggregatedAmount: campaign.aggregatedAmount,
+    benefitsInKind: campaign.benefitsInKind,
+    currency: campaign.currency,
+    calculationMethod: locale === "cs" ? campaign.calculationMethodCs : campaign.calculationMethodEn,
+  };
 }
 
-function requiresTargetingDetails(input: Pick<EditableAdInput, "isTargeted" | "targeting" | "targetAudience">) {
-  const targeting = input.targeting
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-  const noTargetingValues = new Set(["", "nepouzito", "not used", "ne", "no", "false", "0", "bez cileni", "netargetovano", "zadne"]);
-
-  return input.isTargeted || !noTargetingValues.has(targeting);
+function requiredMissing(input: EditableAdInput, locale: Locale, campaign?: Campaign | null) {
+  return ttpaMissingItems(input, campaign ? campaignTtpaData(campaign, locale) : null, locale);
 }
 
-function requiredMissing(input: EditableAdInput, locale: Locale) {
-  const missing: string[] = [];
-
-  const labels =
-    locale === "cs"
-      ? {
-          title: "název materiálu",
-          owner: "zadavatel",
-          type: "typ reklamy",
-          publicationDate: "datum zveřejnění",
-          period: "období šíření",
-          distributionArea: "oblast šíření",
-          payer: "plátce",
-          supplier: "dodavatel",
-          amount: "částka",
-          fundingSource: "původ financí",
-          language: "jazyk",
-          targeting: "cílení",
-          targetAudience: "cílové publikum",
-        }
-      : {
-          title: "asset title",
-          owner: "advertiser",
-          type: "ad type",
-          publicationDate: "publication date",
-          period: "display period",
-          distributionArea: "distribution area",
-          payer: "payer",
-          supplier: "supplier",
-          amount: "amount",
-          fundingSource: "funding source",
-          language: "language",
-          targeting: "targeting",
-          targetAudience: "target audience",
-        };
-
-  if (isBlank(input.title)) {
-    missing.push(labels.title);
-  }
-
-  if (isBlank(input.owner)) {
-    missing.push(labels.owner);
-  }
-
-  if (isBlank(input.type)) {
-    missing.push(labels.type);
-  }
-
-  if (isBlank(input.publicationDate)) {
-    missing.push(labels.publicationDate);
-  }
-
-  if (isBlank(input.period)) {
-    missing.push(labels.period);
-  }
-
-  if (isBlank(input.distributionArea)) {
-    missing.push(labels.distributionArea);
-  }
-
-  if (isBlank(input.payer)) {
-    missing.push(labels.payer);
-  }
-
-  if (isBlank(input.supplier)) {
-    missing.push(labels.supplier);
-  }
-
-  if (isBlank(input.amount)) {
-    missing.push(labels.amount);
-  }
-
-  if (isBlank(input.fundingSource)) {
-    missing.push(labels.fundingSource);
-  }
-
-  if (isBlank(input.language)) {
-    missing.push(labels.language);
-  }
-
-  if (requiresTargetingDetails(input)) {
-    if (isBlank(input.targeting)) {
-      missing.push(labels.targeting);
-    }
-
-    if (isBlank(input.targetAudience)) {
-      missing.push(labels.targetAudience);
-    }
-  }
-
-  return missing;
-}
-
-function missingForAd(ad: Ad, locale: Locale) {
+function missingForAd(ad: Ad & { campaign?: Campaign }, locale: Locale) {
   return requiredMissing(
     {
       title: locale === "cs" ? ad.titleCs : ad.titleEn,
       branch: "",
       owner: locale === "cs" ? ad.ownerCs : ad.ownerEn,
+      ownerEmail: ad.ownerEmail,
+      ownerPostalAddress: ad.ownerPostalAddress,
+      ownerEstablishmentAddress: ad.ownerEstablishmentAddress,
+      ownerRegistrationNumber: ad.ownerRegistrationNumber,
+      ownerEntityType: ad.ownerEntityType,
+      controllerName: locale === "cs" ? ad.controllerNameCs : ad.controllerNameEn,
+      controllerEmail: ad.controllerEmail,
+      controllerPostalAddress: ad.controllerPostalAddress,
+      controllerEstablishmentAddress: ad.controllerEstablishmentAddress,
+      controllerEntityType: ad.controllerEntityType,
       type: locale === "cs" ? ad.mediaTypeCs : ad.mediaTypeEn,
       channel: normalizeChannel(ad.channel),
       publicationDate: ad.publicationDate.toISOString().slice(0, 10),
+      disseminationStartsAt: ad.disseminationStartsAt?.toISOString().slice(0, 10) ?? "",
+      disseminationEndsAt: ad.disseminationEndsAt?.toISOString().slice(0, 10) ?? "",
       period: locale === "cs" ? ad.periodCs : ad.periodEn,
       distributionArea: locale === "cs" ? ad.distributionAreaCs : ad.distributionAreaEn,
       payer: locale === "cs" ? ad.payerCs : ad.payerEn,
+      payerEmail: ad.payerEmail,
+      payerPostalAddress: ad.payerPostalAddress,
+      payerEstablishmentAddress: ad.payerEstablishmentAddress,
+      payerEntityType: ad.payerEntityType,
       supplier: locale === "cs" ? ad.supplierCs : ad.supplierEn,
       amount: ad.amount,
+      benefitsInKind: ad.benefitsInKind,
+      currency: ad.currency,
       fundingSource: locale === "cs" ? ad.fundingSourceCs : ad.fundingSourceEn,
+      fundingOrigin: ad.fundingOrigin,
+      fundingJurisdiction: ad.fundingJurisdiction,
+      calculationMethod: locale === "cs" ? ad.calculationMethodCs : ad.calculationMethodEn,
+      advertisementUrl: ad.advertisementUrl,
+      publisherPlatform: ad.publisherPlatform,
+      europeanRepositoryUrl: ad.europeanRepositoryUrl,
+      republishedAfterInfringement: ad.republishedAfterInfringement,
+      infringementDetails: locale === "cs" ? ad.infringementDetailsCs : ad.infringementDetailsEn,
       language: ad.language,
       isTargeted: ad.isTargeted,
+      usesPersonalData: ad.usesPersonalData,
       targeting: locale === "cs" ? ad.targetingCs : ad.targetingEn,
       targetAudience: locale === "cs" ? ad.targetAudienceCs : ad.targetAudienceEn,
+      targetingDataCategories: locale === "cs" ? ad.targetingDataCategoriesCs : ad.targetingDataCategoriesEn,
+      targetingLogic: locale === "cs" ? ad.targetingLogicCs : ad.targetingLogicEn,
+      targetingAiUse: locale === "cs" ? ad.targetingAiUseCs : ad.targetingAiUseEn,
+      targetingPolicyUrl: ad.targetingPolicyUrl,
+      dataController: locale === "cs" ? ad.dataControllerCs : ad.dataControllerEn,
+      consentWithdrawUrl: ad.consentWithdrawUrl,
+      dataRightsUrl: ad.dataRightsUrl,
+      privacyInformationUrl: ad.privacyInformationUrl,
+      reachViews: ad.reachViews,
+      reachEngagements: ad.reachEngagements,
+      reachClicks: ad.reachClicks,
+      reachLikes: ad.reachLikes,
+      reachComments: ad.reachComments,
     },
     locale,
+    ad.campaign,
   );
 }
 
@@ -1057,12 +972,12 @@ function workflowStatusForAd(ad: Ad, missing: string[]) {
   return AdWorkflowStatus.READY_FOR_REVIEW;
 }
 
-function statusForInput(input: EditableAdInput) {
-  return statusForMissing(requiredMissing(input, "cs"), parsePublicationDate(input.publicationDate));
+function statusForInput(input: EditableAdInput, campaign?: Campaign | null) {
+  return statusForMissing(requiredMissing(input, "cs", campaign), parsePublicationDate(input.publicationDate));
 }
 
-function workflowForInput(input: EditableAdInput) {
-  return requiredMissing(input, "cs").length === 0 ? AdWorkflowStatus.READY_FOR_REVIEW : AdWorkflowStatus.NEEDS_DATA;
+function workflowForInput(input: EditableAdInput, campaign?: Campaign | null) {
+  return requiredMissing(input, "cs", campaign).length === 0 ? AdWorkflowStatus.READY_FOR_REVIEW : AdWorkflowStatus.NEEDS_DATA;
 }
 
 function statusLabel(status: AdStatus, locale: Locale) {
@@ -1076,8 +991,8 @@ function statusLabel(status: AdStatus, locale: Locale) {
   return labels[status][locale];
 }
 
-function statusLabelForInput(input: EditableAdInput, locale: Locale) {
-  return statusLabel(statusForInput(input), locale);
+function statusLabelForInput(input: EditableAdInput, locale: Locale, campaign?: Campaign | null) {
+  return statusLabel(statusForInput(input, campaign), locale);
 }
 
 function defaultTargeting(input: EditableAdInput, locale: Locale) {
@@ -1096,6 +1011,62 @@ function parsePublicationDate(value: string) {
   }
 
   return date;
+}
+
+function parseOptionalDate(value: string) {
+  return value ? parsePublicationDate(value) : null;
+}
+
+function ttpaAdDataFromInput(input: EditableAdInput) {
+  return {
+    ownerEmail: input.ownerEmail.trim(),
+    ownerPostalAddress: input.ownerPostalAddress.trim(),
+    ownerEstablishmentAddress: input.ownerEstablishmentAddress.trim(),
+    ownerRegistrationNumber: input.ownerRegistrationNumber.trim(),
+    ownerEntityType: input.ownerEntityType,
+    controllerNameCs: input.controllerName.trim(),
+    controllerNameEn: input.controllerName.trim(),
+    controllerEmail: input.controllerEmail.trim(),
+    controllerPostalAddress: input.controllerPostalAddress.trim(),
+    controllerEstablishmentAddress: input.controllerEstablishmentAddress.trim(),
+    controllerEntityType: input.controllerEntityType,
+    disseminationStartsAt: parseOptionalDate(input.disseminationStartsAt),
+    disseminationEndsAt: parseOptionalDate(input.disseminationEndsAt),
+    payerEmail: input.payerEmail.trim(),
+    payerPostalAddress: input.payerPostalAddress.trim(),
+    payerEstablishmentAddress: input.payerEstablishmentAddress.trim(),
+    payerEntityType: input.payerEntityType,
+    benefitsInKind: input.benefitsInKind.trim(),
+    currency: input.currency.trim().toUpperCase(),
+    fundingOrigin: input.fundingOrigin,
+    fundingJurisdiction: input.fundingJurisdiction,
+    calculationMethodCs: input.calculationMethod.trim(),
+    calculationMethodEn: input.calculationMethod.trim(),
+    advertisementUrl: input.advertisementUrl.trim(),
+    publisherPlatform: input.publisherPlatform.trim(),
+    europeanRepositoryUrl: input.europeanRepositoryUrl.trim(),
+    republishedAfterInfringement: input.republishedAfterInfringement,
+    infringementDetailsCs: input.infringementDetails.trim(),
+    infringementDetailsEn: input.infringementDetails.trim(),
+    usesPersonalData: input.usesPersonalData,
+    targetingDataCategoriesCs: input.targetingDataCategories.trim(),
+    targetingDataCategoriesEn: input.targetingDataCategories.trim(),
+    targetingLogicCs: input.targetingLogic.trim(),
+    targetingLogicEn: input.targetingLogic.trim(),
+    targetingAiUseCs: input.targetingAiUse.trim(),
+    targetingAiUseEn: input.targetingAiUse.trim(),
+    targetingPolicyUrl: input.targetingPolicyUrl.trim(),
+    dataControllerCs: input.dataController.trim(),
+    dataControllerEn: input.dataController.trim(),
+    consentWithdrawUrl: input.consentWithdrawUrl.trim(),
+    dataRightsUrl: input.dataRightsUrl.trim(),
+    privacyInformationUrl: input.privacyInformationUrl.trim(),
+    reachViews: input.reachViews,
+    reachEngagements: input.reachEngagements,
+    reachClicks: input.reachClicks,
+    reachLikes: input.reachLikes,
+    reachComments: input.reachComments,
+  };
 }
 
 function normalizeEmail(value: string) {
@@ -1134,27 +1105,74 @@ function adSnapshot(ad: Ad) {
     titleEn: ad.titleEn,
     ownerCs: ad.ownerCs,
     ownerEn: ad.ownerEn,
+    ownerEmail: ad.ownerEmail,
+    ownerPostalAddress: ad.ownerPostalAddress,
+    ownerEstablishmentAddress: ad.ownerEstablishmentAddress,
+    ownerRegistrationNumber: ad.ownerRegistrationNumber,
+    ownerEntityType: ad.ownerEntityType,
+    controllerNameCs: ad.controllerNameCs,
+    controllerNameEn: ad.controllerNameEn,
+    controllerEmail: ad.controllerEmail,
+    controllerPostalAddress: ad.controllerPostalAddress,
+    controllerEstablishmentAddress: ad.controllerEstablishmentAddress,
+    controllerEntityType: ad.controllerEntityType,
     mediaTypeCs: ad.mediaTypeCs,
     mediaTypeEn: ad.mediaTypeEn,
     channel: ad.channel,
     publicationDate: ad.publicationDate.toISOString(),
+    disseminationStartsAt: ad.disseminationStartsAt?.toISOString() ?? null,
+    disseminationEndsAt: ad.disseminationEndsAt?.toISOString() ?? null,
     periodCs: ad.periodCs,
     periodEn: ad.periodEn,
     distributionAreaCs: ad.distributionAreaCs,
     distributionAreaEn: ad.distributionAreaEn,
     payerCs: ad.payerCs,
     payerEn: ad.payerEn,
+    payerEmail: ad.payerEmail,
+    payerPostalAddress: ad.payerPostalAddress,
+    payerEstablishmentAddress: ad.payerEstablishmentAddress,
+    payerEntityType: ad.payerEntityType,
     supplierCs: ad.supplierCs,
     supplierEn: ad.supplierEn,
     amount: ad.amount,
+    benefitsInKind: ad.benefitsInKind,
+    currency: ad.currency,
     fundingSourceCs: ad.fundingSourceCs,
     fundingSourceEn: ad.fundingSourceEn,
+    fundingOrigin: ad.fundingOrigin,
+    fundingJurisdiction: ad.fundingJurisdiction,
+    calculationMethodCs: ad.calculationMethodCs,
+    calculationMethodEn: ad.calculationMethodEn,
+    advertisementUrl: ad.advertisementUrl,
+    publisherPlatform: ad.publisherPlatform,
+    europeanRepositoryUrl: ad.europeanRepositoryUrl,
+    republishedAfterInfringement: ad.republishedAfterInfringement,
+    infringementDetailsCs: ad.infringementDetailsCs,
+    infringementDetailsEn: ad.infringementDetailsEn,
     language: ad.language,
     isTargeted: ad.isTargeted,
+    usesPersonalData: ad.usesPersonalData,
     targetingCs: ad.targetingCs,
     targetingEn: ad.targetingEn,
     targetAudienceCs: ad.targetAudienceCs,
     targetAudienceEn: ad.targetAudienceEn,
+    targetingDataCategoriesCs: ad.targetingDataCategoriesCs,
+    targetingDataCategoriesEn: ad.targetingDataCategoriesEn,
+    targetingLogicCs: ad.targetingLogicCs,
+    targetingLogicEn: ad.targetingLogicEn,
+    targetingAiUseCs: ad.targetingAiUseCs,
+    targetingAiUseEn: ad.targetingAiUseEn,
+    targetingPolicyUrl: ad.targetingPolicyUrl,
+    dataControllerCs: ad.dataControllerCs,
+    dataControllerEn: ad.dataControllerEn,
+    consentWithdrawUrl: ad.consentWithdrawUrl,
+    dataRightsUrl: ad.dataRightsUrl,
+    privacyInformationUrl: ad.privacyInformationUrl,
+    reachViews: ad.reachViews,
+    reachEngagements: ad.reachEngagements,
+    reachClicks: ad.reachClicks,
+    reachLikes: ad.reachLikes,
+    reachComments: ad.reachComments,
     missingCs: ad.missingCs,
     missingEn: ad.missingEn,
     status: ad.status,
@@ -1289,11 +1307,15 @@ function canManageTenantSettings(role: UserRole) {
 }
 
 function canViewAppAudit(role: UserRole) {
-  return role === UserRole.SUPER_ADMIN || role === UserRole.PARTY_ADMIN || role === UserRole.CENTRAL_REVIEWER || role === UserRole.READONLY_AUDITOR;
+  return Object.values(UserRole).includes(role);
 }
 
 function canExportAppArchive(role: UserRole) {
-  return canViewAppAudit(role) || role === UserRole.LOCAL_ADMIN;
+  return role === UserRole.SUPER_ADMIN
+    || role === UserRole.PARTY_ADMIN
+    || role === UserRole.CENTRAL_REVIEWER
+    || role === UserRole.READONLY_AUDITOR
+    || role === UserRole.LOCAL_ADMIN;
 }
 
 function canManageAllTenants(role: UserRole) {
@@ -1674,6 +1696,7 @@ async function getAppSuperAdminPayload(locale: Locale): Promise<AppSuperAdminPay
       name: locale === "cs" ? tenant.nameCs : tenant.nameEn,
       slug: tenant.slug,
       contactEmail: tenant.contactEmail,
+      complianceEmail: tenant.complianceEmail,
       defaultLocale: tenant.defaultLocale === "en" ? "en" : ("cs" as Locale),
       publicRepositoryEnabled: tenant.publicRepositoryEnabled,
       retentionYears: tenant.retentionYears,
@@ -1837,17 +1860,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale, adP
           take: 20,
         })
       : Promise.resolve([]),
-    permissions.canViewAudit
-      ? prisma.auditLog.findMany({
-          where: {
-            tenantId: membership.tenantId,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 40,
-        })
-      : Promise.resolve([]),
+    Promise.resolve([]),
     permissions.canManageAllTenants ? getAppSuperAdminPayload(locale) : Promise.resolve(null),
   ]);
 
@@ -1872,6 +1885,7 @@ export async function getAppWorkspacePayload(userId: string, locale: Locale, adP
       name: locale === "cs" ? membership.tenant.nameCs : membership.tenant.nameEn,
       slug: membership.tenant.slug,
       contactEmail: membership.tenant.contactEmail,
+      complianceEmail: membership.tenant.complianceEmail,
       defaultLocale: membership.tenant.defaultLocale === "en" ? "en" : "cs",
       publicRepositoryEnabled: membership.tenant.publicRepositoryEnabled,
       retentionYears: membership.tenant.retentionYears,
@@ -2068,6 +2082,23 @@ function campaignDate(value: string, field: string) {
   return date;
 }
 
+function optionalCampaignDate(value: string | undefined) {
+  return value ? campaignDate(value, "volby") : null;
+}
+
+function campaignTtpaDataFromInput(input: AppCampaignInput) {
+  return {
+    electionLevel: (input.electionLevel || "").trim(),
+    electionDate: optionalCampaignDate(input.electionDate),
+    officialInformationUrl: (input.officialInformationUrl || "").trim(),
+    aggregatedAmount: (input.aggregatedAmount || "").trim(),
+    benefitsInKind: (input.benefitsInKind || "").trim(),
+    currency: (input.currency || "").trim().toUpperCase(),
+    calculationMethodCs: (input.calculationMethod || "").trim(),
+    calculationMethodEn: (input.calculationMethod || "").trim(),
+  };
+}
+
 function normalizedCampaignTags(tags: string[] = []) {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -2121,6 +2152,7 @@ export async function createAppCampaign(userId: string, input: AppCampaignInput,
         nameCs: name,
         nameEn: name,
         election,
+        ...campaignTtpaDataFromInput(input),
         descriptionCs: description,
         descriptionEn: description,
         tags,
@@ -2141,6 +2173,13 @@ export async function createAppCampaign(userId: string, input: AppCampaignInput,
         slug: created.slug,
         name: created.nameCs,
         election: created.election,
+        electionLevel: created.electionLevel,
+        electionDate: created.electionDate?.toISOString() ?? null,
+        officialInformationUrl: created.officialInformationUrl,
+        aggregatedAmount: created.aggregatedAmount,
+        benefitsInKind: created.benefitsInKind,
+        currency: created.currency,
+        calculationMethod: created.calculationMethodCs,
         startsAt: created.startsAt.toISOString(),
         endsAt: created.endsAt.toISOString(),
         tags,
@@ -2228,6 +2267,7 @@ export async function updateAppCampaign(userId: string, campaignId: string, inpu
         nameCs: name,
         nameEn: name,
         election,
+        ...campaignTtpaDataFromInput(input),
         descriptionCs: description,
         descriptionEn: description,
         tags,
@@ -2236,6 +2276,53 @@ export async function updateAppCampaign(userId: string, campaignId: string, inpu
         archivedAt,
       },
     });
+
+    const affectedAds = await tx.ad.findMany({
+      where: {
+        tenantId: context.membership.tenantId,
+        campaignId: updated.id,
+        workflowStatus: {
+          not: AdWorkflowStatus.ARCHIVED,
+        },
+      },
+      include: {
+        campaign: true,
+      },
+    });
+
+    for (const ad of affectedAds) {
+      const missingCs = missingForAd(ad, "cs");
+      const missingEn = missingForAd(ad, "en");
+
+      if (ad.workflowStatus === AdWorkflowStatus.PUBLISHED && missingCs.length > 0) {
+        throw new Error("Kampaň nelze uložit, protože by publikovaným reklamám chyběly povinné údaje TTPA.");
+      }
+
+      const published = ad.workflowStatus === AdWorkflowStatus.PUBLISHED;
+      const workflowStatus = published
+        ? AdWorkflowStatus.PUBLISHED
+        : missingCs.length > 0
+          ? AdWorkflowStatus.NEEDS_DATA
+          : AdWorkflowStatus.READY_FOR_REVIEW;
+      const status = published ? AdStatus.READY : statusForMissing(missingCs, ad.publicationDate);
+
+      await tx.ad.update({
+        where: {
+          id: ad.id,
+        },
+        data: {
+          missingCs,
+          missingEn,
+          status,
+          statusLabelCs: statusLabel(status, "cs"),
+          statusLabelEn: statusLabel(status, "en"),
+          workflowStatus,
+          reviewRequestedAt: published ? ad.reviewRequestedAt : null,
+          approvedAt: published ? ad.approvedAt : null,
+          reviewerName: published ? ad.reviewerName : "",
+        },
+      });
+    }
 
     await writeWorkspaceAudit(tx, context, {
       entityType: "campaign",
@@ -2248,6 +2335,13 @@ export async function updateAppCampaign(userId: string, campaignId: string, inpu
         slug: existing.slug,
         name: existing.nameCs,
         election: existing.election,
+        electionLevel: existing.electionLevel,
+        electionDate: existing.electionDate?.toISOString() ?? null,
+        officialInformationUrl: existing.officialInformationUrl,
+        aggregatedAmount: existing.aggregatedAmount,
+        benefitsInKind: existing.benefitsInKind,
+        currency: existing.currency,
+        calculationMethod: existing.calculationMethodCs,
         startsAt: existing.startsAt.toISOString(),
         endsAt: existing.endsAt.toISOString(),
         archived: Boolean(existing.archivedAt),
@@ -2257,6 +2351,13 @@ export async function updateAppCampaign(userId: string, campaignId: string, inpu
         slug: updated.slug,
         name: updated.nameCs,
         election: updated.election,
+        electionLevel: updated.electionLevel,
+        electionDate: updated.electionDate?.toISOString() ?? null,
+        officialInformationUrl: updated.officialInformationUrl,
+        aggregatedAmount: updated.aggregatedAmount,
+        benefitsInKind: updated.benefitsInKind,
+        currency: updated.currency,
+        calculationMethod: updated.calculationMethodCs,
         startsAt: updated.startsAt.toISOString(),
         endsAt: updated.endsAt.toISOString(),
         archived: Boolean(updated.archivedAt),
@@ -2267,6 +2368,7 @@ export async function updateAppCampaign(userId: string, campaignId: string, inpu
         slug: updated.slug,
         archived: Boolean(updated.archivedAt),
         tags,
+        affectedAds: affectedAds.length,
       },
     });
 
@@ -2356,14 +2458,6 @@ export async function createAppCandidate(userId: string, input: AppCandidateInpu
         descriptionCs: description,
         descriptionEn: description,
       },
-      include: {
-        orgUnit: true,
-        _count: {
-          select: {
-            ads: true,
-          },
-        },
-      },
     });
 
     await writeWorkspaceAudit(tx, context, {
@@ -2390,7 +2484,7 @@ export async function createAppCandidate(userId: string, input: AppCandidateInpu
     return created;
   });
 
-  return mapCandidate(candidate, locale);
+  return mapCandidate({ ...candidate, orgUnit, _count: { ads: 0 } }, locale);
 }
 
 export async function updateAppCandidate(userId: string, candidateId: string, input: AppCandidateInput, locale: Locale) {
@@ -2454,14 +2548,6 @@ export async function updateAppCandidate(userId: string, candidateId: string, in
         descriptionEn: description,
         archivedAt,
       },
-      include: {
-        orgUnit: true,
-        _count: {
-          select: {
-            ads: true,
-          },
-        },
-      },
     });
 
     await writeWorkspaceAudit(tx, context, {
@@ -2498,7 +2584,7 @@ export async function updateAppCandidate(userId: string, candidateId: string, in
     return updated;
   });
 
-  return mapCandidate(candidate, locale);
+  return mapCandidate({ ...candidate, orgUnit, _count: { ads: existing._count.ads } }, locale);
 }
 
 export async function updateAppTenantSettings(userId: string, input: AppTenantSettingsInput) {
@@ -2511,6 +2597,7 @@ export async function updateAppTenantSettings(userId: string, input: AppTenantSe
   const name = input.name.trim();
   const slug = slugify(input.slug);
   const contactEmail = normalizeEmail(input.contactEmail || "");
+  const complianceEmail = normalizeEmail(input.complianceEmail || contactEmail);
 
   if (!name) {
     throw new Error("Zadejte název strany.");
@@ -2518,6 +2605,10 @@ export async function updateAppTenantSettings(userId: string, input: AppTenantSe
 
   if (contactEmail && !isValidEmail(contactEmail)) {
     throw new Error("Zadejte platný kontaktní e-mail.");
+  }
+
+  if (complianceEmail && !isValidEmail(complianceEmail)) {
+    throw new Error("Zadejte platný e-mail pro hlášení nesrovnalostí.");
   }
 
   const existingSlug = await prisma.tenant.findUnique({
@@ -2543,6 +2634,7 @@ export async function updateAppTenantSettings(userId: string, input: AppTenantSe
         nameCs: name,
         nameEn: name,
         contactEmail,
+        complianceEmail,
         defaultLocale: input.defaultLocale,
         publicRepositoryEnabled: input.publicRepositoryEnabled,
         retentionYears: input.retentionYears,
@@ -2560,6 +2652,7 @@ export async function updateAppTenantSettings(userId: string, input: AppTenantSe
         slug: context.membership.tenant.slug,
         name: context.membership.tenant.nameCs,
         contactEmail: context.membership.tenant.contactEmail,
+        complianceEmail: context.membership.tenant.complianceEmail,
         defaultLocale: context.membership.tenant.defaultLocale,
         publicRepositoryEnabled: context.membership.tenant.publicRepositoryEnabled,
         retentionYears: context.membership.tenant.retentionYears,
@@ -2568,6 +2661,7 @@ export async function updateAppTenantSettings(userId: string, input: AppTenantSe
         slug: updated.slug,
         name: updated.nameCs,
         contactEmail: updated.contactEmail,
+        complianceEmail: updated.complianceEmail,
         defaultLocale: updated.defaultLocale,
         publicRepositoryEnabled: updated.publicRepositoryEnabled,
         retentionYears: updated.retentionYears,
@@ -2586,6 +2680,7 @@ export async function updateAppTenantSettings(userId: string, input: AppTenantSe
     name: input.defaultLocale === "en" ? tenant.nameEn : tenant.nameCs,
     slug: tenant.slug,
     contactEmail: tenant.contactEmail,
+    complianceEmail: tenant.complianceEmail,
     defaultLocale: tenant.defaultLocale === "en" ? "en" : "cs",
     publicRepositoryEnabled: tenant.publicRepositoryEnabled,
     retentionYears: tenant.retentionYears,
@@ -3147,9 +3242,9 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
     getAppCandidateForInput(context, input),
   ]);
   const code = normalizeCode(input.code || "") || nextCode(unit.nameCs || input.branch);
-  const missingCs = requiredMissing(input, "cs");
-  const missingEn = requiredMissing(input, "en");
-  const status = statusForInput(input);
+  const missingCs = requiredMissing(input, "cs", campaign);
+  const missingEn = requiredMissing(input, "en", campaign);
+  const status = statusForInput(input, campaign);
 
   const adId = await prisma.$transaction(async (tx) => {
     const created = await tx.ad.create({
@@ -3164,6 +3259,7 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
         titleEn: input.title.trim(),
         ownerCs: input.owner.trim(),
         ownerEn: input.owner.trim(),
+        ...ttpaAdDataFromInput(input),
         mediaTypeCs: input.type.trim(),
         mediaTypeEn: input.type.trim(),
         channel: normalizeChannel(input.channel),
@@ -3188,9 +3284,9 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
         missingCs,
         missingEn,
         status,
-        statusLabelCs: statusLabelForInput(input, "cs"),
-        statusLabelEn: statusLabelForInput(input, "en"),
-        workflowStatus: workflowForInput(input),
+        statusLabelCs: statusLabelForInput(input, "cs", campaign),
+        statusLabelEn: statusLabelForInput(input, "en", campaign),
+        workflowStatus: workflowForInput(input, campaign),
         reviewRequestedAt: missingCs.length === 0 ? new Date() : null,
         statusNoteCs:
           missingCs.length === 0
@@ -3221,7 +3317,7 @@ export async function createAppAd(userId: string, input: EditableAdInput, locale
         campaignId: campaign.id,
         orgUnitId: unit.id,
         candidateId: candidate?.id ?? null,
-        workflowStatus: workflowForInput(input),
+        workflowStatus: workflowForInput(input, campaign),
         missing: missingCs,
       },
     });
@@ -3295,9 +3391,9 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
           } as const;
         }
 
-        const missingCs = requiredMissing(input, "cs");
-        const missingEn = requiredMissing(input, "en");
-        const status = statusForInput(input);
+        const missingCs = requiredMissing(input, "cs", campaign);
+        const missingEn = requiredMissing(input, "en", campaign);
+        const status = statusForInput(input, campaign);
         const created = await tx.ad.create({
           data: {
             tenantId: context.membership.tenantId,
@@ -3310,6 +3406,7 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
             titleEn: title,
             ownerCs: input.owner.trim(),
             ownerEn: input.owner.trim(),
+            ...ttpaAdDataFromInput(input),
             mediaTypeCs: input.type.trim(),
             mediaTypeEn: input.type.trim(),
             channel: normalizeChannel(input.channel),
@@ -3334,9 +3431,9 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
             missingCs,
             missingEn,
             status,
-            statusLabelCs: statusLabelForInput(input, "cs"),
-            statusLabelEn: statusLabelForInput(input, "en"),
-            workflowStatus: workflowForInput(input),
+            statusLabelCs: statusLabelForInput(input, "cs", campaign),
+            statusLabelEn: statusLabelForInput(input, "en", campaign),
+            workflowStatus: workflowForInput(input, campaign),
             reviewRequestedAt: missingCs.length === 0 ? new Date() : null,
             statusNoteCs:
               missingCs.length === 0
@@ -3367,7 +3464,7 @@ export async function importAppAds(userId: string, rows: AdImportInputRow[], loc
             campaignId: campaign.id,
             orgUnitId: unit.id,
             candidateId: candidate?.id ?? null,
-            workflowStatus: workflowForInput(input),
+            workflowStatus: workflowForInput(input, campaign),
             missing: missingCs,
           },
           metadata: {
@@ -3458,9 +3555,9 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
     getAppUnitForInput(context, input),
     getAppCandidateForInput(context, input),
   ]);
-  const missingCs = requiredMissing(input, "cs");
-  const missingEn = requiredMissing(input, "en");
-  const status = statusForInput(input);
+  const missingCs = requiredMissing(input, "cs", campaign);
+  const missingEn = requiredMissing(input, "en", campaign);
+  const status = statusForInput(input, campaign);
   const versionBumpNeeded = Boolean(existing.lockedAt || existing.workflowStatus === AdWorkflowStatus.PUBLISHED);
   const nextVersion = versionBumpNeeded ? existing.version + 1 : existing.version;
 
@@ -3502,6 +3599,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
         titleEn: input.title.trim(),
         ownerCs: input.owner.trim(),
         ownerEn: input.owner.trim(),
+        ...ttpaAdDataFromInput(input),
         mediaTypeCs: input.type.trim(),
         mediaTypeEn: input.type.trim(),
         channel: normalizeChannel(input.channel),
@@ -3526,9 +3624,9 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
         missingCs,
         missingEn,
         status,
-        statusLabelCs: statusLabelForInput(input, "cs"),
-        statusLabelEn: statusLabelForInput(input, "en"),
-        workflowStatus: workflowForInput(input),
+        statusLabelCs: statusLabelForInput(input, "cs", campaign),
+        statusLabelEn: statusLabelForInput(input, "en", campaign),
+        workflowStatus: workflowForInput(input, campaign),
         version: nextVersion,
         reviewRequestedAt: missingCs.length === 0 ? new Date() : null,
         approvedAt: null,
@@ -3570,7 +3668,7 @@ export async function updateAppAd(userId: string, code: string, input: EditableA
         campaignId: campaign.id,
         orgUnitId: unit.id,
         candidateId: candidate?.id ?? null,
-        workflowStatus: workflowForInput(input),
+        workflowStatus: workflowForInput(input, campaign),
         missing: missingCs,
       },
       metadata: {
@@ -3663,6 +3761,9 @@ export async function prepareAppAuditExport(userId: string, code: string) {
         tenantId: context.membership.tenantId,
         code,
       },
+    },
+    include: {
+      campaign: true,
     },
   });
 
@@ -4198,6 +4299,9 @@ export async function approveAppAd(userId: string, code: string, locale: Locale)
         code,
       },
     },
+    include: {
+      campaign: true,
+    },
   });
 
   if (!ad || !canAccessAppAd(context, ad)) {
@@ -4389,6 +4493,9 @@ export async function publishAppAd(userId: string, code: string, locale: Locale)
         tenantId: context.membership.tenantId,
         code,
       },
+    },
+    include: {
+      campaign: true,
     },
   });
 

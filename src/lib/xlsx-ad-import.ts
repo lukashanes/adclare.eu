@@ -212,6 +212,7 @@ const fieldAliases = {
   candidateId: ["kandidat", "jmeno kandidata", "candidate"],
   branch: ["pobocka", "oblast", "region", "kraj", "mesto", "misto"],
   owner: ["zadavatel", "objednatel", "sponsor"],
+  controllerName: ["subjekt ktery zadavatele v konecnem dusledku ovlada", "ovladajici subjekt", "controlling entity"],
   type: ["typ reklamy", "typ materialu", "format", "medium", "media"],
   channel: ["online offline", "kanal", "channel"],
   publicationDate: ["datum zverejneni", "datum vyveseni"],
@@ -220,10 +221,17 @@ const fieldAliases = {
   payer: ["platce"],
   supplier: ["dodavatel", "agentura", "tiskarna", "vydavatel"],
   amount: ["castka za sdeleni", "naklady", "rozpocet", "cena"],
+  calculationMethod: ["metodika pouzita pro vypocet", "metodika vypoctu", "calculation method"],
   fundingSource: ["puvod castek", "puvodu castek", "puvod financ", "zdroj financ", "financovani"],
+  advertisementUrl: ["url reklamy", "odkaz na reklamu", "ad url", "advertisement url"],
+  publisherPlatform: ["platforma zverejneni", "reklamni platforma", "publisher platform"],
+  europeanRepositoryUrl: ["odkazy na evropsky archiv", "evropsky archiv online politickych reklam", "european repository"],
+  republishedAfterInfringement: ["predchozi zverejneni politickeho reklamniho sdeleni", "drivejsi verze bylo pozastaveno", "previous suspension"],
   language: ["jazyk"],
+  usesPersonalData: ["technik cileni", "zalozenych na vyuziti osobnich udaju", "personal data"],
   targeting: ["techniky cileni", "informace o pouzitych technikach cileni", "popis cileni", "cileni"],
   targetAudience: ["cilove publikum", "publikum", "audience"],
+  dataRightsUrl: ["ucinne prostredky podpory jednotlivcu", "vykonu jejich prav na ochranu osobnich udaju", "data rights"],
 } as const;
 
 type ImportField = keyof typeof fieldAliases;
@@ -352,6 +360,22 @@ function normalizeDate(value: string, fallbackYear: number) {
   return "";
 }
 
+function normalizeDateRange(value: string, fallbackYear: number) {
+  const dates = [...value.matchAll(/(\d{1,2})\.\s*(\d{1,2})\.?\s*(\d{4})?/g)];
+
+  if (dates.length === 0) {
+    const date = normalizeDate(value, fallbackYear);
+    return { start: date, end: "" };
+  }
+
+  const explicitYear = [...dates].reverse().find((match) => match[3])?.[3] ?? String(fallbackYear);
+  const start = dateFromParts(dates[0][1], dates[0][2], dates[0][3] ?? explicitYear);
+  const last = dates.at(-1);
+  const end = last ? dateFromParts(last[1], last[2], last[3] ?? explicitYear) : "";
+
+  return { start, end: dates.length > 1 ? end : "" };
+}
+
 function booleanFromText(value: string) {
   const normalized = normalizeHeader(value);
 
@@ -365,12 +389,19 @@ function normalizeTargeting(value: string) {
   return noTargetingValues.has(normalized) ? "nepoužito" : normalizeText(value);
 }
 
+function normalizeOptionalEntity(value: string) {
+  const normalized = normalizeHeader(value);
+
+  return ["", "ne", "no", "n a", "zadny", "zadne", "neexistuje"].includes(normalized) ? "" : normalizeText(value);
+}
+
 function buildInput(raw: Record<string, string>, fallbackYear: number): EditableAdInput {
   const code = raw.code;
   const title = raw.title || code || firstFilled([raw.type, raw.distributionArea, raw.period]);
   const type = raw.type || deriveMediaType(title, code);
   const branch = raw.branch || deriveBranch(raw.distributionArea, code, raw.title) || "Import";
-  const publicationDate = normalizeDate(raw.publicationDate, fallbackYear) || normalizeDate(raw.period, fallbackYear);
+  const range = normalizeDateRange(raw.period, fallbackYear);
+  const publicationDate = normalizeDate(raw.publicationDate, fallbackYear) || range.start;
   const period = raw.period || publicationDate;
   const payer = raw.payer || raw.owner;
   const owner = raw.owner || payer;
@@ -382,19 +413,59 @@ function buildInput(raw: Record<string, string>, fallbackYear: number): Editable
     title: title || `Importovaný záznam ${Date.now()}`,
     branch,
     owner,
+    ownerEmail: "",
+    ownerPostalAddress: "",
+    ownerEstablishmentAddress: "",
+    ownerRegistrationNumber: "",
+    ownerEntityType: "",
+    controllerName: normalizeOptionalEntity(raw.controllerName),
+    controllerEmail: "",
+    controllerPostalAddress: "",
+    controllerEstablishmentAddress: "",
+    controllerEntityType: "",
     type,
     channel: inferChannel(raw.channel, type, title),
     publicationDate,
+    disseminationStartsAt: publicationDate,
+    disseminationEndsAt: range.end,
     period,
     distributionArea: raw.distributionArea || branch,
     payer,
+    payerEmail: "",
+    payerPostalAddress: "",
+    payerEstablishmentAddress: "",
+    payerEntityType: "",
     supplier: raw.supplier,
     amount: raw.amount,
+    benefitsInKind: "",
+    currency: "",
     fundingSource: raw.fundingSource,
+    fundingOrigin: "",
+    fundingJurisdiction: "",
+    calculationMethod: raw.calculationMethod,
+    advertisementUrl: raw.advertisementUrl,
+    publisherPlatform: raw.publisherPlatform,
+    europeanRepositoryUrl: raw.europeanRepositoryUrl,
+    republishedAfterInfringement: booleanFromText(raw.republishedAfterInfringement),
+    infringementDetails: booleanFromText(raw.republishedAfterInfringement) ? raw.republishedAfterInfringement : "",
     language: raw.language || "cs",
     isTargeted: booleanFromText(raw.isTargeted || raw.targeting),
+    usesPersonalData: booleanFromText(raw.usesPersonalData),
     targeting,
     targetAudience: raw.targetAudience,
+    targetingDataCategories: "",
+    targetingLogic: "",
+    targetingAiUse: "",
+    targetingPolicyUrl: "",
+    dataController: "",
+    consentWithdrawUrl: "",
+    dataRightsUrl: raw.dataRightsUrl,
+    privacyInformationUrl: "",
+    reachViews: null,
+    reachEngagements: null,
+    reachClicks: null,
+    reachLikes: null,
+    reachComments: null,
   };
 }
 
@@ -406,6 +477,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
     candidateId: findColumn(headers, "candidateId"),
     branch: findColumn(headers, "branch"),
     owner: findColumn(headers, "owner"),
+    controllerName: findColumn(headers, "controllerName"),
     type: findColumn(headers, "type"),
     channel: findColumn(headers, "channel"),
     publicationDate: findColumn(headers, "publicationDate"),
@@ -414,10 +486,17 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
     payer: findColumn(headers, "payer"),
     supplier: findColumn(headers, "supplier"),
     amount: findColumn(headers, "amount"),
+    calculationMethod: findColumn(headers, "calculationMethod"),
     fundingSource: findColumn(headers, "fundingSource"),
+    advertisementUrl: findColumn(headers, "advertisementUrl"),
+    publisherPlatform: findColumn(headers, "publisherPlatform"),
+    europeanRepositoryUrl: findColumn(headers, "europeanRepositoryUrl"),
+    republishedAfterInfringement: findColumn(headers, "republishedAfterInfringement"),
     language: findColumn(headers, "language"),
+    usesPersonalData: findColumn(headers, "usesPersonalData"),
     targeting: findColumn(headers, "targeting"),
     targetAudience: findColumn(headers, "targetAudience"),
+    dataRightsUrl: findColumn(headers, "dataRightsUrl"),
   };
   const sourceRows = rows.filter((row) => row.rowNumber > headerRow.rowNumber).slice(0, maxRows);
   const result: ImportedAdInputRow[] = [];
@@ -433,6 +512,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
       candidateId: rawValue(row, columns.candidateId),
       branch: rawValue(row, columns.branch),
       owner: rawValue(row, columns.owner),
+      controllerName: rawValue(row, columns.controllerName),
       type: rawValue(row, columns.type),
       channel: rawValue(row, columns.channel),
       publicationDate: rawValue(row, columns.publicationDate),
@@ -441,11 +521,18 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
       payer: rawValue(row, columns.payer),
       supplier: rawValue(row, columns.supplier),
       amount: rawValue(row, columns.amount),
+      calculationMethod: rawValue(row, columns.calculationMethod),
       fundingSource: rawValue(row, columns.fundingSource),
+      advertisementUrl: rawValue(row, columns.advertisementUrl),
+      publisherPlatform: rawValue(row, columns.publisherPlatform),
+      europeanRepositoryUrl: rawValue(row, columns.europeanRepositoryUrl),
+      republishedAfterInfringement: rawValue(row, columns.republishedAfterInfringement),
       language: rawValue(row, columns.language),
       isTargeted: "",
+      usesPersonalData: rawValue(row, columns.usesPersonalData),
       targeting: rawValue(row, columns.targeting),
       targetAudience: rawValue(row, columns.targetAudience),
+      dataRightsUrl: rawValue(row, columns.dataRightsUrl),
     };
 
     if (isInstructionRow(row.values) && isPlaceholderCode(raw.code || raw.title || firstFilled(row.values))) {

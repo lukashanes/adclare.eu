@@ -1,6 +1,7 @@
 "use client";
 
 import { Save, X } from "lucide-react";
+import { requiresTargetingDetails, ttpaMissingItems, type TtpaCampaignData } from "@/lib/ttpa-completeness";
 import type { AdRecord, AppWorkspacePayload, EditableAdInput } from "@/lib/workspace-types";
 
 type EditorMode = "create" | "edit";
@@ -17,63 +18,79 @@ function hasValue(value: string) {
   return value.trim().length > 0;
 }
 
-function draftRequiresTargetingDetails(input: Pick<EditableAdInput, "isTargeted" | "targeting" | "targetAudience">) {
-  const targeting = input.targeting
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-  const noTargetingValues = new Set(["", "nepouzito", "not used", "ne", "no", "false", "0", "bez cileni", "netargetovano", "zadne"]);
-
-  return input.isTargeted || !noTargetingValues.has(targeting);
-}
-
-function draftMissingItems(form: EditableAdInput) {
-  const missing: string[] = [];
-  const requiredFields: Array<[keyof EditableAdInput, string]> = [
-    ["campaignId", "kampaň"],
-    ["title", "název reklamy"],
-    ["branch", "pobočka / oblast"],
-    ["owner", "zadavatel"],
-    ["type", "typ materiálu"],
-    ["publicationDate", "datum zveřejnění"],
-    ["period", "období šíření"],
-    ["distributionArea", "oblast šíření"],
-    ["payer", "plátce"],
-    ["supplier", "dodavatel"],
-    ["amount", "náklady / rozpočet"],
-    ["fundingSource", "původ financí"],
-    ["language", "jazyk"],
-  ];
-
-  for (const [key, label] of requiredFields) {
-    if (!hasValue(String(form[key] ?? ""))) {
-      missing.push(label);
-    }
+function campaignTtpaData(campaign: AppWorkspacePayload["campaigns"][number] | undefined): TtpaCampaignData | null {
+  if (!campaign) {
+    return null;
   }
 
-  if (draftRequiresTargetingDetails(form)) {
-    if (!hasValue(form.targeting)) {
-      missing.push("popis cílení");
-    }
-
-    if (!hasValue(form.targetAudience)) {
-      missing.push("cílové publikum");
-    }
-  }
-
-  return missing;
+  return {
+    election: campaign.election,
+    electionLevel: campaign.electionLevel,
+    electionDate: campaign.electionDateIso,
+    officialInformationUrl: campaign.officialInformationUrl,
+    aggregatedAmount: campaign.aggregatedAmount,
+    benefitsInKind: campaign.benefitsInKind,
+    currency: campaign.currency,
+    calculationMethod: campaign.calculationMethod,
+  };
 }
 
-function draftProcessSteps(form: EditableAdInput, ad: AdRecord | null): AdProcessStep[] {
+function draftMissingItems(form: EditableAdInput, campaign: AppWorkspacePayload["campaigns"][number] | undefined) {
+  const missing = ttpaMissingItems(form, campaignTtpaData(campaign), "cs");
+
+  if (!hasValue(form.campaignId ?? "")) {
+    missing.unshift("kampaň");
+  }
+
+  if (!hasValue(form.branch)) {
+    missing.unshift("pobočka / oblast");
+  }
+
+  return [...new Set(missing)];
+}
+
+function draftProcessSteps(form: EditableAdInput, ad: AdRecord | null, campaign: AppWorkspacePayload["campaigns"][number] | undefined): AdProcessStep[] {
   const coreReady = hasValue(form.title) && hasValue(form.branch) && hasValue(form.campaignId ?? "");
   const assetReady = (ad?.assetCount ?? 0) > 0;
-  const identityReady = hasValue(form.owner) && hasValue(form.payer);
-  const moneyReady = hasValue(form.amount) && hasValue(form.fundingSource);
-  const publicationReady = hasValue(form.type) && hasValue(form.publicationDate) && hasValue(form.period) && hasValue(form.distributionArea);
-  const targetingNeeded = draftRequiresTargetingDetails(form);
+  const identityReady =
+    hasValue(form.owner) &&
+    hasValue(form.ownerEmail) &&
+    hasValue(form.ownerPostalAddress) &&
+    hasValue(form.ownerEntityType) &&
+    hasValue(form.payer) &&
+    hasValue(form.payerEmail) &&
+    hasValue(form.payerPostalAddress) &&
+    hasValue(form.payerEntityType);
+  const moneyReady =
+    hasValue(form.amount) &&
+    hasValue(form.benefitsInKind) &&
+    hasValue(form.currency) &&
+    hasValue(form.fundingSource) &&
+    hasValue(form.fundingOrigin) &&
+    hasValue(form.fundingJurisdiction) &&
+    hasValue(form.calculationMethod) &&
+    Boolean(campaign?.aggregatedAmount && campaign.benefitsInKind && campaign.currency && campaign.calculationMethod);
+  const publicationReady =
+    hasValue(form.type) &&
+    hasValue(form.publicationDate) &&
+    hasValue(form.disseminationStartsAt) &&
+    hasValue(form.disseminationEndsAt) &&
+    hasValue(form.distributionArea) &&
+    Boolean(campaign?.election && campaign.electionLevel && campaign.electionDateIso && campaign.officialInformationUrl);
+  const targetingNeeded = requiresTargetingDetails(form);
   const targetingReady = targetingNeeded ? hasValue(form.targeting) && hasValue(form.targetAudience) : true;
-  const readyForReview = draftMissingItems(form).length === 0 && assetReady;
+  const targetingPersonalDataReady = !form.usesPersonalData ||
+    [
+      form.targetingDataCategories,
+      form.targetingLogic,
+      form.targetingAiUse,
+      form.targetingPolicyUrl,
+      form.dataController,
+      form.consentWithdrawUrl,
+      form.dataRightsUrl,
+      form.privacyInformationUrl,
+    ].every(hasValue);
+  const readyForReview = draftMissingItems(form, campaign).length === 0 && assetReady;
   const approved = ad?.workflowStatus === "APPROVED" || ad?.workflowStatus === "PUBLISHED";
   const published = ad?.workflowStatus === "PUBLISHED";
 
@@ -95,22 +112,22 @@ function draftProcessSteps(form: EditableAdInput, ad: AdRecord | null): AdProces
     {
       key: "identity",
       title: "3. Zadavatel a plátce",
-      text: identityReady ? "Zadavatel a plátce jsou vyplnění." : "Musí být jasné, kdo reklamu zadal a kdo ji platí.",
-      nextAction: "Doplňte zadavatele a plátce.",
+      text: identityReady ? "Zadavatel a plátce mají identifikační a kontaktní údaje." : "Musí být jasné, kdo reklamu zadal a kdo ji platí.",
+      nextAction: "Doplňte identitu, kontakt a adresu zadavatele a plátce.",
       done: identityReady,
     },
     {
       key: "money",
       title: "4. Náklady a financování",
-      text: moneyReady ? "Náklady a původ financí jsou vyplněné." : "Doplňte náklady nebo rozpočet a původ financí.",
-      nextAction: "Doplňte náklady a původ financí.",
+      text: moneyReady ? "Částky, měna, původ financí a metodika jsou vyplněné." : "Doplňte náklady reklamy i kampaně a způsob jejich výpočtu.",
+      nextAction: "Doplňte částky, měnu, původ financí a metodiku.",
       done: moneyReady,
     },
     {
       key: "publication",
       title: "5. Zveřejnění",
-      text: publicationReady ? "Typ, datum, období a oblast jsou vyplněné." : "Datum zveřejnění určuje, kdy už nesmí chybět povinné údaje.",
-      nextAction: "Doplňte typ, datum, období a oblast šíření.",
+      text: publicationReady ? "Termín, oblast a vazba na volby jsou vyplněné." : "Datum zveřejnění určuje, kdy už nesmí chybět povinné údaje.",
+      nextAction: "Doplňte začátek, konec, oblast a údaje o volbách.",
       done: publicationReady,
     },
     {
@@ -118,7 +135,7 @@ function draftProcessSteps(form: EditableAdInput, ad: AdRecord | null): AdProces
       title: "6. Cílení",
       text: targetingReady ? (targetingNeeded ? "Cílení a publikum jsou popsané." : "Reklama není vedená jako cílená.") : "U cílené reklamy chybí popis cílení nebo publikum.",
       nextAction: "Doplňte cílení a cílové publikum, nebo cílení vypněte.",
-      done: targetingReady,
+      done: targetingReady && targetingPersonalDataReady,
     },
     {
       key: "approval",
@@ -130,7 +147,7 @@ function draftProcessSteps(form: EditableAdInput, ad: AdRecord | null): AdProces
     {
       key: "ttpa",
       title: "8. Hotovo pro TTPA",
-      text: published ? "Reklama má QR kód, veřejné oznámení a balíček pro kontrolu." : "Výsledek vznikne po kontrole, QR kódu a veřejném oznámení.",
+      text: published ? "Reklama má úplné oznámení, předepsané označení, QR kód a auditní balíček." : "Výsledek vznikne po doplnění všech údajů, kontrole a publikaci.",
       nextAction: "Dokončete kontrolu, označení, QR kód a balíček pro kontrolu.",
       done: published,
     },
@@ -162,23 +179,35 @@ export function Editor({
   onChange: (form: EditableAdInput) => void;
   onSave: () => void;
 }) {
-  const targetingRequired = draftRequiresTargetingDetails(form);
-  const missingItems = draftMissingItems(form);
-  const draftSteps = draftProcessSteps(form, ad);
+  const selectedCampaign = campaigns.find((campaign) => campaign.id === form.campaignId);
+  const targetingRequired = requiresTargetingDetails(form);
+  const missingItems = draftMissingItems(form, selectedCampaign);
+  const draftSteps = draftProcessSteps(form, ad, selectedCampaign);
   const canSaveDraft = writable && hasValue(form.title) && hasValue(form.branch) && hasValue(form.campaignId ?? "");
   const requiredFields = new Set<keyof EditableAdInput>([
     "campaignId",
     "title",
     "branch",
     "owner",
+    "ownerEmail",
+    "ownerPostalAddress",
+    "ownerEntityType",
     "type",
     "publicationDate",
-    "period",
+    "disseminationStartsAt",
+    "disseminationEndsAt",
     "distributionArea",
     "payer",
-    "supplier",
+    "payerEmail",
+    "payerPostalAddress",
+    "payerEntityType",
     "amount",
+    "benefitsInKind",
+    "currency",
     "fundingSource",
+    "fundingOrigin",
+    "fundingJurisdiction",
+    "calculationMethod",
     "language",
   ]);
   const fieldGroups = [
@@ -191,19 +220,54 @@ export function Editor({
         ["branch", "Pobočka / oblast", "branch"],
         ["type", "Typ materiálu", "text"],
         ["publicationDate", "Datum zveřejnění", "date"],
-        ["period", "Období šíření", "text"],
+        ["disseminationStartsAt", "Začátek šíření", "date"],
+        ["disseminationEndsAt", "Konec šíření", "date"],
+        ["period", "Poznámka k období", "text"],
         ["language", "Jazyk", "text"],
       ],
     },
     {
-      title: "Povinné údaje oznámení",
+      title: "Zadavatel",
       fields: [
         ["owner", "Zadavatel", "text"],
+        ["ownerEntityType", "Typ zadavatele", "entityType"],
+        ["ownerEmail", "E-mail zadavatele", "email"],
+        ["ownerPostalAddress", "Poštovní adresa", "text"],
+        ["ownerEstablishmentAddress", "Sídlo", "text"],
+        ["ownerRegistrationNumber", "Registrační číslo", "text"],
+        ["controllerName", "Ovládající subjekt, pokud existuje", "text"],
+        ["controllerEntityType", "Typ ovládajícího subjektu", "entityType"],
+        ["controllerEmail", "E-mail ovládajícího subjektu", "email"],
+        ["controllerPostalAddress", "Poštovní adresa ovládajícího subjektu", "text"],
+        ["controllerEstablishmentAddress", "Sídlo ovládajícího subjektu", "text"],
+      ],
+    },
+    {
+      title: "Plátce a dodavatel",
+      fields: [
         ["payer", "Plátce", "text"],
+        ["payerEntityType", "Typ plátce", "entityType"],
+        ["payerEmail", "E-mail plátce", "email"],
+        ["payerPostalAddress", "Poštovní adresa plátce", "text"],
+        ["payerEstablishmentAddress", "Sídlo plátce", "text"],
         ["supplier", "Dodavatel", "text"],
+      ],
+    },
+    {
+      title: "Náklady a financování",
+      fields: [
         ["amount", "Náklady / rozpočet", "text"],
+        ["benefitsInKind", "Nepeněžní plnění", "text"],
+        ["currency", "Měna", "text"],
         ["fundingSource", "Původ financí", "text"],
+        ["fundingOrigin", "Veřejné / soukromé", "fundingOrigin"],
+        ["fundingJurisdiction", "EU / mimo EU", "fundingJurisdiction"],
+        ["calculationMethod", "Metodika výpočtu", "textarea"],
         ["distributionArea", "Oblast šíření", "text"],
+        ["advertisementUrl", "URL zveřejněné reklamy, pokud existuje", "url"],
+        ["publisherPlatform", "Platforma nebo médium", "text"],
+        ["europeanRepositoryUrl", "Odkaz v evropském repozitáři, pokud existuje", "url"],
+        ["infringementDetails", "Informace o předchozím pozastavení", "textarea"],
       ],
     },
     {
@@ -211,6 +275,19 @@ export function Editor({
       fields: [
         ["targeting", "Popis cílení", "text"],
         ["targetAudience", "Cílové publikum", "text"],
+        ["targetingDataCategories", "Kategorie osobních údajů", "textarea"],
+        ["targetingLogic", "Cíle, mechanismy a logika", "textarea"],
+        ["targetingAiUse", "Použití AI", "textarea"],
+        ["targetingPolicyUrl", "Interní pravidla cílení", "url"],
+        ["dataController", "Správce osobních údajů", "text"],
+        ["consentWithdrawUrl", "Odvolání souhlasu", "url"],
+        ["dataRightsUrl", "Uplatnění práv", "url"],
+        ["privacyInformationUrl", "Informace o zpracování", "url"],
+        ["reachViews", "Zobrazení", "number"],
+        ["reachEngagements", "Interakce", "number"],
+        ["reachClicks", "Kliknutí", "number"],
+        ["reachLikes", "To se mi líbí", "number"],
+        ["reachComments", "Komentáře", "number"],
       ],
     },
   ] as const;
@@ -258,30 +335,82 @@ export function Editor({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-sm font-semibold text-black">{group.title}</h3>
                 {group.title === "Cílení" ? (
+                  <div className="flex flex-wrap gap-2">
+                    <label className="inline-flex w-fit items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]">
+                      <input
+                        type="checkbox"
+                        checked={form.isTargeted}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          onChange({
+                            ...form,
+                            isTargeted: checked,
+                            usesPersonalData: checked ? form.usesPersonalData : false,
+                            targeting: checked && form.targeting === "nepoužito" ? "" : checked ? form.targeting : "nepoužito",
+                            targetAudience: checked ? form.targetAudience : "",
+                          });
+                        }}
+                        className="size-4 accent-[#f45d1f]"
+                      />
+                      Používá cílení
+                    </label>
+                    <label className="inline-flex w-fit items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]">
+                      <input
+                        type="checkbox"
+                        checked={form.usesPersonalData}
+                        disabled={!form.isTargeted}
+                        onChange={(event) => onChange({ ...form, usesPersonalData: event.target.checked })}
+                        className="size-4 accent-[#f45d1f]"
+                      />
+                      Cílení používá osobní údaje
+                    </label>
+                  </div>
+                ) : group.title === "Náklady a financování" ? (
                   <label className="inline-flex w-fit items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-[#20242a]">
                     <input
                       type="checkbox"
-                      checked={form.isTargeted}
-                      onChange={(event) => {
-                        const checked = event.target.checked;
-                        onChange({
-                          ...form,
-                          isTargeted: checked,
-                          targeting: checked && form.targeting === "nepoužito" ? "" : checked ? form.targeting : "nepoužito",
-                          targetAudience: checked ? form.targetAudience : "",
-                        });
-                      }}
+                      checked={form.republishedAfterInfringement}
+                      onChange={(event) => onChange({ ...form, republishedAfterInfringement: event.target.checked })}
                       className="size-4 accent-[#f45d1f]"
                     />
-                    Používá cílení
+                    Dříve pozastaveno kvůli TTPA
                   </label>
                 ) : null}
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {group.fields.map(([key, label, type]) => {
                   const isTargetingField = key === "targeting" || key === "targetAudience";
-                  const disabled = isTargetingField && !form.isTargeted;
-                  const required = requiredFields.has(key) || (isTargetingField && targetingRequired);
+                  const personalDataFields = new Set<keyof EditableAdInput>([
+                    "targetingDataCategories",
+                    "targetingLogic",
+                    "targetingAiUse",
+                    "targetingPolicyUrl",
+                    "dataController",
+                    "consentWithdrawUrl",
+                    "dataRightsUrl",
+                    "privacyInformationUrl",
+                  ]);
+                  const controllerFields = new Set<keyof EditableAdInput>([
+                    "controllerEmail",
+                    "controllerPostalAddress",
+                    "controllerEntityType",
+                  ]);
+                  const reachFields = new Set<keyof EditableAdInput>(["reachViews", "reachEngagements", "reachClicks", "reachLikes", "reachComments"]);
+                  const disabled =
+                    (isTargetingField && !form.isTargeted) ||
+                    (personalDataFields.has(key) && !form.usesPersonalData) ||
+                    (reachFields.has(key) && form.channel !== "online") ||
+                    ((key === "advertisementUrl" || key === "publisherPlatform" || key === "europeanRepositoryUrl") && form.channel !== "online") ||
+                    (key === "infringementDetails" && !form.republishedAfterInfringement);
+                  const required =
+                    requiredFields.has(key) ||
+                    (isTargetingField && targetingRequired) ||
+                    (personalDataFields.has(key) && form.usesPersonalData) ||
+                    (controllerFields.has(key) && hasValue(form.controllerName)) ||
+                    (key === "infringementDetails" && form.republishedAfterInfringement) ||
+                    (key === "ownerEstablishmentAddress" && form.ownerEntityType === "legal") ||
+                    (key === "payerEstablishmentAddress" && form.payerEntityType === "legal") ||
+                    (key === "controllerEstablishmentAddress" && form.controllerEntityType === "legal" && hasValue(form.controllerName));
                   const empty = required && !String(form[key] ?? "").trim();
                   const fieldClass = `rounded-md border px-3 py-2 font-normal outline-none focus:border-[#f45d1f] ${
                     empty ? "border-red-300" : "border-black/10"
@@ -337,12 +466,52 @@ export function Editor({
                             </option>
                           ))}
                         </select>
-                      ) : (
-                        <input
-                          type={type}
+                      ) : type === "entityType" ? (
+                        <select
                           value={String(form[key] ?? "")}
                           disabled={disabled}
                           onChange={(event) => onChange({ ...form, [key]: event.target.value })}
+                          className={fieldClass}
+                        >
+                          <option value="">Vyberte</option>
+                          <option value="legal">Právnická osoba</option>
+                          <option value="natural">Fyzická osoba</option>
+                          <option value="other">Jiný subjekt</option>
+                        </select>
+                      ) : type === "fundingOrigin" ? (
+                        <select value={form.fundingOrigin} onChange={(event) => onChange({ ...form, fundingOrigin: event.target.value })} className={fieldClass}>
+                          <option value="">Vyberte</option>
+                          <option value="public">Veřejné</option>
+                          <option value="private">Soukromé</option>
+                          <option value="mixed">Kombinované</option>
+                        </select>
+                      ) : type === "fundingJurisdiction" ? (
+                        <select value={form.fundingJurisdiction} onChange={(event) => onChange({ ...form, fundingJurisdiction: event.target.value })} className={fieldClass}>
+                          <option value="">Vyberte</option>
+                          <option value="eu">Z EU</option>
+                          <option value="non-eu">Mimo EU</option>
+                          <option value="mixed">Kombinované</option>
+                        </select>
+                      ) : type === "textarea" ? (
+                        <textarea
+                          value={String(form[key] ?? "")}
+                          disabled={disabled}
+                          rows={3}
+                          onChange={(event) => onChange({ ...form, [key]: event.target.value })}
+                          className={fieldClass}
+                        />
+                      ) : (
+                        <input
+                          type={type}
+                          min={type === "number" ? 0 : undefined}
+                          value={form[key] === null ? "" : String(form[key] ?? "")}
+                          disabled={disabled}
+                          onChange={(event) =>
+                            onChange({
+                              ...form,
+                              [key]: type === "number" ? (event.target.value === "" ? null : Number(event.target.value)) : event.target.value,
+                            })
+                          }
                           className={fieldClass}
                         />
                       )}

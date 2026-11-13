@@ -40,16 +40,17 @@ Adclare gives teams one place to:
 - Multi-organization and branch-scoped access.
 - Magic-link authentication and invitation flow.
 - Role-based workspace for party admins, reviewers, local teams, candidates, designers and auditors.
-- Advert records with online/offline channel, publication date, payer, supplier, cost, funding source, distribution area, language and targeting data.
+- Complete TTPA records for the sponsor, controlling entity, payer, funding, dissemination, linked election, costs, targeting and reach.
 - Missing-data workflow before publication.
 - Review, approval, return-to-changes, publish and archive states.
 - Public QR/transparency URLs with stable unguessable tokens.
+- Public discrepancy reporting with an auditable review and resolution workflow.
 - Public repository for published/archived adverts with JSON endpoint.
 - Ad asset upload to local disk or S3-compatible object storage.
 - Excel import for existing advert registers.
 - QR package and audit package downloads.
 - Export manifests with SHA-256 hashes for QR packages, ad audit packages and workspace archives.
-- Append-only audit log with per-tenant hash chain verification.
+- Append-only, role-scoped audit history with server filters, pagination and per-tenant hash chain verification.
 - Turnstile validation for public forms when configured.
 - Production health endpoint at `/api/health`.
 - Backup and restore scripts for PostgreSQL.
@@ -71,7 +72,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-The `/signup` screen creates the first organization and installation administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users should normally be invited from inside the app.
+The `/signup` screen creates the first organization and installation administrator when `SIGNUP_MODE=first-run` and the database has no workspace yet. Additional users are invited from inside the app.
 
 When Cloudflare Email Service is not configured, local non-production runs print magic login links and invitation links to the server console. Production runs do not print those links; configure outbound email before using a public instance.
 
@@ -196,12 +197,14 @@ npm run lint
 npm run typecheck
 npm run build
 npm run test
+npm audit
 ```
 
 GitHub Actions runs the same app checks plus Docker build checks for pushes, tags and pull requests. Dependabot is enabled for npm dependencies and GitHub Actions updates.
 
 ## Documentation Map
 
+- [Maintainer and product handoff](docs/maintainer-handoff.md)
 - [Configuration reference](docs/configuration.md)
 - [Self-hosting guide](docs/self-hosting.md)
 - [Hetzner deployment guide](docs/deployment-hetzner.md)
@@ -211,9 +214,9 @@ GitHub Actions runs the same app checks plus Docker build checks for pushes, tag
 
 ## Current Release
 
-The current public beta release is `v0.2.0-beta.4`.
+The current public beta release is `v0.2.0-beta.5`.
 
-See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-v0.2.0-beta.4.md](docs/release-notes-v0.2.0-beta.4.md).
+See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-v0.2.0-beta.5.md](docs/release-notes-v0.2.0-beta.5.md).
 
 ## Support
 
