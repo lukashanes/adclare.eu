@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { createAppCampaign, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
-    const input = parseAppCampaignInput(await request.json());
+    const input = parseAppCampaignInput(await readLimitedJson(request));
     const campaign = await createAppCampaign(session.userId, input, locale);
 
     if (!campaign) {

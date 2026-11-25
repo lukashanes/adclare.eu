@@ -96,12 +96,13 @@ export async function verifyTurnstileToken(request: Request, token: string | und
     const response = await fetch(siteverifyUrl, {
       method: "POST",
       body,
+      signal: AbortSignal.timeout(10_000),
     });
     const result = (await response.json().catch(() => ({}))) as TurnstileSiteverifyResponse;
 
     const allowedHostnames = expectedHostnames();
     const hostnameAllowed =
-      allowedHostnames.length === 0 || !result.hostname || allowedHostnames.includes(result.hostname);
+      typeof result.hostname === "string" && allowedHostnames.includes(result.hostname);
 
     return {
       ok: response.ok && result.success === true && hostnameAllowed,

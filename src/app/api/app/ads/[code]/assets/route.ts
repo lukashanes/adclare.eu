@@ -1,8 +1,10 @@
 import { isSameOriginRequest } from "@/lib/request-security";
+import { readLimitedFormData } from "@/lib/request-limits";
+import { validationErrorResponse } from "@/lib/request-validation";
 import { getAppSession } from "@/lib/app-auth";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { attachAppAdAsset, getAppAdUploadTarget, normalizeLocale } from "@/lib/workspace-db";
-import { isAssetStorageAvailable, uploadAdAssetObject } from "@/lib/object-storage";
+import { isAssetStorageAvailable, maxUploadBytes, uploadAdAssetObject } from "@/lib/object-storage";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -45,7 +47,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
       return Response.json({ error: "Ad not found or not editable for this user." }, { status: 404 });
     }
 
-    const formData = await request.formData();
+    const formData = await readLimitedFormData(request, maxUploadBytes());
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
@@ -65,6 +67,9 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
 
     return Response.json({ ad }, { status: 201 });
   } catch (error) {
+    const validation = validationErrorResponse(error);
+    if (validation) return validation;
+
     console.error(error);
     return Response.json({ error: error instanceof Error ? error.message : "Upload souboru selhal." }, { status: 400 });
   }

@@ -1,3 +1,5 @@
+import { discardLimitedBody } from "@/lib/request-limits";
+import { validationErrorResponse } from "@/lib/request-validation";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { normalizeLocale, retryAppInvitationEmail } from "@/lib/workspace-db";
@@ -14,6 +16,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  try {
+    await discardLimitedBody(request);
+  } catch (error) {
+    const validation = validationErrorResponse(error);
+    if (validation) return validation;
+    throw error;
   }
 
   const { id } = await context.params;

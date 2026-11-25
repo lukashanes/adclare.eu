@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { normalizeLocale, updateAppTenantSettings } from "@/lib/workspace-db";
@@ -24,7 +25,7 @@ export async function PATCH(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
-    const input = parseAppTenantSettingsInput(await request.json());
+    const input = parseAppTenantSettingsInput(await readLimitedJson(request));
     const tenant = await updateAppTenantSettings(session.userId, input);
 
     if (!tenant) {

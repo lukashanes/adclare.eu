@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { updateAppProfile } from "@/lib/workspace-db";
@@ -22,7 +23,7 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const input = parseAppProfileInput(await request.json());
+    const input = parseAppProfileInput(await readLimitedJson(request));
     const user = await updateAppProfile(session.userId, input);
 
     if (!user) {

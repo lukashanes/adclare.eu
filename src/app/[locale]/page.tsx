@@ -53,7 +53,7 @@ const content = {
     heroMarker: "Veřejná beta podle TTPA",
     heroTitle: "Politická reklama pod kontrolou",
     heroText:
-      "Adclare je otevřený nástroj pro evidenci, schvalování a QR kódy politické reklamy. Hlídá povinné údaje podle TTPA, ukáže co chybí před zveřejněním a ušetří týmům stovky hodin ročně.",
+      "Adclare je otevřený nástroj pro evidenci, schvalování a QR kódy politické reklamy. Hlídá povinné údaje podle TTPA, ukáže, co chybí před zveřejněním, a ušetří týmům stovky hodin ročně.",
     heroBullets: [
       "Každý materiál má jasný stav, odpovědnou osobu a termín.",
       "Z jednou vyplněných dat vznikne oznámení, QR kód i auditní balíček.",
@@ -207,7 +207,7 @@ const content = {
     ],
     hostingTitle: "Under your control",
     hostingText:
-      "Adclare is an open tool. Run it where it makes sense for your team, while data stays under your organization control.",
+      "Adclare is an open tool. Run it where it makes sense for your team, while data stays under your organization's control.",
     hostingCards: [
       ["Your data", "Ads, files, access and history stay under your management."],
       ["Adaptable code", "Teams can shape the tool around campaigns, branches and internal rules."],

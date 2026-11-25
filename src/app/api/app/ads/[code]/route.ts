@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { normalizeLocale, updateAppAd } from "@/lib/workspace-db";
@@ -22,7 +23,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
   try {
-    const input = parseEditableAdInput(await request.json());
+    const input = parseEditableAdInput(await readLimitedJson(request));
     const ad = await updateAppAd(session.userId, decodeURIComponent(code), input, locale);
 
     if (!ad) {

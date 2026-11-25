@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { normalizeLocale, updateAppBranch } from "@/lib/workspace-db";
@@ -25,7 +26,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
-    const input = parseAppBranchUpdateInput(await request.json());
+    const input = parseAppBranchUpdateInput(await readLimitedJson(request));
     const branch = await updateAppBranch(session.userId, decodeURIComponent(id), input, locale);
 
     if (!branch) {

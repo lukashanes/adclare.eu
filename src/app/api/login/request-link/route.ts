@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { requestAppLoginLink } from "@/lib/app-auth";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
@@ -13,10 +14,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = parseLoginRequestInput(await request.json());
+    const body = parseLoginRequestInput(await readLimitedJson(request));
     const limit = await checkRateLimit({
-      scope: "login-link",
-      identifier: `${requestIp(request)}:${body.email}`,
+      scope: "login-link-ip",
+      identifier: requestIp(request),
       limit: 8,
       windowMs: 60 * 60 * 1000,
     });

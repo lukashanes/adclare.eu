@@ -1,3 +1,4 @@
+import { RequestBodyError } from "@/lib/request-limits";
 import type {
   AppBranchInput,
   AppBranchUpdateInput,
@@ -281,6 +282,10 @@ export function parseAppMemberUpdateInput(value: unknown): AppMemberUpdateInput 
 }
 
 export function validationErrorResponse(error: unknown) {
+  if (error instanceof RequestBodyError) {
+    return Response.json({ error: error.message }, { status: error.status });
+  }
+
   if (error instanceof RequestValidationError) {
     return Response.json({ error: error.message, issues: error.issues }, { status: error.status });
   }

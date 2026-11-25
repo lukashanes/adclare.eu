@@ -103,8 +103,12 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   }
   const t = content[locale as Locale];
   return {
-    title: `${t.title} | Adclare`,
+    title: t.title,
     description: t.description,
+    alternates: {
+      canonical: `/${locale}/help`,
+      languages: { cs: "/cs/help", en: "/en/help" },
+    },
   };
 }
 

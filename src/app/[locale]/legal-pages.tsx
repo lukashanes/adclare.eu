@@ -754,7 +754,7 @@ const legal = {
           {
             title: "Subprocessor changes",
             body: [
-              "Aenze s.r.o. may change, add or replace subprocessors where needed for operation, security, availabilitys or development of the service.",
+              "Aenze s.r.o. may change, add or replace subprocessors where needed for operation, security, availability or development of the service.",
               "A material change will be reflected by updating this page or notifying the customer by another reasonable method. The customer may object on reasonable grounds under the data processing addendum or agreement.",
             ],
           },

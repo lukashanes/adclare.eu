@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { createAppAd, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
 
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
   try {
-    const input = parseEditableAdInput(await request.json());
+    const input = parseEditableAdInput(await readLimitedJson(request));
     const ad = await createAppAd(session.userId, input, locale);
 
     if (!ad) {

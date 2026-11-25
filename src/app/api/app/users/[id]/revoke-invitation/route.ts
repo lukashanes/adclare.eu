@@ -1,3 +1,5 @@
+import { discardLimitedBody } from "@/lib/request-limits";
+import { validationErrorResponse } from "@/lib/request-validation";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { normalizeLocale, revokeAppInvitation } from "@/lib/workspace-db";
@@ -20,6 +22,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
+    await discardLimitedBody(request);
     const invitation = await revokeAppInvitation(session.userId, decodeURIComponent(id), locale);
 
     if (!invitation) {
@@ -28,6 +31,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     return Response.json({ invitation });
   } catch (error) {
+    const validation = validationErrorResponse(error);
+    if (validation) return validation;
+
     console.error(error);
     return Response.json({ error: error instanceof Error ? error.message : "Pozvánku se nepodařilo zrušit." }, { status: 400 });
   }

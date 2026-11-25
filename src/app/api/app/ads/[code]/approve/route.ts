@@ -1,3 +1,5 @@
+import { discardLimitedBody } from "@/lib/request-limits";
+import { validationErrorResponse } from "@/lib/request-validation";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { approveAppAd, normalizeLocale } from "@/lib/workspace-db";
@@ -21,6 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
   try {
+    await discardLimitedBody(request);
     const ad = await approveAppAd(session.userId, decodeURIComponent(code), locale);
 
     if (!ad) {
@@ -29,6 +32,9 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
 
     return Response.json({ ad });
   } catch (error) {
+    const validation = validationErrorResponse(error);
+    if (validation) return validation;
+
     return Response.json({ error: error instanceof Error ? error.message : "Ad approval failed." }, { status: 409 });
   }
 }

@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { normalizeLocale, requestAppAdChanges } from "@/lib/workspace-db";
@@ -22,7 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     Promise.resolve(normalizeLocale(new URL(request.url).searchParams.get("locale"))),
   ]);
   try {
-    const input = parseReviewDecisionInput(await request.json());
+    const input = parseReviewDecisionInput(await readLimitedJson(request));
     const ad = await requestAppAdChanges(session.userId, decodeURIComponent(code), input, locale);
 
     if (!ad) {

@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { acceptInvitation, normalizeLocale } from "@/lib/workspace-db";
 import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
@@ -16,10 +17,10 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
-    const body = parseInviteAcceptInput(await request.json());
+    const body = parseInviteAcceptInput(await readLimitedJson(request));
     const limit = await checkRateLimit({
-      scope: "invite-accept",
-      identifier: `${requestIp(request)}:${token.slice(0, 16)}`,
+      scope: "invite-accept-ip",
+      identifier: requestIp(request),
       limit: 10,
       windowMs: 60 * 60 * 1000,
     });

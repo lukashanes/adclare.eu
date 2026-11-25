@@ -21,6 +21,39 @@ export type XlsxAdImportParseResult = {
 };
 
 const maxRows = 500;
+const maxXmlEntryBytes = 16 * 1024 * 1024;
+const maxArchiveXmlBytes = 32 * 1024 * 1024;
+
+async function readArchiveXml(zip: JSZip, path: string, budget: { remaining: number }) {
+  const entry = zip.file(path);
+  if (!entry) return null;
+
+  // The HTTP limit bounds compressed bytes only. Count actual inflated chunks
+  // rather than trusting the size declared in the ZIP directory.
+  return new Promise<string>((resolve, reject) => {
+    const stream = entry.nodeStream("nodebuffer");
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    let exceeded = false;
+    stream.on("data", (chunk: Buffer) => {
+      if (exceeded) return;
+      size += chunk.byteLength;
+      if (size > maxXmlEntryBytes || chunk.byteLength > budget.remaining) {
+        exceeded = true;
+        stream.pause();
+        reject(new Error("Excel je po rozbalení příliš velký. Maximum je 16 MB na XML soubor a 32 MB celkem."));
+        return;
+      }
+      budget.remaining -= chunk.byteLength;
+      chunks.push(chunk);
+    });
+    stream.on("error", reject);
+    stream.on("end", () => {
+      if (!exceeded) resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    stream.resume();
+  });
+}
 
 const builtInDateNumFmtIds = new Set([
   14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56,
@@ -52,6 +85,9 @@ function columnIndex(cellRef: string) {
 
   for (const char of letters) {
     index = index * 26 + char.charCodeAt(0) - 64;
+    if (index > 16_384) {
+      throw new Error("Excel obsahuje neplatné číslo sloupce.");
+    }
   }
 
   return index - 1;
@@ -166,6 +202,8 @@ function parseRows(sheetXml: string, sharedStrings: string[], dateStyles: Set<nu
   const rows: ParsedRow[] = [];
 
   for (const rowMatch of sheetXml.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
+    // At most 20 possible header rows and the existing 500 source-row limit.
+    if (rows.length >= maxRows + 20) break;
     const rowAttrs = attributes(rowMatch[1]);
     const rowNumber = Number(rowAttrs.get("r") ?? rows.length + 1);
     const values: string[] = [];
@@ -474,22 +512,23 @@ export async function parseXlsxAdImport(buffer: Buffer, fallbackYear = new Date(
   }
 
   const zip = await JSZip.loadAsync(buffer);
-  const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
+  const budget = { remaining: maxArchiveXmlBytes };
+  const workbookXml = await readArchiveXml(zip, "xl/workbook.xml", budget);
 
   if (!workbookXml) {
     throw new Error("V Excelu chybí workbook.xml.");
   }
 
-  const relsXml = (await zip.file("xl/_rels/workbook.xml.rels")?.async("string")) ?? null;
+  const relsXml = await readArchiveXml(zip, "xl/_rels/workbook.xml.rels", budget);
   const sheet = sheetInfo(workbookXml, relsXml);
-  const sheetXml = await zip.file(sheet.path)?.async("string");
+  const sheetXml = await readArchiveXml(zip, sheet.path, budget);
 
   if (!sheetXml) {
     throw new Error("V Excelu se nepodařilo načíst první list.");
   }
 
-  const sharedStrings = readSharedStrings((await zip.file("xl/sharedStrings.xml")?.async("string")) ?? null);
-  const dateStyles = dateStyleIndexes((await zip.file("xl/styles.xml")?.async("string")) ?? null);
+  const sharedStrings = readSharedStrings(await readArchiveXml(zip, "xl/sharedStrings.xml", budget));
+  const dateStyles = dateStyleIndexes(await readArchiveXml(zip, "xl/styles.xml", budget));
   const rows = parseRows(sheetXml, sharedStrings, dateStyles);
   const headerRow = findHeaderRow(rows);
   const importedRows = mappedRows(rows, headerRow, fallbackYear);

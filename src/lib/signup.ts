@@ -134,11 +134,18 @@ export async function createSignupWorkspace(input: SignupInput) {
     };
   }
 
-  const tenantCountBeforeCreate = await prisma.tenant.count();
-  const initialRole = tenantCountBeforeCreate === 0 ? UserRole.SUPER_ADMIN : UserRole.PARTY_ADMIN;
   const slug = await uniqueTenantSlug(organizationName);
 
   await prisma.$transaction(async (tx) => {
+    // All signup workers must decide first-run availability and privileges under
+    // the same database lock. A count taken before the transaction can go stale.
+    await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(2147291801)`;
+    const tenantCount = await tx.tenant.count();
+    if (availability.mode === "first-run" && tenantCount !== 0) {
+      throw new Error("Workspace signup is closed on this instance. Ask an administrator for an invitation.");
+    }
+    const initialRole = tenantCount === 0 ? UserRole.SUPER_ADMIN : UserRole.PARTY_ADMIN;
+
     const createdTenant = await tx.tenant.create({
       data: {
         slug,

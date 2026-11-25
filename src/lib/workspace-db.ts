@@ -1155,7 +1155,22 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
     return null;
   }
 
-  await prisma.$transaction(async (tx) => {
+  const accepted = await prisma.$transaction(async (tx) => {
+    // Claim the still-pending invitation before changing any access. Revocation,
+    // expiry and another acceptance must not be bypassed by a stale initial read.
+    const claimed = await tx.invitation.updateMany({
+      where: {
+        id: invitation.id,
+        status: InvitationStatus.PENDING,
+        expiresAt: { gt: new Date() },
+      },
+      data: {
+        status: InvitationStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      },
+    });
+    if (claimed.count !== 1) return false;
+
     const user = await tx.user.upsert({
       where: {
         email: invitation.email,
@@ -1192,16 +1207,6 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
       },
     });
 
-    await tx.invitation.update({
-      where: {
-        id: invitation.id,
-      },
-      data: {
-        status: InvitationStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-    });
-
     await tx.auditLog.create({
       data: {
         tenantId: invitation.tenantId,
@@ -1212,8 +1217,10 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
         messageEn: `Invitation accepted by ${user.email}.`,
       },
     });
+    return true;
   });
 
+  if (!accepted) return null;
   return getInvitationNotice(rawToken, locale);
 }
 

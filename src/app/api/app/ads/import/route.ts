@@ -1,4 +1,6 @@
 import { isSameOriginRequest } from "@/lib/request-security";
+import { readLimitedFormData } from "@/lib/request-limits";
+import { validationErrorResponse } from "@/lib/request-validation";
 import { getAppSession } from "@/lib/app-auth";
 import { importAppAds, normalizeLocale } from "@/lib/workspace-db";
 import { parseXlsxAdImport } from "@/lib/xlsx-ad-import";
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
-    const formData = await request.formData();
+    const formData = await readLimitedFormData(request, maxImportBytes);
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
@@ -63,6 +65,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const validation = validationErrorResponse(error);
+    if (validation) return validation;
+
     console.error(error);
     return Response.json({ error: error instanceof Error ? error.message : "Import se nepodařilo zpracovat." }, { status: 400 });
   }

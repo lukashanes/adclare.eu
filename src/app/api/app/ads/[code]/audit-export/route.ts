@@ -1,3 +1,5 @@
+import { discardLimitedBody } from "@/lib/request-limits";
+import { validationErrorResponse } from "@/lib/request-validation";
 import JSZip from "jszip";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
@@ -24,6 +26,14 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
 
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  try {
+    await discardLimitedBody(request);
+  } catch (error) {
+    const validation = validationErrorResponse(error);
+    if (validation) return validation;
+    throw error;
   }
 
   const { code } = await context.params;

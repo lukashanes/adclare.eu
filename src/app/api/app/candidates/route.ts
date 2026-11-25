@@ -1,3 +1,4 @@
+import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { getAppSession } from "@/lib/app-auth";
 import { createAppCandidate, getAppWorkspacePayload, normalizeLocale } from "@/lib/workspace-db";
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
   const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
 
   try {
-    const input = parseAppCandidateInput(await request.json());
+    const input = parseAppCandidateInput(await readLimitedJson(request));
     const candidate = await createAppCandidate(session.userId, input, locale);
 
     if (!candidate) {
