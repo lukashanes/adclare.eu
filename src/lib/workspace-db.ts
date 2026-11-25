@@ -1157,10 +1157,11 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
 
   const accepted = await prisma.$transaction(async (tx) => {
     // Claim the still-pending invitation before changing any access. Revocation,
-    // expiry and another acceptance must not be bypassed by a stale initial read.
+    // token rotation, expiry and another acceptance invalidate a stale read.
     const claimed = await tx.invitation.updateMany({
       where: {
         id: invitation.id,
+        tokenHash: hashToken(rawToken),
         status: InvitationStatus.PENDING,
         expiresAt: { gt: new Date() },
       },
@@ -3022,13 +3023,23 @@ export async function revokeAppInvitation(userId: string, invitationId: string, 
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    const revoked = await tx.invitation.update({
+    // Acceptance can win after the initial read. Check the state while taking
+    // the same row lock used by acceptInvitation, before reporting revocation.
+    const claimed = await tx.invitation.updateMany({
       where: {
         id: invitation.id,
+        status: { not: InvitationStatus.ACCEPTED },
       },
       data: {
         status: InvitationStatus.REVOKED,
       },
+    });
+    if (claimed.count !== 1) {
+      throw new Error("Přijatou pozvánku už nelze zrušit. Pozastavte uživatele ve správě lidí.");
+    }
+
+    const revoked = await tx.invitation.findUniqueOrThrow({
+      where: { id: invitation.id },
       include: {
         orgUnit: true,
         candidate: true,
