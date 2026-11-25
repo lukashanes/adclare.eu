@@ -1,5 +1,4 @@
 import JSZip from "jszip";
-import { Readable } from "node:stream";
 import type { EditableAdInput } from "@/lib/workspace-types";
 
 type CellValue = string;
@@ -42,7 +41,7 @@ async function readArchiveXml(zip: JSZip, path: string, budget: { remaining: num
       if (size > maxXmlEntryBytes || chunk.byteLength > budget.remaining) {
         exceeded = true;
         stream.pause();
-        if (stream instanceof Readable) stream.destroy();
+        if ("destroy" in stream && typeof stream.destroy === "function") stream.destroy();
         chunks.length = 0;
         reject(new Error("Excel je po rozbalení příliš velký. Maximum je 16 MB na XML soubor a 32 MB celkem."));
         return;
@@ -203,20 +202,24 @@ function cellValue(cellTag: string, innerXml: string, sharedStrings: string[], d
 
 function parseRows(sheetXml: string, sharedStrings: string[], dateStyles: Set<number>) {
   const rows: ParsedRow[] = [];
+  let rowIndex = 0;
 
-  for (const rowMatch of sheetXml.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
-    // At most 20 possible header rows and the existing 500 source-row limit.
-    if (rows.length >= maxRows + 20) break;
+  for (const rowMatch of sheetXml.matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
+    rowIndex++;
     const rowAttrs = attributes(rowMatch[1]);
-    const rowNumber = Number(rowAttrs.get("r") ?? rows.length + 1);
+    const rowNumber = Number(rowAttrs.get("r") ?? rowIndex);
     const values = new Map<number, CellValue>();
 
-    for (const cellMatch of rowMatch[2].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    for (const cellMatch of (rowMatch[2] ?? "").matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const cellAttrs = attributes(cellMatch[1]);
       const ref = cellAttrs.get("r") ?? "A1";
       values.set(columnIndex(ref), normalizeText(cellValue(cellMatch[1], cellMatch[2] ?? "", sharedStrings, dateStyles)));
     }
 
+    if ([...values.values()].every((value) => !value)) continue;
+    if (rows.length >= maxRows + 20) {
+      throw new Error("Excel obsahuje příliš mnoho řádků. Maximum je 500 datových řádků na import.");
+    }
     rows.push({
       rowNumber,
       values: new Map([...values].sort(([left], [right]) => left - right)),
@@ -460,7 +463,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
     targeting: findColumn(headers, "targeting"),
     targetAudience: findColumn(headers, "targetAudience"),
   };
-  const sourceRows = rows.filter((row) => row.rowNumber > headerRow.rowNumber).slice(0, maxRows);
+  const sourceRows = rows.filter((row) => row.rowNumber > headerRow.rowNumber);
   const result: ImportedAdInputRow[] = [];
 
   for (const row of sourceRows) {
@@ -499,6 +502,9 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
       continue;
     }
 
+    if (result.length >= maxRows) {
+      throw new Error("Excel obsahuje příliš mnoho řádků. Maximum je 500 datových řádků na import.");
+    }
     result.push({
       rowNumber: row.rowNumber,
       raw,

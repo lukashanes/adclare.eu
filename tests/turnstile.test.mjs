@@ -59,3 +59,18 @@ test("Turnstile aborts a stalled provider request at its configured timeout", as
   const { verifyTurnstileToken } = await loadSource("src/lib/turnstile.ts");
   assert.deepEqual((await verifyTurnstileToken(new Request("https://adclare.test"), "TEST-token")).errorCodes, ["internal-error"]);
 });
+
+test("invalid hostname configuration fails closed with a production diagnostic before contacting the provider", async (t) => {
+  const keys = ["NODE_ENV", "TURNSTILE_SECRET_KEY", "TURNSTILE_ALLOWED_HOSTNAMES", "APP_URL"];
+  const previous = keys.map((key) => process.env[key]);
+  t.after(() => keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; }));
+  Object.assign(process.env, { NODE_ENV: "production", TURNSTILE_SECRET_KEY: "TEST-not-a-real-secret", TURNSTILE_ALLOWED_HOSTNAMES: ", ,", APP_URL: "invalid-url" });
+  const logs = [];
+  t.mock.method(console, "error", (message) => logs.push(message));
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("Provider must not be contacted for invalid configuration"); });
+  const { verifyTurnstileToken } = await loadSource("src/lib/turnstile.ts");
+  assert.deepEqual((await verifyTurnstileToken(new Request("https://adclare.test"), "TEST-token")).errorCodes, ["turnstile-hostname-not-configured"]);
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /TURNSTILE_ALLOWED_HOSTNAMES.*APP_URL/);
+  assert.ok(!logs[0].includes("TEST-not-a-real-secret"));
+});

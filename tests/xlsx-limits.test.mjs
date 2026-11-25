@@ -68,9 +68,22 @@ test("the XML budget is shared across sheet, strings and styles", async () => {
 test("a header in the twentieth row preserves the 500-data-row limit", async () => {
   const preamble = Array.from({ length: 19 }, (_, i) => `<row r="${i + 1}"><c r="A${i + 1}"><v>0</v></c></row>`).join("");
   const header20 = header.replaceAll('r="1"', 'r="20"').replaceAll('r="A1"', 'r="A20"').replaceAll('r="B1"', 'r="B20"');
-  const rows = Array.from({ length: 501 }, (_, i) => data.replaceAll('r="2"', `r="${i + 21}"`).replaceAll('r="A2"', `r="A${i + 21}"`).replaceAll('r="B2"', `r="B${i + 21}"`)).join("");
+  const rows = Array.from({ length: 500 }, (_, i) => data.replaceAll('r="2"', `r="${i + 21}"`).replaceAll('r="A2"', `r="A${i + 21}"`).replaceAll('r="B2"', `r="B${i + 21}"`)).join("");
   const result = await parseXlsxAdImport(await archive(preamble + header20 + rows));
   assert.equal(result.headerRow, 20);
   assert.equal(result.rows.length, 500);
   assert.equal(result.rows.at(-1).rowNumber, 520);
+});
+
+test("formatted empty rows and cells do not truncate later import data", async () => {
+  const empty = Array.from({ length: 600 }, (_, i) => `<row r="${i + 2}"><c r="A${i + 2}" s="1"/></row><row r="${i + 602}"/>`).join("");
+  const result = await parseXlsxAdImport(await archive(header + empty + data.replaceAll('2"', '1202"')));
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].rowNumber, 1202);
+  assert.equal(result.rows[0].input.title, "TEST-ad");
+});
+
+test("more than 500 data rows fail explicitly instead of silently importing a prefix", async () => {
+  const rows = Array.from({ length: 501 }, (_, i) => data.replaceAll('2"', `${i + 2}"`)).join("");
+  await assert.rejects(parseXlsxAdImport(await archive(header + rows)), /500/);
 });

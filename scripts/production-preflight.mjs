@@ -130,14 +130,18 @@ function checkTurnstile(publicUrl) {
   requireValue("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "NEXT_PUBLIC_TURNSTILE_SITE_KEY is required for production form protection.");
   requireValue("TURNSTILE_SECRET_KEY", "TURNSTILE_SECRET_KEY is required for production form protection.");
 
-  const allowedHostnames = env("TURNSTILE_ALLOWED_HOSTNAMES");
+  const allowedHostnames = env("TURNSTILE_ALLOWED_HOSTNAMES").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
 
-  if (!allowedHostnames) {
-    warnings.push("TURNSTILE_ALLOWED_HOSTNAMES is empty. Set it to the production hostname to reduce token replay risk.");
+  if (allowedHostnames.length === 0) {
+    if (!publicUrl?.hostname) {
+      errors.push("TURNSTILE_ALLOWED_HOSTNAMES is empty and APP_URL does not provide a valid hostname.");
+    } else {
+      warnings.push(`TURNSTILE_ALLOWED_HOSTNAMES is empty; using the APP_URL hostname ${publicUrl.hostname}. Set an explicit list for additional www/apex or staging domains.`);
+    }
     return;
   }
 
-  if (publicUrl && !allowedHostnames.split(",").map((item) => item.trim()).includes(publicUrl.hostname)) {
+  if (publicUrl && !allowedHostnames.includes(publicUrl.hostname.toLowerCase())) {
     errors.push(`TURNSTILE_ALLOWED_HOSTNAMES should include ${publicUrl.hostname}.`);
   }
 }
@@ -195,6 +199,7 @@ checkTurnstile(publicUrl);
 checkStorage();
 checkSignupAndPublicFlags();
 checkBackups();
+warnings.push("Verify that ingress overwrites X-Real-IP with the client IP and blocks direct app access. This offline preflight cannot observe request headers; without a valid X-Real-IP, public auth limits fall back to the target email or invitation.");
 
 const result = {
   ok: errors.length === 0,

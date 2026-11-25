@@ -246,3 +246,17 @@ client IP restoration there using only verified, trusted proxy address ranges,
 and restrict access to the origin accordingly. Otherwise requests share the
 upstream proxy's IP and its rate limit. Do not pass arbitrary incoming IP headers
 through to Adclare as the client address.
+
+For Caddy behind another proxy, configure `trusted_proxies` with only that
+proxy's verified address ranges and use `{client_ip}` instead of `{remote_host}`
+for the `X-Real-IP` and `X-Forwarded-For` overrides. Do not trust all addresses;
+restrict origin access to the trusted proxy as well.
+
+Public authentication keeps the small per-target hourly limits (8 login
+requests, 5 signups, 10 invitation accepts). A valid client IP also has a shared
+hourly cap of 80, 50 and 100 respectively, so an office can use different
+accounts without immediately exhausting one small bucket. Missing or invalid
+`X-Real-IP` uses a hashed email/invitation target rather than a shared `unknown`
+bucket; it cannot enforce an IP-wide cap. The shared login email service also
+retains its existing 5-per-hour recipient limit and two-minute cooldown across
+IPs. Configure the ingress even when the target fallback is available.

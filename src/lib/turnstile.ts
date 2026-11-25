@@ -42,7 +42,8 @@ function expectedHostnames() {
   }
 
   try {
-    return [new URL(publicAppUrl()).hostname];
+    const hostname = new URL(publicAppUrl()).hostname.toLowerCase();
+    return hostname ? [hostname] : [];
   } catch {
     return [];
   }
@@ -73,6 +74,14 @@ export async function verifyTurnstileToken(request: Request, token: string | und
     };
   }
 
+  const allowedHostnames = expectedHostnames();
+  if (allowedHostnames.length === 0) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[adclare] Turnstile hostname configuration is invalid. Set TURNSTILE_ALLOWED_HOSTNAMES or a valid APP_URL.");
+    }
+    return { ok: false, skipped: false, errorCodes: ["turnstile-hostname-not-configured"] };
+  }
+
   try {
     const body = new URLSearchParams({
       secret: turnstileSecret(),
@@ -92,9 +101,12 @@ export async function verifyTurnstileToken(request: Request, token: string | und
     });
     const result = (await response.json().catch(() => ({}))) as TurnstileSiteverifyResponse;
 
-    const allowedHostnames = expectedHostnames();
     const hostnameAllowed =
       typeof result.hostname === "string" && allowedHostnames.includes(result.hostname.toLowerCase());
+
+    if (result.success === true && !hostnameAllowed && process.env.NODE_ENV === "production") {
+      console.error("[adclare] Turnstile hostname does not match TURNSTILE_ALLOWED_HOSTNAMES or APP_URL. Check the public domain and www/apex variants.");
+    }
 
     return {
       ok: response.ok && result.success === true && hostnameAllowed,

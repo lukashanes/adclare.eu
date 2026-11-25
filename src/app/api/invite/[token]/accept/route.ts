@@ -1,7 +1,8 @@
 import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { acceptInvitation, normalizeLocale } from "@/lib/workspace-db";
-import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
+import { rateLimitHeaders } from "@/lib/rate-limit";
+import { checkPublicAuthRateLimit } from "@/lib/public-auth-rate-limit";
 import { parseInviteAcceptInput, validationErrorResponse } from "@/lib/request-validation";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
@@ -18,11 +19,11 @@ export async function POST(request: Request, context: { params: Promise<{ token:
 
   try {
     const body = parseInviteAcceptInput(await readLimitedJson(request));
-    const limit = await checkRateLimit({
-      scope: "invite-accept-ip",
-      identifier: requestIp(request),
+    const decodedToken = decodeURIComponent(token);
+    const limit = await checkPublicAuthRateLimit(request, {
+      scope: "invite-accept",
+      target: decodedToken,
       limit: 10,
-      windowMs: 60 * 60 * 1000,
     });
 
     if (!limit.allowed) {
@@ -35,7 +36,7 @@ export async function POST(request: Request, context: { params: Promise<{ token:
       return Response.json({ error: "Verification failed." }, { status: 403 });
     }
 
-    const notice = await acceptInvitation(decodeURIComponent(token), body.name, locale);
+    const notice = await acceptInvitation(decodedToken, body.name, locale);
 
     if (!notice) {
       return Response.json({ error: "Invitation cannot be accepted." }, { status: 409 });

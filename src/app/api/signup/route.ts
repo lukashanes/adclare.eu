@@ -1,6 +1,7 @@
 import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
-import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
+import { rateLimitHeaders } from "@/lib/rate-limit";
+import { checkPublicAuthRateLimit } from "@/lib/public-auth-rate-limit";
 import { parseSignupInput, validationErrorResponse } from "@/lib/request-validation";
 import { createSignupWorkspace } from "@/lib/signup";
 import { verifyTurnstileToken } from "@/lib/turnstile";
@@ -15,11 +16,10 @@ export async function POST(request: Request) {
 
   try {
     const body = parseSignupInput(await readLimitedJson(request));
-    const limit = await checkRateLimit({
-      scope: "signup-ip",
-      identifier: requestIp(request),
+    const limit = await checkPublicAuthRateLimit(request, {
+      scope: "signup",
+      target: body.email,
       limit: 5,
-      windowMs: 60 * 60 * 1000,
     });
 
     if (!limit.allowed) {

@@ -2,6 +2,24 @@
 
 All notable changes for Adclare are summarized here.
 
+## Unreleased
+
+### Upgrade notes
+
+- Ingress must overwrite `X-Real-IP` with a verified client address and be the
+  only path to the application. Behind another proxy, restore client addresses
+  only from trusted proxy ranges; see `docs/self-hosting.md`. Public auth uses
+  per-target limits and larger shared IP caps. Missing/invalid client IPs no
+  longer share an instance-wide `unknown` bucket. The existing login email
+  recipient limit and cooldown remain in place.
+- Turnstile validates the response hostname against `TURNSTILE_ALLOWED_HOSTNAMES`
+  or the hostname from `APP_URL` (falling back to `NEXT_PUBLIC_APP_URL`). Set the
+  public URL correctly and list any additional www/apex or staging hostnames.
+  Invalid configuration fails closed with a production diagnostic. Run
+  `npm run launch:preflight`; the offline check cannot inspect ingress headers.
+- XLSX imports reject more than 500 data rows with an explicit error instead of
+  silently importing a prefix. Empty formatted rows do not consume the limit.
+
 ## v0.2.0-beta.3 - 2026-06-05
 
 Production configuration cleanup for the public beta.

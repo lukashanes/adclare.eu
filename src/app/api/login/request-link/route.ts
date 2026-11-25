@@ -1,7 +1,8 @@
 import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { requestAppLoginLink } from "@/lib/app-auth";
-import { checkRateLimit, rateLimitHeaders, requestIp } from "@/lib/rate-limit";
+import { rateLimitHeaders } from "@/lib/rate-limit";
+import { checkPublicAuthRateLimit } from "@/lib/public-auth-rate-limit";
 import { parseLoginRequestInput, validationErrorResponse } from "@/lib/request-validation";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
@@ -15,11 +16,10 @@ export async function POST(request: Request) {
 
   try {
     const body = parseLoginRequestInput(await readLimitedJson(request));
-    const limit = await checkRateLimit({
-      scope: "login-link-ip",
-      identifier: requestIp(request),
+    const limit = await checkPublicAuthRateLimit(request, {
+      scope: "login-link",
+      target: body.email,
       limit: 8,
-      windowMs: 60 * 60 * 1000,
     });
 
     if (!limit.allowed) {

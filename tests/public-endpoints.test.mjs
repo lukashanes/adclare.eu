@@ -78,6 +78,18 @@ test("a failed antispam check sends no login email", async () => {
   assert.equal(calls.email, 0);
 });
 
+test("signup closed during the first-run transaction returns 400 with an explanation", async (t) => {
+  const { mocks } = services();
+  mocks["@/lib/signup"] = { createSignupWorkspace: async () => {
+    throw new Error("Workspace signup is closed on this instance. Ask an administrator for an invitation.");
+  } };
+  t.mock.method(console, "error", () => {});
+  const { POST } = await loadSource("src/app/api/signup/route.ts", mocks);
+  const response = await POST(request(JSON.stringify({ organizationName: "TEST", name: "TEST", email: "TEST@example.invalid" })));
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /signup is closed/);
+});
+
 async function routes(directory) {
   const result = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {

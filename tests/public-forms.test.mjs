@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { loadSource } from "./load-source.mjs";
 
 const element = (type, props) => ({ type, props });
@@ -48,8 +50,8 @@ for (const [path, name, props] of [
         if (status === "network") throw new Error("TEST-network-failure");
         return Response.json({}, { status });
       });
-      const module = await loadSource(path, mocks);
-      const tree = module[name](props);
+      const component = await loadSource(path, mocks);
+      const tree = component[name](props);
       await tree.props.onSubmit({ preventDefault() {}, currentTarget: form });
       if (status === 200) {
         assert.equal(resets.length, 0);
@@ -57,11 +59,36 @@ for (const [path, name, props] of [
       } else {
         assert.deepEqual(resets, [form]);
         assert.ok(updates.includes("error"));
-        if (status === 429) {
-          cursor = 0;
-          assert.match(JSON.stringify(module[name](props)), /Příliš mnoho požadavků/);
-        }
+        cursor = 0;
+        const rendered = component[name](props);
+        const errorBox = rendered.props.children.find((child) => child?.props?.className?.includes("border-red-200"));
+        assert.ok(typeof errorBox?.props.children === "string" && errorBox.props.children.trim().length > 0);
+        if (status === 429) assert.match(errorBox.props.children, /Příliš mnoho požadavků/);
       }
     });
   }
 }
+
+for (const status of ["ACCEPTED", "REVOKED", "EXPIRED"]) {
+  test(`inactive ${status} invitation displays its existing message without an acceptance form`, async () => {
+    const { InviteAcceptClient } = await loadSource("src/app/invite/[token]/InviteAcceptClient.tsx", {
+      "@/app/TurnstileField": { TurnstileField: () => null, resetTurnstileForm: () => {}, turnstileTokenFromForm: () => "" },
+    });
+    const html = renderToStaticMarkup(createElement(InviteAcceptClient, { invitation: { status, token: "TEST-token" } }));
+    assert.match(html, /Tato pozvánka už není aktivní/);
+    assert.doesNotMatch(html, /<form|border-red-200/);
+  });
+}
+
+test("empty login email returns early without setting an empty error state", async (t) => {
+  const updates = [];
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("No request expected"); });
+  const { LoginClient } = await loadSource("src/app/login/LoginClient.tsx", {
+    react: { useState: (initial) => [initial, (value) => updates.push(value)] },
+    "react/jsx-runtime": jsx,
+    "lucide-react": { ArrowRight: () => null, Mail: () => null },
+    "@/app/TurnstileField": { TurnstileField: () => null, resetTurnstileForm: () => {}, turnstileTokenFromForm: () => "" },
+  });
+  await LoginClient({}).props.onSubmit({ preventDefault() {}, currentTarget: {} });
+  assert.deepEqual(updates, []);
+});
