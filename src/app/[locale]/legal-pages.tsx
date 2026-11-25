@@ -116,11 +116,11 @@ const legal = {
           {
             title: "Doba uchování",
             body: [
-              "Poptávky a obchodní komunikace jsou uchovávány po dobu vyřízení a následně po dobu potřebnou k ochraně právních nároků.",
+              "Podání z formulářů včetně jejich příloh a související e-mailové komunikace jsou uchovávána po dobu 3 let od přijetí podání, a to i při čekání na vyřízení, pozastavení nebo selhání odeslání.",
               "Údaje v zákaznických účtech jsou uchovávány po dobu trvání smluvního vztahu a následně podle smlouvy, právních předpisů, nastavení archivu nebo oprávněného zájmu na ochraně práv.",
               "Účetní a daňové doklady jsou uchovávány po dobu stanovenou příslušnými právními předpisy.",
               "Veřejně publikované transparentní záznamy a auditní stopa mohou zůstat dostupné po dobu vyžadovanou právními předpisy, smlouvou se zákazníkem nebo nastavením veřejného archivu.",
-              "Bezpečnostní a provozní logy jsou uchovávány po dobu přiměřenou účelu zabezpečení, vyšetření incidentů, prevence zneužití a ochrany právních nároků.",
+              "Technické záznamy, zejména bezpečnostní a provozní logy, čítače limitů, kvóty a diagnostika, jsou mazány do 90 dnů. Spam a neověřená podání zachycená pastí (honeypot) se neukládají jako podání; případný technický záznam neobsahuje obsah podání a je smazán do 30 dnů.",
             ],
           },
           {
@@ -418,7 +418,7 @@ const legal = {
             body: [
               "Produkční prostředí je navrženo s pravidelným zálohováním databáze a možností exportu dat pro zákazníka.",
               "Exporty mohou sloužit pro kontrolu, archivaci, migraci do jiného úložiště nebo předání veřejnému webu zákazníka.",
-              "Konkrétní retenční doba, frekvence záloh, RPO, RTO a zvláštní archivní režim jsou závazné pouze tehdy, pokud jsou sjednány ve smlouvě nebo nastavení.",
+              "Podání z formulářů včetně jejich příloh se uchovávají po dobu 3 let od přijetí podání a technické záznamy se mažou do 90 dnů. Konkrétní retenční doba zákaznického archivu, frekvence záloh, RPO, RTO a zvláštní archivní režim jsou závazné pouze tehdy, pokud jsou sjednány ve smlouvě nebo nastavení.",
             ],
           },
           {
@@ -506,11 +506,11 @@ const legal = {
           {
             title: "Retention",
             body: [
-              "Inquiries and business communication are retained for handling and then for the period necessary to protect legal claims.",
+              "Form submissions, including their attachments and related email correspondence, are retained for 3 years from receipt of the submission, including submissions awaiting processing, on hold or affected by a delivery failure.",
               "Customer account data is retained for the term of the contract and subsequently as required by the contract, law, archive settings or legitimate interest in protecting rights.",
               "Accounting and tax records are retained for the period required by applicable law.",
               "Published transparency records and audit trails may remain available for the period required by law, customer agreement or public archive settings.",
-              "Security and operational logs are retained for a period proportionate to service security, incident investigation, abuse prevention and protection of legal claims.",
+              "Technical records, including security and operational logs, rate-limit counters, quotas and diagnostics, are deleted within 90 days. Spam and unverified submissions caught by a honeypot are not stored as submissions; any technical record contains no submission content and is deleted within 30 days.",
             ],
           },
           {
@@ -808,7 +808,7 @@ const legal = {
             body: [
               "The production environment is designed with regular database backups and customer data export capability.",
               "Exports may be used for inspections, archiving, migration to another storage or publication on the customer's website.",
-              "Specific retention, backup frequency, RPO, RTO and special archive mode are binding only if agreed in the contract or customer settings.",
+              "Form submissions, including their attachments, are retained for 3 years from receipt of the submission, and technical records are deleted within 90 days. Specific customer archive retention, backup frequency, RPO, RTO and special archive mode are binding only if agreed in the contract or customer settings.",
             ],
           },
           {

@@ -29,6 +29,20 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
 
+  retention:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: retention
+    image: adclare-retention:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+
   storage-check:
     build:
       context: .

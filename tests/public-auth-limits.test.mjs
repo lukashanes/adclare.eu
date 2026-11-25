@@ -39,6 +39,15 @@ async function endpoint(path, loginService) {
 }
 
 for (const { path, limit, body } of cases) {
+  test(`${path}: rejected verification stores no submission and only content-free technical counters`, async () => {
+    const { post, calls } = await endpoint(path);
+    calls.verify = false;
+    assert.equal((await post(body("private"))).status, 403);
+    assert.equal(calls.operations, 0);
+    assert.ok(calls.rate.length > 0);
+    assert.ok(!JSON.stringify(calls.rate).includes("TEST-private@example.invalid"));
+    assert.ok(!JSON.stringify(calls.rate).includes("TEST-token"));
+  });
   for (const headers of [{ "x-real-ip": "192.0.2.1" }, {}, { "x-real-ip": "invalid", "x-forwarded-for": "198.51.100.1" }]) {
     test(`${path}: distinct users do not share the small target limit (${JSON.stringify(headers)})`, async () => {
       const { post, calls } = await endpoint(path);

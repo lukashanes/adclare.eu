@@ -11,6 +11,12 @@ COPY prisma ./prisma
 RUN DATABASE_URL="postgresql://adclare:adclare@localhost:5432/adclare?schema=public" npm run db:generate
 CMD ["npx", "prisma", "migrate", "deploy"]
 
+FROM migrator AS retention
+COPY tsconfig.json ./
+COPY src/lib/prisma.ts src/lib/data-retention.ts src/lib/retention-policy.ts src/lib/retention-worker.ts ./src/lib/
+COPY scripts/cleanup-personal-data.ts ./scripts/
+CMD ["npm", "run", "retention:cleanup", "--", "--watch"]
+
 FROM deps AS storage-check
 WORKDIR /app
 COPY scripts ./scripts
