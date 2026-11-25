@@ -727,7 +727,7 @@ const legal = {
       subprocessors: {
         title: "Subprocessors and Recipients",
         intro:
-          "This overview lists the main suppliers and recipients that may support Adclare operations, securitys, email communication, infrastructure and support.",
+          "This overview lists the main suppliers and recipients that may support Adclare operations, security, email communication, infrastructure and support.",
         sections: [
           {
             title: "How to read this overview",

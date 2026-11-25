@@ -20,19 +20,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   try {
     await discardLimitedBody(request);
+    const { id } = await context.params;
+    const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
+    const invitation = await retryAppInvitationEmail(session.userId, decodeURIComponent(id), locale);
+
+    if (!invitation) {
+      return Response.json({ error: "Pozvánka nenalezena nebo nemáte přístup." }, { status: 404 });
+    }
+
+    return Response.json({ invitation });
   } catch (error) {
     const validation = validationErrorResponse(error);
     if (validation) return validation;
-    throw error;
+    return Response.json({ error: error instanceof Error ? error.message : "Odeslání pozvánky selhalo." }, { status: 409 });
   }
-
-  const { id } = await context.params;
-  const locale = normalizeLocale(new URL(request.url).searchParams.get("locale"));
-  const invitation = await retryAppInvitationEmail(session.userId, decodeURIComponent(id), locale);
-
-  if (!invitation) {
-    return Response.json({ error: "Pozvánka nenalezena nebo nemáte přístup." }, { status: 404 });
-  }
-
-  return Response.json({ invitation });
 }

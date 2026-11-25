@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { publicAppUrl } from "@/lib/instance-config";
+import { requestIp } from "@/lib/request-ip";
 
 const placeholderValues = new Set(["", "replace_with_cloudflare_turnstile_secret", "replace_with_turnstile_secret"]);
 const placeholderSiteKeys = new Set(["", "replace_with_cloudflare_turnstile_site_key", "replace_with_turnstile_site_key"]);
@@ -34,7 +35,7 @@ function shouldRequireTurnstile() {
 }
 
 function expectedHostnames() {
-  const configured = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || "").split(",").map((item) => item.trim()).filter(Boolean);
+  const configured = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
 
   if (configured.length > 0) {
     return configured;
@@ -45,15 +46,6 @@ function expectedHostnames() {
   } catch {
     return [];
   }
-}
-
-function requestIp(request: Request) {
-  return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-real-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    ""
-  );
 }
 
 export async function verifyTurnstileToken(request: Request, token: string | undefined) {
@@ -89,7 +81,7 @@ export async function verifyTurnstileToken(request: Request, token: string | und
     });
     const ip = requestIp(request);
 
-    if (ip) {
+    if (ip !== "unknown") {
       body.set("remoteip", ip);
     }
 
@@ -102,12 +94,12 @@ export async function verifyTurnstileToken(request: Request, token: string | und
 
     const allowedHostnames = expectedHostnames();
     const hostnameAllowed =
-      typeof result.hostname === "string" && allowedHostnames.includes(result.hostname);
+      typeof result.hostname === "string" && allowedHostnames.includes(result.hostname.toLowerCase());
 
     return {
       ok: response.ok && result.success === true && hostnameAllowed,
       skipped: false,
-      errorCodes: hostnameAllowed ? (result["error-codes"] ?? []) : ["invalid-hostname"],
+      errorCodes: result.success === true && !hostnameAllowed ? ["invalid-hostname"] : (result["error-codes"] ?? []),
       hostname: result.hostname,
       challengeTs: result.challenge_ts,
     };

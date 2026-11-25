@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+export { requestIp } from "@/lib/request-ip";
 
 type RateLimitOptions = {
   scope: string;
@@ -20,15 +21,6 @@ function bucketKey(scope: string, identifier: string) {
 
 function bucketId() {
   return `rl_${randomBytes(12).toString("base64url")}`;
-}
-
-export function requestIp(request: Request) {
-  return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-real-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
 }
 
 export async function checkRateLimit({ scope, identifier, limit, windowMs }: RateLimitOptions): Promise<RateLimitResult> {

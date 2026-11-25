@@ -2,11 +2,12 @@
 
 import { FormEvent, useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
-import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
+import { resetTurnstileForm, TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 
 export function LoginClient({ defaultEmail = "", turnstileSiteKey = "" }: { defaultEmail?: string; turnstileSiteKey?: string }) {
   const [email, setEmail] = useState(defaultEmail);
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [error, setError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -17,6 +18,7 @@ export function LoginClient({ defaultEmail = "", turnstileSiteKey = "" }: { defa
     }
 
     setState("sending");
+    setError("");
 
     try {
       const response = await fetch("/api/login/request-link", {
@@ -30,9 +32,17 @@ export function LoginClient({ defaultEmail = "", turnstileSiteKey = "" }: { defa
         }),
       });
 
-      setState(response.ok ? "sent" : "error");
+      if (!response.ok) {
+        setError(response.status === 429 ? "Příliš mnoho požadavků. Zkuste to prosím později." : "Odkaz se nepodařilo odeslat. Zkus to znovu nebo požádej administrátora strany.");
+        setState("error");
+        resetTurnstileForm(form);
+        return;
+      }
+      setState("sent");
     } catch {
       setState("error");
+      setError("Odkaz se nepodařilo odeslat. Zkus to znovu nebo požádej administrátora strany.");
+      resetTurnstileForm(form);
     }
   }
 
@@ -71,7 +81,7 @@ export function LoginClient({ defaultEmail = "", turnstileSiteKey = "" }: { defa
 
       {state === "error" ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
-          Odkaz se nepodařilo odeslat. Zkus to znovu nebo požádej administrátora strany.
+          {error}
         </div>
       ) : null}
     </form>

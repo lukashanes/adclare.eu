@@ -9,6 +9,17 @@ export function turnstileTokenFromForm(form: HTMLFormElement) {
   return typeof token === "string" ? token : "";
 }
 
+export function resetTurnstileForm(form: HTMLFormElement) {
+  const widget = form.querySelector<HTMLElement>(".cf-turnstile");
+  const api = (window as Window & { turnstile?: { reset: (container: HTMLElement) => void } }).turnstile;
+  if (!widget || !api) return;
+  try {
+    api.reset(widget);
+  } catch {
+    // The asynchronous script may not have initialized this widget yet.
+  }
+}
+
 export function TurnstileField({ siteKey = "" }: { siteKey?: string }) {
   if (!siteKey || placeholderSiteKeys.has(siteKey)) {
     return null;

@@ -22,7 +22,11 @@ for (const mode of ["first-run", "open"]) {
       $queryRaw: async (query) => { assert.match(query.join(""), /pg_advisory_xact_lock/); locked = true; return [{ one: 1 }]; },
       tenant: {
         count: async () => { assert.equal(locked, true); return tenants.length; },
-        create: async ({ data }) => { const tenant = { id: `TEST-${tenants.length}`, ...data }; tenants.push(tenant); return tenant; },
+        findUnique: async ({ where }) => { assert.equal(locked, true); return tenants.find(({ slug }) => slug === where.slug) ?? null; },
+        create: async ({ data }) => {
+          assert.ok(!tenants.some(({ slug }) => slug === data.slug), "tenant slug must be unique");
+          const tenant = { id: `TEST-${tenants.length}`, ...data }; tenants.push(tenant); return tenant;
+        },
       },
       user: { upsert: async () => ({ id: "TEST-user" }) },
       organizationUnit: { create: async () => ({}) },
@@ -45,12 +49,15 @@ for (const mode of ["first-run", "open"]) {
       "@/lib/app-auth": { requestAppLoginLink: async () => ({ ok: true }) },
     });
     const results = await Promise.allSettled([1, 2].map((id) => createSignupWorkspace({
-      organizationName: `TEST-organization-${id}`, name: `TEST-user-${id}`, email: `TEST-${id}@example.invalid`,
+      organizationName: "TEST-same-organization", name: `TEST-user-${id}`, email: `TEST-${id}@example.invalid`,
     })));
     assert.equal(roles.filter((role) => role === "SUPER_ADMIN").length, 1);
     assert.equal(tenants.length, mode === "first-run" ? 1 : 2);
     assert.equal(results.filter(({ status }) => status === "fulfilled").length, mode === "first-run" ? 1 : 2);
-    if (mode === "open") assert.ok(roles.includes("PARTY_ADMIN"));
+    if (mode === "open") {
+      assert.ok(roles.includes("PARTY_ADMIN"));
+      assert.equal(new Set(tenants.map(({ slug }) => slug)).size, 2);
+    }
   });
 }
 
@@ -83,13 +90,13 @@ test("an invitation revoked after the initial read cannot restore membership", a
 const testToken = "TEST-invitation-token";
 const tokenHash = (token) => createHash("sha256").update(token).digest("base64url");
 
-async function invitationRace(beforeTransaction = () => {}) {
+async function invitationRace(beforeTransaction = () => {}, afterTransaction = () => {}) {
   const current = {
     id: "TEST-invitation", tenantId: "TEST-tenant", email: "TEST-user@example.invalid", role: "PARTY_ADMIN",
     tokenHash: tokenHash(testToken), status: "PENDING", expiresAt: new Date(Date.now() + 60_000),
     tenant: { nameCs: "TEST", nameEn: "TEST" }, orgUnit: null, candidate: null, emailMessages: [],
   };
-  const calls = { membership: 0, audit: [] };
+  const calls = { membership: 0, audit: [], emails: 0 };
   const matches = (where) =>
     (!where.id || where.id === current.id) &&
     (!where.tokenHash || where.tokenHash === current.tokenHash) &&
@@ -112,15 +119,29 @@ async function invitationRace(beforeTransaction = () => {}) {
   const api = await loadSource("src/lib/workspace-db.ts", {
     "@/generated/prisma/client": enums,
     "@/lib/object-storage": { objectStorageStatus: () => ({}) },
+    "@/lib/instance-config": {
+      publicAppUrl: () => "https://adclare.test", defaultEmailFrom: () => "TEST@example.invalid", logPendingEmailLink: () => {},
+    },
     "@/lib/prisma": { prisma: {
       invitation: {
         findUnique: async ({ where }) => matches(where) ? { ...current } : null,
         findFirst: async () => ({ ...current }),
+        update: tx.invitation.update,
+      },
+      auditLog: tx.auditLog,
+      emailMessage: {
+        create: async ({ data }) => { calls.emails++; return { id: "TEST-email", ...data }; },
+        update: async ({ data }) => ({ id: "TEST-email", ...data }),
       },
       tenantMembership: { findFirst: async () => ({
         tenantId: current.tenantId, userId: "TEST-admin", role: "PARTY_ADMIN", user: { email: "TEST-admin@example.invalid" },
       }) },
-      $transaction: async (callback) => { beforeTransaction(current); return callback(tx); },
+      $transaction: async (callback) => {
+        await beforeTransaction(current);
+        const result = await callback(tx);
+        afterTransaction(current);
+        return result;
+      },
     } },
   });
   return { api, current, calls };
@@ -162,4 +183,66 @@ test("an invitation that expires after the initial read cannot grant membership"
   assert.equal(await api.acceptInvitation(testToken, "TEST-user", "cs"), null);
   assert.equal(calls.membership, 0);
   assert.deepEqual(calls.audit, []);
+});
+
+for (const status of ["ACCEPTED", "REVOKED"]) {
+  test(`retry cannot rotate or email a ${status} invitation`, async () => {
+    const { api, current, calls } = await invitationRace();
+    current.status = status;
+    await assert.rejects(api.retryAppInvitationEmail("TEST-admin", current.id, "cs"), /jen čekající pozvánku/);
+    assert.equal(current.tokenHash, tokenHash(testToken));
+    assert.equal(calls.emails, 0);
+    assert.deepEqual(calls.audit, []);
+  });
+}
+
+for (const status of ["ACCEPTED", "REVOKED"]) {
+  test(`retry loses to ${status} after its initial read`, async () => {
+    const { api, current, calls } = await invitationRace((invitation) => { invitation.status = status; });
+    await assert.rejects(api.retryAppInvitationEmail("TEST-admin", current.id, "cs"), /jen čekající pozvánku/);
+    assert.equal(current.tokenHash, tokenHash(testToken));
+    assert.equal(calls.emails, 0);
+    assert.deepEqual(calls.audit, []);
+  });
+}
+
+test("retry of a live invitation rotates the token and queues one email", async () => {
+  const { api, current, calls } = await invitationRace();
+  const result = await api.retryAppInvitationEmail("TEST-admin", current.id, "cs");
+  assert.notEqual(current.tokenHash, tokenHash(testToken));
+  assert.equal(result.statusKey, "PENDING");
+  assert.equal(calls.emails, 1);
+  assert.deepEqual(calls.audit, ["retry_invitation_email"]);
+});
+
+test("retry preserves renewal of an expired pending invitation offered by the UI", async () => {
+  const { api, current, calls } = await invitationRace();
+  current.expiresAt = new Date(Date.now() - 1000);
+  const result = await api.retryAppInvitationEmail("TEST-admin", current.id, "cs");
+  assert.equal(result.statusKey, "PENDING");
+  assert.ok(current.expiresAt > new Date());
+  assert.equal(calls.emails, 1);
+});
+
+test("acceptance winning during retry commits membership and prevents token rotation", async () => {
+  let entered = false;
+  let notice;
+  const { api, current, calls } = await invitationRace(async () => {
+    if (entered) return;
+    entered = true;
+    notice = await api.acceptInvitation(testToken, "TEST-user", "cs");
+  });
+  await assert.rejects(api.retryAppInvitationEmail("TEST-admin", current.id, "cs"), /jen čekající pozvánku/);
+  assert.equal(notice.status, "ACCEPTED");
+  assert.equal(calls.membership, 1);
+  assert.equal(calls.emails, 0);
+  assert.equal(current.tokenHash, tokenHash(testToken));
+});
+
+test("committed acceptance does not query a potentially rotated token again", async () => {
+  const { api, calls } = await invitationRace(() => {}, (invitation) => { invitation.tokenHash = tokenHash("TEST-later-token"); });
+  const notice = await api.acceptInvitation(testToken, "TEST-user", "cs");
+  assert.equal(notice?.status, "ACCEPTED");
+  assert.equal(notice.token, testToken);
+  assert.equal(calls.membership, 1);
 });

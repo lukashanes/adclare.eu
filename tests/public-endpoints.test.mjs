@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { loadSource } from "./load-source.mjs";
+import { loadSource, valueImports } from "./load-source.mjs";
 
 function request(body, headers = {}) {
   return new Request("https://adclare.test/api/login/request-link", {
@@ -101,10 +101,9 @@ for (const path of await routes("src/app/api")) {
         deleteAppSession: async () => { writes++; },
         serializeAppSessionClearCookie: () => "TEST-clear",
       };
-      const workspaceImport = source.match(/import \{([^}]+)\} from "@\/lib\/workspace-db"/);
-      if (workspaceImport) {
-        mocks["@/lib/workspace-db"] = Object.fromEntries(workspaceImport[1].split(",").map((name) => {
-          name = name.trim();
+      const workspaceImports = valueImports(source, "@/lib/workspace-db");
+      if (workspaceImports.length) {
+        mocks["@/lib/workspace-db"] = Object.fromEntries(workspaceImports.map((name) => {
           return [name, name === "normalizeLocale" ? () => "cs" : name === "getAppAdUploadTarget"
             ? async () => ({ tenantSlug: "TEST-tenant", adCode: "TEST-ad" })
             : async () => { writes++; return {}; }];
@@ -122,6 +121,70 @@ for (const path of await routes("src/app/api")) {
       });
       assert.equal(response.status, 413);
       assert.equal(writes, 0);
+    });
+  }
+}
+
+test("route mocks handle multiline imports, trailing commas and inline types", () => {
+  assert.deepEqual(valueImports('import {\n normalizeLocale,\n type Locale,\n approveAppAd as approve,\n} from "@/lib/workspace-db";', "@/lib/workspace-db"), ["normalizeLocale", "approveAppAd"]);
+  assert.deepEqual(valueImports('import type { Locale } from "@/lib/workspace-db";', "@/lib/workspace-db"), []);
+});
+
+for (const [path, operation] of [
+  ["logout", "deleteAppSession"],
+  ["app/ads/[code]/approve", "approveAppAd"],
+  ["app/ads/[code]/publish", "publishAppAd"],
+  ["app/ads/[code]/audit-export", "prepareAppAuditExport"],
+  ["app/users/[id]/retry-email", "retryAppInvitationEmail"],
+  ["app/users/[id]/revoke-invitation", "revokeAppInvitation"],
+]) {
+  for (const body of [undefined, new FormData()]) {
+    test(`${path} accepts ${body === undefined ? "no body" : "an empty form"}`, async () => {
+      const { mocks } = services();
+      let writes = 0;
+      const action = async () => { writes++; return { id: "TEST-result" }; };
+      mocks["@/lib/app-auth"] = {
+        getAppSession: async () => ({ userId: "TEST-user" }),
+        deleteAppSession: action, serializeAppSessionClearCookie: () => "TEST-clear",
+      };
+      mocks["@/lib/workspace-db"] = {
+        normalizeLocale: () => "cs", [operation]: action, getAppAuditPackage: async () => null,
+      };
+      const { POST } = await loadSource(`src/app/api/${path}/route.ts`, mocks);
+      const response = await POST(request(body), { params: Promise.resolve({ code: "TEST-ad", id: "TEST-id" }) });
+      assert.equal(response.status, path === "logout" ? 303 : 200);
+      assert.equal(writes, 1);
+    });
+  }
+}
+
+for (const kind of ["assets", "import"]) {
+  for (const overLimit of [false, true]) {
+    test(`${kind} multipart ${overLimit ? "rejects a file just over" : "accepts a file at"} the file limit`, async () => {
+      const { mocks } = services();
+      let writes = 0;
+      const limit = kind === "assets" ? 1024 : 8 * 1024 * 1024;
+      mocks["@/lib/app-auth"] = { getAppSession: async () => ({ userId: "TEST-user" }) };
+      mocks["@/lib/workspace-db"] = {
+        normalizeLocale: () => "cs", getAppAdUploadTarget: async () => ({ tenantSlug: "TEST-tenant", adCode: "TEST-ad" }),
+        attachAppAdAsset: async () => ({ id: "TEST-ad" }),
+        importAppAds: async () => { writes++; return { imported: 1 }; },
+      };
+      mocks["@/lib/object-storage"] = {
+        isAssetStorageAvailable: () => true, maxUploadBytes: () => limit,
+        uploadAdAssetObject: async ({ file }) => {
+          assert.ok(file.size <= limit, "oversized files must be rejected before storage");
+          writes++; return { key: "TEST-key" };
+        },
+      };
+      mocks["@/lib/xlsx-ad-import"] = { parseXlsxAdImport: async () => ({ rows: [], sheetName: "TEST", headerRow: 1 }) };
+      const path = kind === "assets" ? "src/app/api/app/ads/[code]/assets/route.ts" : "src/app/api/app/ads/import/route.ts";
+      const { POST } = await loadSource(path, mocks);
+      const data = new FormData();
+      data.set("file", new File([new Uint8Array(limit + Number(overLimit))], "TEST-file"));
+      const response = await POST(request(data), { params: Promise.resolve({ code: "TEST-ad" }) });
+      assert.equal(response.status, overLimit ? 413 : kind === "assets" ? 201 : 200);
+      assert.equal(writes, overLimit ? 0 : 1);
     });
   }
 }

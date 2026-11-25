@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
-import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
+import { resetTurnstileForm, TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 
 type SignupState = "idle" | "saving" | "done" | "error";
 
@@ -47,13 +47,14 @@ export function SignupClient({
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
       if (!response.ok) {
-        throw new Error(payload.error || "Účet se nepodařilo založit.");
+        throw new Error(response.status === 429 ? "Příliš mnoho požadavků. Zkuste to prosím později." : payload.error || "Účet se nepodařilo založit.");
       }
 
       setState("done");
     } catch (signupError) {
       setState("error");
       setError(signupError instanceof Error ? signupError.message : "Účet se nepodařilo založit.");
+      resetTurnstileForm(form);
     }
   }
 

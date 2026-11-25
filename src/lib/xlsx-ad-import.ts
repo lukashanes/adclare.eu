@@ -1,11 +1,12 @@
 import JSZip from "jszip";
+import { Readable } from "node:stream";
 import type { EditableAdInput } from "@/lib/workspace-types";
 
 type CellValue = string;
 
 type ParsedRow = {
   rowNumber: number;
-  values: CellValue[];
+  values: Map<number, CellValue>;
 };
 
 export type ImportedAdInputRow = {
@@ -41,6 +42,8 @@ async function readArchiveXml(zip: JSZip, path: string, budget: { remaining: num
       if (size > maxXmlEntryBytes || chunk.byteLength > budget.remaining) {
         exceeded = true;
         stream.pause();
+        if (stream instanceof Readable) stream.destroy();
+        chunks.length = 0;
         reject(new Error("Excel je po rozbalení příliš velký. Maximum je 16 MB na XML soubor a 32 MB celkem."));
         return;
       }
@@ -206,17 +209,17 @@ function parseRows(sheetXml: string, sharedStrings: string[], dateStyles: Set<nu
     if (rows.length >= maxRows + 20) break;
     const rowAttrs = attributes(rowMatch[1]);
     const rowNumber = Number(rowAttrs.get("r") ?? rows.length + 1);
-    const values: string[] = [];
+    const values = new Map<number, CellValue>();
 
     for (const cellMatch of rowMatch[2].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const cellAttrs = attributes(cellMatch[1]);
       const ref = cellAttrs.get("r") ?? "A1";
-      values[columnIndex(ref)] = normalizeText(cellValue(cellMatch[1], cellMatch[2] ?? "", sharedStrings, dateStyles));
+      values.set(columnIndex(ref), normalizeText(cellValue(cellMatch[1], cellMatch[2] ?? "", sharedStrings, dateStyles)));
     }
 
     rows.push({
       rowNumber,
-      values: Array.from({ length: values.length }, (_, index) => values[index] ?? ""),
+      values: new Map([...values].sort(([left], [right]) => left - right)),
     });
   }
 
@@ -267,7 +270,7 @@ const fieldAliases = {
 type ImportField = keyof typeof fieldAliases;
 
 function headerScore(row: ParsedRow) {
-  const headers = row.values.map((value) => normalizeHeader(value)).filter(Boolean);
+  const headers = [...row.values.values()].map((value) => normalizeHeader(value)).filter(Boolean);
 
   return (Object.keys(fieldAliases) as ImportField[]).reduce((score, field) => {
     if (headers.some((header) => fieldAliases[field].some((alias) => header.includes(alias)))) {
@@ -289,23 +292,23 @@ function findHeaderRow(rows: ParsedRow[]) {
   return best.row;
 }
 
-function findColumn(headers: string[], field: ImportField) {
+function findColumn(headers: Map<number, string>, field: ImportField) {
   const aliases = fieldAliases[field];
-  const exact = headers.findIndex((header) => aliases.some((alias) => header === alias));
-
-  if (exact >= 0) {
-    return exact;
+  for (const [index, header] of headers) {
+    if (aliases.some((alias) => header === alias)) return index;
   }
-
-  return headers.findIndex((header) => aliases.some((alias) => header.includes(alias)));
+  for (const [index, header] of headers) {
+    if (aliases.some((alias) => header.includes(alias))) return index;
+  }
+  return -1;
 }
 
 function rawValue(row: ParsedRow, index: number) {
-  return index >= 0 ? row.values[index]?.trim() ?? "" : "";
+  return index >= 0 ? row.values.get(index)?.trim() ?? "" : "";
 }
 
-function isInstructionRow(values: string[]) {
-  const joined = normalizeHeader(values.join(" "));
+function isInstructionRow(values: Iterable<string>) {
+  const joined = normalizeHeader([...values].join(" "));
   const markers = ["rok region co", "ciselnarada", "ciselna rada", "doplnuje", "castka s dph", "casovy usek", "nevolebni volebni", "email na vydavatele"];
 
   return markers.filter((marker) => joined.includes(marker)).length >= 2;
@@ -317,8 +320,8 @@ function isPlaceholderCode(value: string) {
   return normalized.includes("rok region co") || normalized.includes("ciselna rada") || normalized.includes("ciselnarada");
 }
 
-function firstFilled(values: string[]) {
-  return values.map((value) => value.trim()).find(Boolean) ?? "";
+function firstFilled(values: Iterable<string>) {
+  return Array.from(values, (value) => value.trim()).find(Boolean) ?? "";
 }
 
 function deriveMediaType(...values: string[]) {
@@ -437,7 +440,7 @@ function buildInput(raw: Record<string, string>, fallbackYear: number): Editable
 }
 
 function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: number) {
-  const headers = headerRow.values.map((value) => normalizeHeader(value));
+  const headers = new Map([...headerRow.values].map(([index, value]) => [index, normalizeHeader(value)]));
   const columns = {
     code: findColumn(headers, "code"),
     title: findColumn(headers, "title"),
@@ -461,7 +464,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
   const result: ImportedAdInputRow[] = [];
 
   for (const row of sourceRows) {
-    if (row.values.every((value) => !value.trim())) {
+    if ([...row.values.values()].every((value) => !value.trim())) {
       continue;
     }
 
@@ -486,7 +489,7 @@ function mappedRows(rows: ParsedRow[], headerRow: ParsedRow, fallbackYear: numbe
       targetAudience: rawValue(row, columns.targetAudience),
     };
 
-    if (isInstructionRow(row.values) && isPlaceholderCode(raw.code || raw.title || firstFilled(row.values))) {
+    if (isInstructionRow(row.values.values()) && isPlaceholderCode(raw.code || raw.title || firstFilled(row.values.values()))) {
       continue;
     }
 

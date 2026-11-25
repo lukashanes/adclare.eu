@@ -232,3 +232,17 @@ If outbound email is not configured, production still records pending login and 
 ## Support
 
 For hosting, installation, migration, TTPA workflow design, integrations or production support from the Adclare team, contact `support@adclare.eu`.
+
+## Client IP forwarding
+
+Adclare uses `X-Real-IP` for rate limits and Turnstile verification. The supplied
+Caddy and Nginx templates overwrite this header with the connecting address,
+replace `X-Forwarded-For` and remove client-supplied `CF-Connecting-IP`.
+Keep the application reachable only through your ingress proxy. Direct access
+to the application bypasses this trust boundary.
+
+When another proxy such as Cloudflare sits in front of the ingress, configure
+client IP restoration there using only verified, trusted proxy address ranges,
+and restrict access to the origin accordingly. Otherwise requests share the
+upstream proxy's IP and its rate limit. Do not pass arbitrary incoming IP headers
+through to Adclare as the client address.

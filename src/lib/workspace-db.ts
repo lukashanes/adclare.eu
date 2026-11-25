@@ -1110,6 +1110,22 @@ function normalizeMemberStatus(status: string): MembershipStatus {
   return allowedStatuses.has(status as MembershipStatus) ? (status as MembershipStatus) : MembershipStatus.ACTIVE;
 }
 
+function invitationNotice(
+  invitation: Invitation & { tenant: Tenant; orgUnit: OrganizationUnit | null; candidate?: Candidate | null },
+  rawToken: string,
+  locale: Locale,
+): InvitationNotice {
+  return {
+    token: rawToken,
+    email: invitation.email,
+    role: roleLabel(invitation.role, locale),
+    scope: accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, locale),
+    tenant: locale === "cs" ? invitation.tenant.nameCs : invitation.tenant.nameEn,
+    status: invitationStatusKey(invitation.status, invitation.expiresAt),
+    expiresAt: formatDate(invitation.expiresAt, locale),
+  };
+}
+
 export async function getInvitationNotice(token: string, locale: Locale): Promise<InvitationNotice | null> {
   const rawToken = decodeURIComponent(token);
   const invitation = await prisma.invitation.findUnique({
@@ -1127,15 +1143,7 @@ export async function getInvitationNotice(token: string, locale: Locale): Promis
     return null;
   }
 
-  return {
-    token: rawToken,
-    email: invitation.email,
-    role: roleLabel(invitation.role, locale),
-    scope: accessScopeLabel(invitation.orgUnit, invitation.candidate ?? null, locale),
-    tenant: locale === "cs" ? invitation.tenant.nameCs : invitation.tenant.nameEn,
-    status: invitationStatusKey(invitation.status, invitation.expiresAt),
-    expiresAt: formatDate(invitation.expiresAt, locale),
-  };
+  return invitationNotice(invitation, rawToken, locale);
 }
 
 export async function acceptInvitation(token: string, name: string, locale: Locale) {
@@ -1222,7 +1230,7 @@ export async function acceptInvitation(token: string, name: string, locale: Loca
   });
 
   if (!accepted) return null;
-  return getInvitationNotice(rawToken, locale);
+  return invitationNotice({ ...invitation, status: InvitationStatus.ACCEPTED }, rawToken, locale);
 }
 
 export async function getTransparencyNotice(publicToken: string, locale: Locale) {
@@ -2945,6 +2953,11 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
     return null;
   }
 
+  const inactiveMessage = "Znovu lze odeslat jen čekající pozvánku.";
+  if (invitation.status !== InvitationStatus.PENDING) {
+    throw new Error(inactiveMessage);
+  }
+
   const latestEmail = invitation.emailMessages[0];
   let rawToken = "";
   let invitationForEmail = invitation;
@@ -2952,25 +2965,31 @@ export async function retryAppInvitationEmail(userId: string, invitationId: stri
 
   if (!latestEmail || latestEmail.status !== EmailStatus.SENT) {
     rawToken = createInviteToken();
-    invitationForEmail = await prisma.invitation.update({
-      where: {
-        id: invitation.id,
-      },
-      data: {
-        tokenHash: hashToken(rawToken),
-        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      },
-      include: {
-        tenant: true,
-        orgUnit: true,
-        candidate: true,
-        emailMessages: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1,
+    invitationForEmail = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.invitation.updateMany({
+        where: {
+          id: invitation.id,
+          tokenHash: invitation.tokenHash,
+          status: InvitationStatus.PENDING,
         },
-      },
+        data: {
+          tokenHash: hashToken(rawToken),
+          expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        },
+      });
+      if (claimed.count !== 1) throw new Error(inactiveMessage);
+      return tx.invitation.findUniqueOrThrow({
+        where: { id: invitation.id },
+        include: {
+          tenant: true,
+          orgUnit: true,
+          candidate: true,
+          emailMessages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      });
     });
     emailMessage = await sendInvitationEmail(invitationForEmail, rawToken);
   }

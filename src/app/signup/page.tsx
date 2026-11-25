@@ -8,7 +8,7 @@ import { SignupClient } from "./SignupClient";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Založit pracovní prostor | Adclare",
+  title: "Založit pracovní prostor",
   description: "Založení pracovního prostoru pro evidenci, schvalování a QR kódy politické reklamy podle TTPA.",
 };
 

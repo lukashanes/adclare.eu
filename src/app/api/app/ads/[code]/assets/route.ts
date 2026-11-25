@@ -54,6 +54,10 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
       return Response.json({ error: "Soubor chybí." }, { status: 400 });
     }
 
+    if (file.size > maxUploadBytes()) {
+      return Response.json({ error: "Soubor je příliš velký." }, { status: 413 });
+    }
+
     const storedObject = await uploadAdAssetObject({
       tenantSlug: target.tenantSlug,
       adCode: target.adCode,

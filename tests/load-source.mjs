@@ -21,7 +21,7 @@ export async function loadSource(path, mocks = {}) {
       let url;
       if (Object.hasOwn(mocks, specifier)) {
         const exports = Object.keys(mocks[specifier]).map((name) =>
-          `export const ${name} = globalThis[${JSON.stringify(key)}][${JSON.stringify(specifier)}][${JSON.stringify(name)}];`,
+          `${name === "default" ? "export default" : `export const ${name} =`} globalThis[${JSON.stringify(key)}][${JSON.stringify(specifier)}][${JSON.stringify(name)}];`,
         ).join("\n");
         url = `data:text/javascript;base64,${Buffer.from(exports).toString("base64")}`;
       } else if (specifier.startsWith("@/")) {
@@ -42,4 +42,13 @@ export async function loadSource(path, mocks = {}) {
   } finally {
     delete globalThis[key];
   }
+}
+
+export function valueImports(source, specifier) {
+  const file = ts.createSourceFile("test.ts", source, ts.ScriptTarget.Latest, true);
+  return file.statements.flatMap((statement) => {
+    if (!ts.isImportDeclaration(statement) || statement.moduleSpecifier.text !== specifier || statement.importClause?.isTypeOnly) return [];
+    const bindings = statement.importClause?.namedBindings;
+    return bindings && ts.isNamedImports(bindings) ? bindings.elements.filter((item) => !item.isTypeOnly).map((item) => item.propertyName?.text ?? item.name.text) : [];
+  });
 }

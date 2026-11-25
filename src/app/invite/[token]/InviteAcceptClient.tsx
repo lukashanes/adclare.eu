@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { CheckCircle2, CircleAlert, UserPlus } from "lucide-react";
-import { TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
+import { resetTurnstileForm, TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 import type { InvitationNotice } from "@/lib/workspace-types";
 
 export function InviteAcceptClient({
@@ -14,6 +14,7 @@ export function InviteAcceptClient({
 }) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "accepted" | "error">(invitation.status === "PENDING" ? "idle" : "error");
+  const [error, setError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,6 +25,7 @@ export function InviteAcceptClient({
     }
 
     setStatus("saving");
+    setError("");
 
     try {
       const response = await fetch(`/api/invite/${encodeURIComponent(invitation.token)}/accept?locale=cs`, {
@@ -37,9 +39,17 @@ export function InviteAcceptClient({
         }),
       });
 
-      setStatus(response.ok ? "accepted" : "error");
+      if (!response.ok) {
+        setError(response.status === 429 ? "Příliš mnoho požadavků. Zkuste to prosím později." : "Pozvánku se nepodařilo přijmout. Požádej administrátora o novou pozvánku.");
+        setStatus("error");
+        resetTurnstileForm(form);
+        return;
+      }
+      setStatus("accepted");
     } catch {
       setStatus("error");
+      setError("Pozvánku se nepodařilo přijmout. Požádej administrátora o novou pozvánku.");
+      resetTurnstileForm(form);
     }
   }
 
@@ -92,7 +102,7 @@ export function InviteAcceptClient({
       </button>
       {status === "error" ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-          Pozvánku se nepodařilo přijmout. Požádej administrátora o novou pozvánku.
+          {error}
         </div>
       ) : null}
     </form>

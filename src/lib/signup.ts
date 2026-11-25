@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { MembershipStatus, UserRole } from "@/generated/prisma/client";
+import { MembershipStatus, UserRole, type Prisma } from "@/generated/prisma/client";
 import { requestAppLoginLink } from "@/lib/app-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -33,12 +33,12 @@ function slugBase(value: string) {
   return slug || `strana-${randomBytes(3).toString("hex")}`;
 }
 
-async function uniqueTenantSlug(value: string) {
+async function uniqueTenantSlug(tx: Prisma.TransactionClient, value: string) {
   const base = slugBase(value);
 
   for (let index = 0; index < 20; index += 1) {
     const candidate = index === 0 ? base : `${base}-${index + 1}`;
-    const existing = await prisma.tenant.findUnique({
+    const existing = await tx.tenant.findUnique({
       where: {
         slug: candidate,
       },
@@ -134,8 +134,6 @@ export async function createSignupWorkspace(input: SignupInput) {
     };
   }
 
-  const slug = await uniqueTenantSlug(organizationName);
-
   await prisma.$transaction(async (tx) => {
     // All signup workers must decide first-run availability and privileges under
     // the same database lock. A count taken before the transaction can go stale.
@@ -145,6 +143,7 @@ export async function createSignupWorkspace(input: SignupInput) {
       throw new Error("Workspace signup is closed on this instance. Ask an administrator for an invitation.");
     }
     const initialRole = tenantCount === 0 ? UserRole.SUPER_ADMIN : UserRole.PARTY_ADMIN;
+    const slug = await uniqueTenantSlug(tx, organizationName);
 
     const createdTenant = await tx.tenant.create({
       data: {
