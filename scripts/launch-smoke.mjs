@@ -78,8 +78,8 @@ check(readme.includes("npm run db:migrate") && !readme.includes("npm run db:migr
 check(readme.indexOf("npm run db:seed") > readme.indexOf("Optional demo data for development"), "README should keep demo seed separate from the first-workspace Quick Start.");
 check(objectStorage.includes("ADCLARE_LOCAL_STORAGE_DIR") && objectStorage.includes("writeFile") && objectStorage.includes("readFile"), "Asset uploads should support local file storage for self-hosted installs without S3.");
 check(read("docker-compose.yml").includes("asset_data:/data/uploads") && composeProd.includes("asset_data:/data/uploads"), "Docker Compose should persist local uploaded assets.");
-check(ciWorkflow.includes("actions/checkout@v6"), "GitHub Actions should use checkout with Node 24 runtime support.");
-check(ciWorkflow.includes("actions/setup-node@v6"), "GitHub Actions should use setup-node with Node 24 runtime support.");
+check(ciWorkflow.includes("actions/checkout@v7"), "GitHub Actions should use checkout v7.");
+check(ciWorkflow.includes("actions/setup-node@v7"), "GitHub Actions should use setup-node v7.");
 check(ciWorkflow.includes("docker/setup-buildx-action@v4"), "GitHub Actions should use Buildx with Node 24 runtime support.");
 check(ciWorkflow.includes("node-version: \"22\""), "GitHub Actions should run on Node.js 22.");
 check(dependabotConfig.includes("package-ecosystem: npm"), "Dependabot should watch npm dependencies.");

@@ -10,10 +10,11 @@
     "start": "next start",
     "test": "npm run test:launch",
     "test:launch": "node scripts/launch-smoke.mjs",
+    "test:dependencies": "node scripts/dependency-smoke.mjs",
     "launch:preflight": "node scripts/production-preflight.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "ci": "npm run test && npm run security:scan && npx prisma validate && npm run db:generate && npm run lint && npm run typecheck && npm audit --omit=dev && npm run build",
+    "ci": "npm run test && npm run security:scan && npx prisma validate && npm run db:generate && npm run test:dependencies && npm run lint && npm run typecheck && npm audit --omit=dev && npm run build",
     "docker:check": "docker build --target migrator -t adclare-migrate-check . && docker build --target storage-check -t adclare-storage-check . && docker build --target preflight -t adclare-preflight-check . && docker build -t adclare-web-check .",
     "security:scan": "node scripts/security-scan.mjs",
     "storage:check": "node scripts/check-object-storage.mjs",
@@ -24,32 +25,33 @@
     "cf:setup": "node scripts/cloudflare-setup.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1057.0",
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@aws-sdk/client-s3": "^3.1063.0",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "jszip": "^3.10.1",
     "lucide-react": "^1.16.0",
-    "next": "16.2.7",
+    "next": "16.4.5",
     "pg": "^8.21.0",
     "qrcode": "^1.5.4",
     "react": "19.2.7",
     "react-dom": "19.2.4"
   },
   "overrides": {
-    "postcss": "^8.5.15",
-    "@hono/node-server": "^1.19.13"
+    "@prisma/config": {
+      "effect": "3.22.1"
+    }
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^25.9.2",
     "@types/pg": "^8.20.0",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "^19",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19",
-    "dotenv": "^16.6.1",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "16.2.7",
-    "prisma": "^7.8.0",
+    "eslint-config-next": "16.4.5",
+    "prisma": "^7.10.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^6"
