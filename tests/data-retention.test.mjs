@@ -8,6 +8,15 @@ const ago = (days, offset = 0) => new Date(now.getTime() - days * 86_400_000 + o
 
 function fixture({ locked = true, fail = false } = {}) {
   const rows = {
+    publicSubmission: [
+      { id: "old-suspicious", verification: "SUSPICIOUS", createdAt: ago(30) },
+      { id: "keep-suspicious", verification: "SUSPICIOUS", createdAt: ago(30, 1) },
+      ...["VERIFIED", "UNVERIFIED"].flatMap(verification => [
+        { id: `old-${verification}`, verification, createdAt: ago(1095) },
+        { id: `keep-${verification}`, verification, createdAt: ago(1095, 1) },
+      ]),
+    ],
+    emailDailyQuota: [{ id: "old", updatedAt: ago(90) }, { id: "keep", updatedAt: ago(90, 1) }],
     emailMessage: ["PENDING_PROVIDER", "SENT", "FAILED"].flatMap((status) => [
       { id: `old-${status}`, status, createdAt: ago(1095), error: "TEST", providerMessageId: "TEST" },
       { id: `keep-${status}`, status, createdAt: ago(1095, 1), error: "TEST", providerMessageId: "TEST" },
@@ -35,6 +44,7 @@ function fixture({ locked = true, fail = false } = {}) {
   };
   function matches(row, where) {
     return Object.entries(where).every(([key, value]) => {
+      if (typeof value !== "object" || value === null) return row[key] === value;
       if (key === "OR") return value.some((condition) => matches(row, condition));
       if (Object.hasOwn(value, "lte")) return row[key] !== undefined && row[key] <= value.lte;
       if (Object.hasOwn(value, "in")) return value.in.includes(row[key]);
@@ -72,6 +82,9 @@ test("forms expire after exactly 1095 days, including all email and invitation s
   const { rows, prisma } = fixture();
   const { cleanupPersonalData } = await loadSource("src/lib/data-retention.ts", { "@/lib/prisma": { prisma } });
   const result = await cleanupPersonalData(now);
+  assert.equal(result.submissions, 3);
+  assert.deepEqual(rows.publicSubmission.map(({id}) => id), ["keep-suspicious", "keep-VERIFIED", "keep-UNVERIFIED"]);
+  assert.deepEqual(rows.emailDailyQuota.map(({id}) => id), ["keep"]);
   assert.equal(result.emails, 4);
   assert.equal(result.invitations, 4);
   assert.deepEqual(rows.emailMessage.map(({ id }) => id), ["keep-PENDING_PROVIDER", "keep-SENT", "keep-FAILED", "recent-diagnostic"]);

@@ -14,10 +14,14 @@ function request(body, headers = {}) {
 }
 
 function services() {
-  const calls = { rate: [], verification: 0, email: 0 };
+  const calls = { rate: [], verification: 0, email: 0, submissions: 0 };
   return {
     calls,
     mocks: {
+      "@/lib/public-submission": {
+        receivePublicSubmission: async () => { calls.submissions++; return { id: "TEST", verified: true }; },
+        markSubmissionProcessed: async () => {},
+      },
       "@/lib/app-auth": { requestAppLoginLink: async () => { calls.email++; } },
       "@/lib/rate-limit": {
         requestIp: () => "192.0.2.1",
@@ -49,14 +53,18 @@ test("public JSON stops a stream without Content-Length before any side effect",
   assert.equal(response.status, 413);
   assert.equal(cancelled, true);
   assert.ok(reads < 20);
-  assert.deepEqual(calls, { rate: [], verification: 0, email: 0 });
+  assert.equal(calls.rate.length, 1);
+  assert.equal(calls.submissions, 0);
+  assert.equal(calls.email, 0);
 });
 
 test("malformed public JSON returns 400 before any service call", async () => {
   const { calls, mocks } = services();
   const { POST } = await loadSource("src/app/api/login/request-link/route.ts", mocks);
   assert.equal((await POST(request('{"email":'))).status, 400);
-  assert.deepEqual(calls, { rate: [], verification: 0, email: 0 });
+  assert.equal(calls.rate.length, 1);
+  assert.equal(calls.submissions, 0);
+  assert.equal(calls.email, 0);
 });
 
 test("changing email does not create a new IP rate-limit identity", async () => {
@@ -70,11 +78,12 @@ test("changing email does not create a new IP rate-limit identity", async () => 
   assert.equal(ipLimits[0].scope, ipLimits[1].scope);
 });
 
-test("a failed antispam check sends no login email", async () => {
+test("an unverified saved request sends no login email", async () => {
   const { calls, mocks } = services();
-  mocks["@/lib/turnstile"].verifyTurnstileToken = async () => ({ ok: false });
+  mocks["@/lib/public-submission"].receivePublicSubmission = async () => { calls.submissions++; return { id: "TEST", verified: false }; };
   const { POST } = await loadSource("src/app/api/login/request-link/route.ts", mocks);
-  assert.equal((await POST(request(JSON.stringify({ email: "TEST-user@example.invalid" })))).status, 403);
+  assert.equal((await POST(request(JSON.stringify({ email: "TEST-user@example.invalid" })))).status, 200);
+  assert.equal(calls.submissions, 1);
   assert.equal(calls.email, 0);
 });
 

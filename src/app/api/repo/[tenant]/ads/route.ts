@@ -1,5 +1,6 @@
 import { getPublicRepositoryPayload, normalizeLocale } from "@/lib/workspace-db";
 import type { PublicRepositoryFilters } from "@/lib/workspace-types";
+import { guardPublicEndpoint } from "@/lib/public-endpoint";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,6 +17,8 @@ function filtersFromSearchParams(searchParams: URLSearchParams): Partial<PublicR
 }
 
 export async function GET(request: Request, context: { params: Promise<{ tenant: string }> }) {
+  const limited = await guardPublicEndpoint(request);
+  if (limited) return limited;
   const { tenant } = await context.params;
   const url = new URL(request.url);
   const locale = normalizeLocale(url.searchParams.get("locale"));

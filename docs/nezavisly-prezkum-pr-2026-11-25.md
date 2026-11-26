@@ -28,7 +28,8 @@ v odděleném testovacím prostředí. Testy klientských obsluh nenahrazují
 ověření skutečného widgetu Turnstile v prohlížeči. Kontrola proxy šablon
 neověřuje běžící proxy ani firewall.
 
-Hodnoty IP limitů, jejich pořadí vůči Turnstile a dopad na sdílené sítě
-vyžadují provozní rozhodnutí. Multipart upload je omezený velikostí, ale
+Rozhodnutí z 26. 11. 2026 uzavírá hodnoty IP limitů, kvót i chování
+Turnstile a pasti. Aktuální implementace a důkazy jsou v
+[ověření PR](overeni-pr-22-2026-11-26.md). Multipart upload je omezený velikostí, ale
 nadále se zpracovává v paměti; změna na streamované úložiště by vyžadovala
 samostatnou implementaci a zátěžové ověření.

@@ -117,6 +117,7 @@ async function invitationRace(beforeTransaction = () => {}, afterTransaction = (
     auditLog: { create: async ({ data }) => { calls.audit.push(data.action); } },
   };
   const api = await loadSource("src/lib/workspace-db.ts", {
+    "@/lib/email-policy": { reserveEmailQuota: async () => ({ allowed: true }), notifyEmailQuota: async () => {} },
     "@/generated/prisma/client": enums,
     "@/lib/object-storage": { objectStorageStatus: () => ({}) },
     "@/lib/instance-config": {

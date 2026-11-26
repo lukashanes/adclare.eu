@@ -9,10 +9,19 @@ All notable changes for Adclare are summarized here.
 - Geist Sans and Geist Mono are bundled from the pinned `geist` npm package;
   builds no longer fetch fonts from Google. The lockfile retains optional
   binaries for Linux glibc and musl, with regression checks in the test suite.
-- PR #22 still requires Docker verification and resolution of public read
-  endpoint limits and the scope of daily authentication email quotas before
-  merge. See `docs/overeni-pr-22-2026-11-26.md` for local evidence and decisions.
-- Apply migration `20261125120000_auth_log_retention` before starting the new
+- Public submissions now survive missing, invalid or unavailable Turnstile:
+  unverified requests are archived and notified to SUPPORT_EMAIL with
+  `[Neověřeno]`, without attachments or visitor email. A filled `adclare_guard`
+  trap is archived as suspicious without email. Unverified/suspicious access
+  requests remain held for review; they do not automatically change accounts.
+- Daily email budgets are site-wide: 200 team emails including one limit alert,
+  at most 20 unverified notifications, and 100 verified visitor emails (including
+  authenticated invitation sends/retries). Reservations use a PostgreSQL lock
+  and the Europe/Prague calendar day. Failed attempts consume their slot.
+- PR #22 implements the form decisions of 26 November; Docker and database
+  integration still require verification. See `docs/overeni-pr-22-2026-11-26.md`.
+- Apply migrations `20261125120000_auth_log_retention` and
+  `20261126220000_public_submissions` before starting the new
   `retention` service. With `docker-compose.prod.yml`, run the migrator tool
   explicitly before bringing up web and retention; that Compose file does not
   order them after migrations. The worker starts cleanup immediately and then
@@ -20,14 +29,15 @@ All notable changes for Adclare are summarized here.
   policy and the separate customer archive.
 - Ingress must overwrite `X-Real-IP` with a verified client address and be the
   only path to the application. Behind another proxy, restore client addresses
-  only from trusted proxy ranges; see `docs/self-hosting.md`. Public auth uses
-  per-target limits and larger shared IP caps. Missing/invalid client IPs no
-  longer share an instance-wide `unknown` bucket. The existing login email
+  only from trusted proxy ranges; see `docs/self-hosting.md`. All public API
+  routes share 20 requests per 10 seconds per IP, including invalid requests
+  and public GET routes. Missing/invalid IPs share an `unknown` bucket.
+  The existing login email
   recipient limit and cooldown remain in place.
 - Turnstile validates the response hostname against `TURNSTILE_ALLOWED_HOSTNAMES`
   or the hostname from `APP_URL` (falling back to `NEXT_PUBLIC_APP_URL`). Set the
   public URL correctly and list any additional www/apex or staging hostnames.
-  Invalid configuration fails closed with a production diagnostic. Run
+  Invalid configuration archives submissions as unverified. Run
   `npm run launch:preflight`; the offline check cannot inspect ingress headers.
 - XLSX imports reject more than 500 data rows with an explicit error instead of
   silently importing a prefix. Empty formatted rows do not consume the limit.

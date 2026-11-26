@@ -54,6 +54,7 @@ import type {
   Status,
 } from "@/lib/workspace-types";
 import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
+import { notifyEmailQuota, reserveEmailQuota } from "@/lib/email-policy";
 import { objectStorageStatus } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
 
@@ -405,6 +406,13 @@ function invitationEmailCopy(invitation: Invitation & { tenant: Tenant; orgUnit:
 }
 
 async function deliverEmailMessage(email: EmailMessage, content?: { bodyText: string; bodyHtml: string }) {
+  // Invitations are initiated by an authenticated administrator. They share the
+  // site's visitor budget with login links, including retries and other tenants.
+  const quota = await reserveEmailQuota("visitor");
+  await notifyEmailQuota(quota);
+  if (!quota.allowed) {
+    return prisma.emailMessage.update({ where: { id: email.id }, data: { error: "Daily visitor email limit reached; stored without delivery." } });
+  }
   if (!isCloudflareEmailConfigured()) {
     return prisma.emailMessage.update({
       where: {
@@ -432,6 +440,7 @@ async function deliverEmailMessage(email: EmailMessage, content?: { bodyText: st
         html: content?.bodyHtml ?? email.bodyHtml,
         text: content?.bodyText ?? email.bodyText,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     const result = (await response.json().catch(() => ({}))) as {
@@ -500,11 +509,11 @@ async function sendInvitationEmail(invitation: Invitation & { tenant: Tenant; or
     },
   });
 
-  if (!isCloudflareEmailConfigured()) {
+  const delivered = await deliverEmailMessage(email, { bodyText, bodyHtml });
+  if (!isCloudflareEmailConfigured() && delivered.error === cloudflareEmailMissingConfigError) {
     logPendingEmailLink("Invitation", invitation.email, inviteUrl);
   }
-
-  return deliverEmailMessage(email, { bodyText, bodyHtml });
+  return delivered;
 }
 
 function roleLabel(role: UserRole, locale: Locale) {

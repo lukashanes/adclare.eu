@@ -26,14 +26,6 @@ export function isTurnstileConfigured() {
   return !placeholderValues.has(turnstileSecret());
 }
 
-function shouldRequireTurnstile() {
-  if (process.env.TURNSTILE_REQUIRED === "0") {
-    return false;
-  }
-
-  return process.env.NODE_ENV === "production" || process.env.TURNSTILE_REQUIRED === "1";
-}
-
 function expectedHostnames() {
   const configured = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
 
@@ -51,18 +43,10 @@ function expectedHostnames() {
 
 export async function verifyTurnstileToken(request: Request, token: string | undefined) {
   if (!isTurnstileConfigured()) {
-    if (shouldRequireTurnstile()) {
-      return {
-        ok: false,
-        skipped: false,
-        errorCodes: ["turnstile-not-configured"],
-      };
-    }
-
     return {
-      ok: true,
+      ok: false,
       skipped: true,
-      errorCodes: [] as string[],
+      errorCodes: ["turnstile-not-configured"],
     };
   }
 

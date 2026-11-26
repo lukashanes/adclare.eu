@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { loadSource } from "./load-source.mjs";
 
 const element = (type, props) => ({ type, props });
-const jsx = { jsx: element, jsxs: element };
+const jsx = { jsx: element, jsxs: element, Fragment: Symbol.for("react.fragment") };
 
 test("Turnstile reset targets only the submitted form and tolerates an unready widget", async (t) => {
   const previous = globalThis.window;
@@ -43,7 +43,7 @@ for (const [path, name, props] of [
         "react/jsx-runtime": jsx, "next/link": { default: () => null },
         "lucide-react": Object.fromEntries(["ArrowRight", "Mail", "CheckCircle2", "Loader2", "CircleAlert", "UserPlus"].map((name) => [name, () => null])),
         "@/app/TurnstileField": {
-          TurnstileField: () => null, turnstileTokenFromForm: () => "TEST-token", resetTurnstileForm: (target) => resets.push(target),
+          TurnstileField: () => null, formGuardFromForm: () => "", turnstileTokenFromForm: () => "TEST-token", resetTurnstileForm: (target) => resets.push(target),
         },
       };
       t.mock.method(globalThis, "fetch", async () => {
@@ -72,7 +72,7 @@ for (const [path, name, props] of [
 for (const status of ["ACCEPTED", "REVOKED", "EXPIRED"]) {
   test(`inactive ${status} invitation displays its existing message without an acceptance form`, async () => {
     const { InviteAcceptClient } = await loadSource("src/app/invite/[token]/InviteAcceptClient.tsx", {
-      "@/app/TurnstileField": { TurnstileField: () => null, resetTurnstileForm: () => {}, turnstileTokenFromForm: () => "" },
+      "@/app/TurnstileField": { TurnstileField: () => null, formGuardFromForm: () => "", resetTurnstileForm: () => {}, turnstileTokenFromForm: () => "" },
     });
     const html = renderToStaticMarkup(createElement(InviteAcceptClient, { invitation: { status, token: "TEST-token" } }));
     assert.match(html, /Tato pozvánka už není aktivní/);
@@ -87,8 +87,33 @@ test("empty login email returns early without setting an empty error state", asy
     react: { useState: (initial) => [initial, (value) => updates.push(value)] },
     "react/jsx-runtime": jsx,
     "lucide-react": { ArrowRight: () => null, Mail: () => null },
-    "@/app/TurnstileField": { TurnstileField: () => null, resetTurnstileForm: () => {}, turnstileTokenFromForm: () => "" },
+    "@/app/TurnstileField": { TurnstileField: () => null, formGuardFromForm: () => "", resetTurnstileForm: () => {}, turnstileTokenFromForm: () => "" },
   });
   await LoginClient({}).props.onSubmit({ preventDefault() {}, currentTarget: {} });
   assert.deepEqual(updates, []);
+});
+
+for (const [path, name, props] of [
+  ["src/app/login/LoginClient.tsx", "LoginClient", {}],
+  ["src/app/signup/SignupClient.tsx", "SignupClient", { canCreateWorkspace: true }],
+  ["src/app/invite/[token]/InviteAcceptClient.tsx", "InviteAcceptClient", { invitation: { status: "PENDING", token: "TEST" } }],
+]) {
+  test(name + " renders a held submission without claiming completed access", async () => {
+    const component = await loadSource(path, {
+      react: { useState: initial => [initial === "idle" ? "held" : initial, () => {}] },
+      "next/link": { default: ({ children, ...props }) => createElement("a", props, children) },
+      "@/app/TurnstileField": { TurnstileField: () => null, formGuardFromForm: () => "", resetTurnstileForm: () => {}, turnstileTokenFromForm: () => "" },
+    });
+    const html = renderToStaticMarkup(createElement(component[name], props));
+    assert.match(html, /Podání jsme uložili ke kontrole/);
+    assert.doesNotMatch(html, /Účet je připravený|Pozvánka je přijatá|dorazí přihlašovací odkaz/);
+  });
+}
+
+test("the trap renders without Turnstile configuration and never uses an autofill field name", async () => {
+  const { TurnstileField } = await loadSource("src/app/TurnstileField.tsx", { "next/script": { default: () => null } });
+  const html = renderToStaticMarkup(createElement(TurnstileField, {}));
+  assert.match(html, /name="adclare_guard"/);
+  assert.match(html, /autoComplete="off"/i);
+  assert.doesNotMatch(html, /name="website"/);
 });

@@ -50,7 +50,7 @@ Adclare gives teams one place to:
 - QR package and audit package downloads.
 - Export manifests with SHA-256 hashes for QR packages, ad audit packages and workspace archives.
 - Append-only audit log.
-- Turnstile validation for public forms when configured.
+- Public submissions are archived; Turnstile is a verification signal. Unverified requests are held for review and suspicious submissions are retained without email.
 - Production health endpoint at `/api/health`.
 - Backup and restore scripts for PostgreSQL.
 
@@ -103,7 +103,7 @@ docker compose up -d --build
 ```
 
 The root Compose file starts PostgreSQL, runs database migrations, starts the app and serves it through Caddy. Set `SITE_ADDRESS`, `APP_URL` and `NEXT_PUBLIC_APP_URL` to your real domain before using it outside local testing.
-The local `.env.example` keeps Turnstile and email optional so development starts quickly. A public instance should start from `production.env.example`, use real email and Turnstile values, and pass the launch preflight before inviting users.
+The local `.env.example` can start without Turnstile and email, but public access requests remain held until verified, including in development. A public instance should start from `production.env.example`, use real email and Turnstile values, and pass the launch preflight before inviting users.
 
 Production deployment behind an existing reverse proxy can use:
 

@@ -199,7 +199,7 @@ checkTurnstile(publicUrl);
 checkStorage();
 checkSignupAndPublicFlags();
 checkBackups();
-warnings.push("Verify that ingress overwrites X-Real-IP with the client IP and blocks direct app access. This offline preflight cannot observe request headers; without a valid X-Real-IP, public auth limits fall back to the target email or invitation.");
+warnings.push("Verify that ingress overwrites X-Real-IP with the client IP and blocks direct app access. This offline preflight cannot observe request headers; without a valid X-Real-IP, all public API requests share the unknown-IP budget (20 requests per 10 seconds).");
 
 const result = {
   ok: errors.length === 0,

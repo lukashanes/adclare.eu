@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { CheckCircle2, CircleAlert, UserPlus } from "lucide-react";
-import { resetTurnstileForm, TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
+import { formGuardFromForm, resetTurnstileForm, TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 import type { InvitationNotice } from "@/lib/workspace-types";
 
 export function InviteAcceptClient({
@@ -13,7 +13,7 @@ export function InviteAcceptClient({
   turnstileSiteKey?: string;
 }) {
   const [name, setName] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "accepted" | "error">(invitation.status === "PENDING" ? "idle" : "error");
+  const [status, setStatus] = useState<"idle" | "saving" | "accepted" | "held" | "error">(invitation.status === "PENDING" ? "idle" : "error");
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -36,6 +36,7 @@ export function InviteAcceptClient({
         body: JSON.stringify({
           name,
           turnstileToken: turnstileTokenFromForm(form),
+          adclare_guard: formGuardFromForm(form),
         }),
       });
 
@@ -45,12 +46,17 @@ export function InviteAcceptClient({
         resetTurnstileForm(form);
         return;
       }
-      setStatus("accepted");
+      const payload = await response.json().catch(() => ({})) as { held?: boolean };
+      setStatus(payload.held ? "held" : "accepted");
     } catch {
       setStatus("error");
       setError("Pozvánku se nepodařilo přijmout. Požádej administrátora o novou pozvánku.");
       resetTurnstileForm(form);
     }
+  }
+
+  if (status === "held") {
+    return <p role="status" className="text-sm text-[#59616b]">Podání jsme uložili ke kontrole. Pozvánka zatím nebyla přijata.</p>;
   }
 
   if (status === "accepted") {

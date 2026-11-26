@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 
 const maxFileBytes = 1024 * 1024;
 const skippedFiles = new Set(["LICENSE", "package-lock.json"]);
@@ -38,8 +38,8 @@ const patterns = [
   },
 ];
 
-function trackedFiles() {
-  return execSync("git ls-files -z", { encoding: "buffer" }).toString("utf8").split("\0").filter(Boolean);
+function workingTreeFiles() {
+  return [...new Set(execSync("git ls-files --cached --others --exclude-standard -z", { encoding: "buffer" }).toString("utf8").split("\0").filter(Boolean))].filter((path) => existsSync(path));
 }
 
 function extension(path) {
@@ -62,7 +62,7 @@ function isPlaceholderLine(line) {
 
 const findings = [];
 
-for (const file of trackedFiles()) {
+for (const file of workingTreeFiles()) {
   if (skippedFiles.has(file) || skippedExtensions.has(extension(file))) {
     continue;
   }
@@ -108,11 +108,11 @@ for (const file of trackedFiles()) {
 }
 
 if (findings.length > 0) {
-  console.error("Potential secrets found in tracked files:");
+  console.error("Potential secrets found in working-tree files:");
   findings.forEach((finding) => {
     console.error(`- ${finding.file}:${finding.line} ${finding.type} ${finding.sample}`);
   });
   process.exit(1);
 }
 
-console.log("Security scan passed. No common secret patterns found in tracked files.");
+console.log("Security scan passed. No common secret patterns found in working-tree files.");

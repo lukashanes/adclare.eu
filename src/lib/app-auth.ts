@@ -3,6 +3,7 @@ import { EmailStatus, MembershipStatus } from "@/generated/prisma/client";
 import { readCookieFromHeader } from "@/lib/request-security";
 import { defaultEmailFrom, logPendingEmailLink, publicAppUrl } from "@/lib/instance-config";
 import { prisma } from "@/lib/prisma";
+import { notifyEmailQuota, reserveEmailQuota } from "@/lib/email-policy";
 
 export const APP_SESSION_COOKIE = "adclare_user_session";
 
@@ -124,6 +125,12 @@ async function deliverLoginEmail(tenantId: string, toEmail: string, loginUrl: st
     },
   });
 
+  const quota = await reserveEmailQuota("visitor");
+  await notifyEmailQuota(quota);
+  if (!quota.allowed) {
+    return prisma.emailMessage.update({ where: { id: email.id }, data: { error: "Daily visitor email limit reached; stored without delivery." } });
+  }
+
   if (!isCloudflareEmailConfigured()) {
     logPendingEmailLink("Login", toEmail, loginUrl);
     return email;
@@ -143,6 +150,7 @@ async function deliverLoginEmail(tenantId: string, toEmail: string, loginUrl: st
         html: bodyHtml,
         text: bodyText,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     const result = (await response.json().catch(() => ({}))) as {

@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
-import { resetTurnstileForm, TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
+import { formGuardFromForm, resetTurnstileForm, TurnstileField, turnstileTokenFromForm } from "@/app/TurnstileField";
 
-type SignupState = "idle" | "saving" | "done" | "error";
+type SignupState = "idle" | "saving" | "done" | "held" | "error";
 
 export function SignupClient({
   canCreateWorkspace,
@@ -42,15 +42,16 @@ export function SignupClient({
           name,
           email,
           turnstileToken: turnstileTokenFromForm(form),
+          adclare_guard: formGuardFromForm(form),
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; held?: boolean };
 
       if (!response.ok) {
         throw new Error(response.status === 429 ? "Příliš mnoho požadavků. Zkuste to prosím později." : payload.error || "Účet se nepodařilo založit.");
       }
 
-      setState("done");
+      setState(payload.held ? "held" : "done");
     } catch (signupError) {
       setState("error");
       setError(signupError instanceof Error ? signupError.message : "Účet se nepodařilo založit.");
@@ -70,12 +71,16 @@ export function SignupClient({
     );
   }
 
+  if (state === "held") {
+    return <p role="status" className="text-sm text-[#59616b]">Podání jsme uložili ke kontrole. Pracovní prostor zatím nebyl vytvořen.</p>;
+  }
+
   if (state === "done") {
     return (
       <div className="rounded-md border border-emerald-200 bg-emerald-50 p-5 text-sm font-semibold text-emerald-800">
         <div className="flex items-center gap-2">
           <CheckCircle2 size={18} />
-          Účet je připravený. Přihlašovací odkaz odejde na {email}.
+          Pracovní prostor je připravený. O přihlašovací odkaz můžete požádat na přihlášení.
         </div>
         <a className="mt-4 inline-flex rounded-md bg-[#11161c] px-4 py-3 text-white" href={`/login?email=${encodeURIComponent(email)}`}>
           Pokračovat na přihlášení

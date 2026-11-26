@@ -1,36 +1,24 @@
 import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
-import { rateLimitHeaders } from "@/lib/rate-limit";
-import { checkPublicAuthRateLimit } from "@/lib/public-auth-rate-limit";
+import { guardPublicEndpoint } from "@/lib/public-endpoint";
+import { receivePublicSubmission, markSubmissionProcessed } from "@/lib/public-submission";
 import { parseSignupInput, validationErrorResponse } from "@/lib/request-validation";
 import { createSignupWorkspace } from "@/lib/signup";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const limited = await guardPublicEndpoint(request);
+  if (limited) return limited;
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 
   try {
     const body = parseSignupInput(await readLimitedJson(request));
-    const limit = await checkPublicAuthRateLimit(request, {
-      scope: "signup",
-      target: body.email,
-      limit: 5,
-    });
-
-    if (!limit.allowed) {
-      return Response.json({ error: "Too many requests." }, { status: 429, headers: rateLimitHeaders(limit) });
-    }
-
-    const verification = await verifyTurnstileToken(request, body.turnstileToken);
-
-    if (!verification.ok) {
-      return Response.json({ error: "Verification failed." }, { status: 403 });
-    }
+    const submission = await receivePublicSubmission(request, "SIGNUP", body);
+    if (!submission.verified) return Response.json({ ok: true, held: true });
 
     const signup = await createSignupWorkspace({
       organizationName: body.organizationName,
@@ -38,6 +26,7 @@ export async function POST(request: Request) {
       email: body.email,
     });
 
+    await markSubmissionProcessed(submission.id);
     return Response.json(signup);
   } catch (error) {
     const validation = validationErrorResponse(error);

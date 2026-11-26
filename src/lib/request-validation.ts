@@ -153,7 +153,7 @@ export function parseSignupInput(value: unknown) {
     organizationName: text(body.organizationName, "organizationName", { required: true, max: 160 }),
     name: text(body.name, "name", { required: true, max: 120 }),
     email: text(body.email, "email", { required: true, max: 240 }).toLowerCase(),
-    turnstileToken: text(body.turnstileToken, "turnstileToken", { max: 2048 }),
+    ...parseAntispamInput(body),
   };
 }
 
@@ -162,7 +162,7 @@ export function parseLoginRequestInput(value: unknown) {
 
   return {
     email: text(body.email, "email", { required: true, max: 240 }).toLowerCase(),
-    turnstileToken: text(body.turnstileToken, "turnstileToken", { max: 2048 }),
+    ...parseAntispamInput(body),
   };
 }
 
@@ -171,7 +171,16 @@ export function parseInviteAcceptInput(value: unknown) {
 
   return {
     name: text(body.name, "name", { max: 120 }),
-    turnstileToken: text(body.turnstileToken, "turnstileToken", { max: 2048 }),
+    ...parseAntispamInput(body),
+  };
+}
+
+function parseAntispamInput(body: Record<string, unknown>) {
+  return {
+    // Invalid token shapes/lengths are an unverified signal, never a validation
+    // rejection. The body itself is bounded before parsing.
+    turnstileToken: typeof body.turnstileToken === "string" && body.turnstileToken.length <= 2048 ? body.turnstileToken.trim() : "",
+    adclare_guard: body.adclare_guard === undefined || body.adclare_guard === "" ? "" : "filled",
   };
 }
 

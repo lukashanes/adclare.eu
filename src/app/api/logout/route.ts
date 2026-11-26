@@ -2,11 +2,14 @@ import { discardLimitedBody } from "@/lib/request-limits";
 import { validationErrorResponse } from "@/lib/request-validation";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { deleteAppSession, serializeAppSessionClearCookie } from "@/lib/app-auth";
+import { guardPublicEndpoint } from "@/lib/public-endpoint";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const limited = await guardPublicEndpoint(request);
+  if (limited) return limited;
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }

@@ -73,7 +73,7 @@ check(packageJson.scripts["launch:preflight"] === "node scripts/production-prefl
 check(existsSync(resolve(root, "scripts/production-preflight.mjs")), "Production launch preflight script is missing.");
 check(packageJson.scripts["docker:check"].includes("--target preflight") && packageJson.scripts["docker:check"].includes("--target storage-check"), "Docker check should build launch support tool images.");
 check(instanceConfig.includes("logPendingEmailLink") && instanceConfig.includes('process.env.NODE_ENV === "production"'), "Local email link fallback should never log links in production.");
-check(appAuth.includes('logPendingEmailLink("Login"') && workspaceDb.includes('logPendingEmailLink("Invitation"'), "Missing Cloudflare email config should expose login and invitation links only through the local development console fallback.");
+check(appAuth.includes('logPendingEmailLink("Login"') && workspaceDb.includes('logPendingEmailLink("Invitation"'), "Missing Cloudflare email config may expose login links only through the local development console fallback.");
 check(readme.includes("npm run db:migrate") && !readme.includes("npm run db:migrate -- --name init"), "README Quick Start should apply existing migrations without creating a new init migration.");
 check(readme.indexOf("npm run db:seed") > readme.indexOf("Optional demo data for development"), "README should keep demo seed separate from the first-workspace Quick Start.");
 check(objectStorage.includes("ADCLARE_LOCAL_STORAGE_DIR") && objectStorage.includes("writeFile") && objectStorage.includes("readFile"), "Asset uploads should support local file storage for self-hosted installs without S3.");
@@ -118,9 +118,9 @@ check(workspaceDb.includes('status: "pending" as const'), "Transparency notice s
 check(transparencyPage.includes('notice.status === "pending"'), "Transparency page should handle unpublished QR links without exposing ad details.");
 check(transparencyPage.includes("Transparentní oznámení podle TTPA") && transparencyPage.includes("Veřejný záznam"), "Transparency page should present public TTPA notice structure.");
 check(transparencyPage.includes("Identifikace reklamy") && transparencyPage.includes("Financování") && transparencyPage.includes("Cílení"), "Transparency page should group public notice data for readers.");
-check(loginRoute.includes("verifyTurnstileToken"), "Login link route should verify Turnstile when configured.");
-check(inviteRoute.includes("verifyTurnstileToken") && inviteRoute.includes("isSameOriginRequest"), "Invite acceptance route should verify Turnstile and same-origin requests when configured.");
-check(signupRoute.includes("createSignupWorkspace") && signupRoute.includes("verifyTurnstileToken"), "Signup route should create a workspace and verify Turnstile when configured.");
+check(loginRoute.includes("receivePublicSubmission"), "Login link route should verify Turnstile when configured.");
+check(inviteRoute.includes("receivePublicSubmission") && inviteRoute.includes("isSameOriginRequest"), "Invite acceptance route should verify Turnstile and same-origin requests when configured.");
+check(signupRoute.includes("createSignupWorkspace") && signupRoute.includes("receivePublicSubmission"), "Signup route should create a workspace and verify Turnstile when configured.");
 check(!turnstileField.includes("process.env"), "Turnstile client component must receive the site key as a prop.");
 check(turnstileLib.includes("TURNSTILE_SITE_KEY"), "Turnstile site key should be readable from a server runtime variable.");
 check(schema.includes("model AdAsset"), "Ad asset storage model is missing.");

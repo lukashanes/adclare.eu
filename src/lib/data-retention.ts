@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   FORM_RETENTION_DAYS,
   RATE_LIMIT_RETENTION_DAYS,
+  SUSPICIOUS_RETENTION_DAYS,
   TECHNICAL_AUDIT_ACTIONS,
   TECHNICAL_RETENTION_DAYS,
   retentionCutoff,
@@ -20,6 +21,12 @@ export async function cleanupPersonalData(at?: Date) {
     const formCutoff = retentionCutoff(now, FORM_RETENTION_DAYS);
     const technicalCutoff = retentionCutoff(now, TECHNICAL_RETENTION_DAYS);
     const rateLimitCutoff = retentionCutoff(now, RATE_LIMIT_RETENTION_DAYS);
+
+    const submissions = await tx.publicSubmission.deleteMany({ where: { OR: [
+      { verification: "SUSPICIOUS", createdAt: { lte: retentionCutoff(now, SUSPICIOUS_RETENTION_DAYS) } },
+      { verification: { in: ["VERIFIED", "UNVERIFIED"] }, createdAt: { lte: formCutoff } },
+    ] } });
+    const emailQuotas = await tx.emailDailyQuota.deleteMany({ where: { updatedAt: { lte: technicalCutoff } } });
 
     // No status filter: pending, failed and successfully sent correspondence
     // expire alike. Retrying an invitation must not restart its retention.
@@ -59,6 +66,8 @@ export async function cleanupPersonalData(at?: Date) {
 
     return {
       skipped: false,
+      submissions: submissions.count,
+      emailQuotas: emailQuotas.count,
       emails: emails.count,
       invitations: invitations.count,
       emailDiagnostics: emailDiagnostics.count,

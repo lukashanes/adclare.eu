@@ -1,15 +1,16 @@
 import { readLimitedJson } from "@/lib/request-limits";
 import { isSameOriginRequest } from "@/lib/request-security";
 import { acceptInvitation, normalizeLocale } from "@/lib/workspace-db";
-import { rateLimitHeaders } from "@/lib/rate-limit";
-import { checkPublicAuthRateLimit } from "@/lib/public-auth-rate-limit";
+import { guardPublicEndpoint } from "@/lib/public-endpoint";
+import { receivePublicSubmission, markSubmissionProcessed } from "@/lib/public-submission";
 import { parseInviteAcceptInput, validationErrorResponse } from "@/lib/request-validation";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { params: Promise<{ token: string }> }) {
+  const limited = await guardPublicEndpoint(request);
+  if (limited) return limited;
   if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
@@ -20,21 +21,8 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   try {
     const body = parseInviteAcceptInput(await readLimitedJson(request));
     const decodedToken = decodeURIComponent(token);
-    const limit = await checkPublicAuthRateLimit(request, {
-      scope: "invite-accept",
-      target: decodedToken,
-      limit: 10,
-    });
-
-    if (!limit.allowed) {
-      return Response.json({ error: "Too many requests." }, { status: 429, headers: rateLimitHeaders(limit) });
-    }
-
-    const verification = await verifyTurnstileToken(request, body.turnstileToken);
-
-    if (!verification.ok) {
-      return Response.json({ error: "Verification failed." }, { status: 403 });
-    }
+    const submission = await receivePublicSubmission(request, "INVITE_ACCEPT", body, decodedToken);
+    if (!submission.verified) return Response.json({ ok: true, held: true });
 
     const notice = await acceptInvitation(decodedToken, body.name, locale);
 
@@ -42,6 +30,7 @@ export async function POST(request: Request, context: { params: Promise<{ token:
       return Response.json({ error: "Invitation cannot be accepted." }, { status: 409 });
     }
 
+    await markSubmissionProcessed(submission.id);
     return Response.json({ invitation: notice });
   } catch (error) {
     const validation = validationErrorResponse(error);

@@ -458,3 +458,35 @@ model RateLimitBucket {
   @@index([resetAt])
   @@map("rate_limit_buckets")
 }
+
+model PublicSubmission {
+  id                  String   @id @default(cuid())
+  kind                String
+  email               String   @default("")
+  name                String   @default("")
+  organizationName    String   @default("")
+  invitationTokenHash String   @default("")
+  verification        String
+  state               String   @default("HELD")
+  teamEmailStatus     String   @default("PENDING")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([verification, createdAt])
+  @@index([email, createdAt])
+  @@index([invitationTokenHash])
+  @@map("public_submissions")
+}
+
+model EmailDailyQuota {
+  day             String   @id
+  teamCount       Int      @default(0)
+  unverifiedCount Int      @default(0)
+  visitorCount    Int      @default(0)
+  alertClaimed    Boolean  @default(false)
+  alertStatus     String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("email_daily_quotas")
+}
