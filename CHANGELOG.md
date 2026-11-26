@@ -6,6 +6,12 @@ All notable changes for Adclare are summarized here.
 
 ### Upgrade notes
 
+- Geist Sans and Geist Mono are bundled from the pinned `geist` npm package;
+  builds no longer fetch fonts from Google. The lockfile retains optional
+  binaries for Linux glibc and musl, with regression checks in the test suite.
+- PR #22 still requires Docker verification and resolution of public read
+  endpoint limits and the scope of daily authentication email quotas before
+  merge. See `docs/overeni-pr-22-2026-11-26.md` for local evidence and decisions.
 - Apply migration `20261125120000_auth_log_retention` before starting the new
   `retention` service. With `docker-compose.prod.yml`, run the migrator tool
   explicitly before bringing up web and retention; that Compose file does not
