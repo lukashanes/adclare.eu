@@ -137,4 +137,3 @@ test("the SQL guard permits only expired technical deletes and deployment starts
   assert.match(await readFile("Dockerfile", "utf8"), /FROM migrator AS retention[\s\S]*?"--watch"/);
   assert.match(await readFile("docker-compose.yml", "utf8"), /retention:[\s\S]*?target: retention[\s\S]*?condition: service_completed_successfully/);
 });
-

@@ -6,6 +6,12 @@ All notable changes for Adclare are summarized here.
 
 ### Upgrade notes
 
+- Apply migration `20261125120000_auth_log_retention` before starting the new
+  `retention` service. With `docker-compose.prod.yml`, run the migrator tool
+  explicitly before bringing up web and retention; that Compose file does not
+  order them after migrations. The worker starts cleanup immediately and then
+  hourly. See `docs/retence-osobnich-udaju.md` for the three-year correspondence
+  policy and the separate customer archive.
 - Ingress must overwrite `X-Real-IP` with a verified client address and be the
   only path to the application. Behind another proxy, restore client addresses
   only from trusted proxy ranges; see `docs/self-hosting.md`. Public auth uses

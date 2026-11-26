@@ -34,4 +34,3 @@ export async function checkPublicAuthRateLimit(request: Request, options: {
     windowMs,
   });
 }
-
