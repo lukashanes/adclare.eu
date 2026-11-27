@@ -46,3 +46,17 @@ test("Linux glibc and musl build binaries have pinned versions and integrity", (
   }
 });
 
+test("Windows x64 build binaries have pinned versions and integrity", () => {
+  for (const name of [
+    "@next/swc-win32-x64-msvc",
+    "@tailwindcss/oxide-win32-x64-msvc",
+    "@img/sharp-win32-x64",
+    "@esbuild/win32-x64",
+  ]) {
+    const dependency = lock.packages[`node_modules/${name}`];
+    assert.ok(dependency?.version && dependency.integrity, name);
+    assert.ok(dependency.os?.includes("win32"), name);
+    assert.ok(dependency.cpu?.includes("x64"), name);
+  }
+});
+
